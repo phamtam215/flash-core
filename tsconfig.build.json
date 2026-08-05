@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // TypeScript 6 yêu cầu khai báo rootDir tường minh khi suy ra được một thư mục gốc
+    // chung. Đặt ở đây (không ở tsconfig.json) vì tsconfig.json còn bao cả `test/`, nằm
+    // ngoài `src` — khai báo rootDir ở đó sẽ làm typecheck test bị lỗi.
+    "rootDir": "./src"
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "test",
+    "prisma.config.ts",
+    "**/*.spec.ts",
+    "**/*.e2e-spec.ts"
+  ]
+}

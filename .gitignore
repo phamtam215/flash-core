@@ -137,3 +137,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Claude Code — settings riêng của máy, không commit
+.claude/settings.local.json
+
+# Prisma Client được generate vào src/, không commit — chạy `npm run db:generate`
+src/generated/

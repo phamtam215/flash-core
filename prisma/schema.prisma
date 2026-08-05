@@ -1,0 +1,42 @@
+// Schema Prisma của Flash-Core (Prisma 7).
+//
+// Khác biệt quan trọng của Prisma 7 so với các bản trước (v6 và tài liệu cũ trên mạng):
+//   1. `datasource` KHÔNG còn chứa `url` — connection string chuyển sang `prisma.config.ts`.
+//   2. `PrismaClient` phải nhận một **driver adapter** (ở đây là `@prisma/adapter-pg`,
+//      dùng thư viện `pg`) thay vì tự quản kết nối bằng Rust engine.
+//   3. Generator là `prisma-client` (không phải `prisma-client-js`) và cần `output`
+//      tường minh → code sinh ra nằm trong repo, không nằm trong node_modules.
+//
+// Điểm (2) hoá ra là điều TỐT cho dự án này: connection pool giờ là `pg.Pool` do mình cấu
+// hình, nên số connection trở thành thứ nhìn thấy và điều chỉnh được — đúng bài toán của
+// Phase 3 (pool cạn khi pessimistic lock) và Phase 6 (Neon pooler).
+//
+// Phase 0 cố tình CHƯA có model nghiệp vụ: bảng sản phẩm / biến thể SKU / tồn kho / đơn
+// hàng thuộc Phase 2–3 và phải có spec trong docs/specs/ trước khi thiết kế.
+//
+// Ghi chú cho phase sau:
+// - Tồn kho theo SKU biến thể (size × màu) — quyết định #2 trong project-context.md.
+// - Tiền lưu Int (VND, không phần thập phân). Không dùng Float cho tiền.
+// - `CHECK (stock >= 0)` phải viết bằng migration raw SQL (Prisma không có API cho check
+//   constraint). Đó là lưới an toàn cuối chống oversell.
+// - `SELECT ... FOR UPDATE` cũng phải dùng `$queryRaw` trong `$transaction` interactive.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Bảng kỹ thuật duy nhất của Phase 0: để `prisma generate` có model mà sinh client, và
+/// để integration test có thứ thật để ghi/đọc khi kiểm chứng kết nối DB.
+/// Phase 5 sẽ dùng lại nó để lưu mốc kiểm tra readiness.
+model HealthProbe {
+  id        String   @id @default(uuid()) @db.Uuid
+  checkedAt DateTime @default(now()) @map("checked_at")
+
+  @@map("health_probe")
+}

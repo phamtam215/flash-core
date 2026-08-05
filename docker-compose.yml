@@ -1,0 +1,56 @@
+# Môi trường local cho Flash-Core. Phiên bản Postgres/Redis khớp production (Neon dùng
+# Postgres 16, Upstash tương thích Redis 7) — test trên phiên bản khác rồi deploy là để
+# dành lỗi cho môi trường thật.
+#
+# `healthcheck` không phải trang trí: `depends_on: condition: service_healthy` cần nó để
+# app không khởi động trước khi DB sẵn sàng. Thiếu bước này, migration lúc `up` sẽ fail
+# ngẫu nhiên tuỳ máy nhanh chậm.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flashcore-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flashcore
+      POSTGRES_PASSWORD: flashcore
+      POSTGRES_DB: flashcore
+      # Tắt fsync để test/seed nhanh hơn nhiều. CHỈ an toàn ở local — mất điện là mất dữ
+      # liệu. Đây cũng là lý do số đo throughput local không dịch thẳng sang production.
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    command:
+      - postgres
+      - -c
+      - max_connections=200 # đủ chỗ cho benchmark 1.000 VU ở Phase 3
+      - -c
+      - log_min_duration_statement=200 # log query chậm > 200ms để soi ở Phase 2
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U flashcore -d flashcore']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: flashcore-redis
+    restart: unless-stopped
+    # noeviction: tồn kho trong Redis (chiến lược C ở Phase 3) KHÔNG được phép bị evict.
+    # Một key tồn kho bị xoá giữa đợt sale là bán vượt.
+    command: ['redis-server', '--maxmemory', '256mb', '--maxmemory-policy', 'noeviction', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:

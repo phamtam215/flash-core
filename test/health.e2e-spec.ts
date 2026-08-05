@@ -1,0 +1,97 @@
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { Test, type TestingModule } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+
+import { AppModule } from '../src/app.module';
+
+/**
+ * Integration test đầu tiên của dự án: bật app thật, nối vào **Postgres thật** trong
+ * Docker, rồi gọi HTTP thật.
+ *
+ * Vì sao không mock DB ở đây: mục đích của test này chính là chứng minh chuỗi
+ * cấu hình → pg.Pool → Prisma adapter → Postgres hoạt động đầu-cuối. Mock đi thì test còn
+ * lại đúng thứ nó không cần kiểm tra.
+ *
+ * Dùng `postgres:16-alpine` khớp docker-compose.yml và khớp Neon (Phase 6) — test trên
+ * phiên bản khác rồi deploy là để dành lỗi cho môi trường thật.
+ *
+ * Chạy: `npm run test:int` (cần Docker đang bật; lần đầu sẽ pull image nên chậm).
+ */
+describe('Health (e2e)', () => {
+  let container: StartedPostgreSqlContainer;
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    container = await new PostgreSqlContainer('postgres:16-alpine')
+      .withDatabase('flashcore')
+      .withUsername('flashcore')
+      .withPassword('flashcore')
+      .start();
+
+    // App đọc cấu hình từ process.env qua Zod, nên trỏ nó vào container vừa dựng.
+    // Không cần migration: readiness chỉ chạy `SELECT 1`, chưa cần bảng nào. Migration sẽ
+    // xuất hiện ở Phase 2 cùng với model nghiệp vụ đầu tiên.
+    process.env.DATABASE_URL = container.getConnectionUri();
+    process.env.REDIS_URL = 'redis://localhost:6379';
+    process.env.NODE_ENV = 'test';
+    process.env.LOG_LEVEL = 'error';
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    await app.init();
+  }, 180_000);
+
+  afterAll(async () => {
+    await app?.close();
+    await container?.stop();
+  });
+
+  describe('GET /health (liveness)', () => {
+    it('trả 200 và uptime', async () => {
+      const res = await request(app.getHttpServer()).get('/health').expect(200);
+
+      expect(res.body).toMatchObject({ status: 'ok' });
+      expect(typeof res.body.uptimeSeconds).toBe('number');
+    });
+
+    it('trả về correlationId trong response header', async () => {
+      const res = await request(app.getHttpServer()).get('/health').expect(200);
+
+      expect(res.headers['x-correlation-id']).toBeDefined();
+    });
+
+    it('giữ nguyên correlationId do client gửi lên', async () => {
+      // Đây là điều kiện để nối được log của một request đi qua nhiều thành phần —
+      // deliverable của Phase 5.
+      const given = 'test-correlation-id-123';
+
+      const res = await request(app.getHttpServer())
+        .get('/health')
+        .set('x-correlation-id', given)
+        .expect(200);
+
+      expect(res.headers['x-correlation-id']).toBe(given);
+    });
+  });
+
+  describe('GET /ready (readiness)', () => {
+    it('trả 200 khi Postgres còn sống', async () => {
+      const res = await request(app.getHttpServer()).get('/ready').expect(200);
+
+      expect(res.body).toEqual({ ready: true, checks: { database: 'up' } });
+    });
+  });
+
+  describe('GET /khong-ton-tai', () => {
+    it('lỗi đi qua exception filter chung: có code và correlationId', async () => {
+      const res = await request(app.getHttpServer()).get('/khong-ton-tai').expect(404);
+
+      expect(res.body.code).toBe('HTTP_ERROR');
+      expect(res.body.correlationId).toBeDefined();
+    });
+  });
+});

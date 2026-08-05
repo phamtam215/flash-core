@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "module": "node16",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    // TypeScript 6 đã deprecate "node" (node10). "node16" tôn trọng `exports` map trong
+    // package.json của thư viện — đúng cách các package hiện đại muốn được resolve.
+    "moduleResolution": "node16",
+    "outDir": "./dist",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    // Khai báo tường minh các package type toàn cục được nạp. Không dựa vào cơ chế tự động
+    // quét toàn bộ node_modules/@types: nó chậm và khiến type xuất hiện/biến mất tuỳ vào
+    // dependency nào tình cờ được cài kèm.
+    "types": ["node", "jest"],
+    "sourceMap": true,
+    "declaration": false,
+    "incremental": true,
+    // Đặt tsbuildinfo BÊN TRONG dist. Nếu để ngoài, `nest build` (deleteOutDir: true) sẽ
+    // xoá dist nhưng tsbuildinfo vẫn còn → tsc tưởng đã build rồi nên không emit gì, exit
+    // 0, và dist rỗng. Lỗi im lặng rất khó đoán, nên buộc hai thứ sống chết cùng nhau.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // CLAUDE.md yêu cầu strict mode. Ba cờ dưới `strict` được bật tường minh vì chúng là
+    // thứ hay bị tắt đầu tiên khi gặp lỗi khó — ghi rõ ra để biết là có chủ đích.
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Giữ code sạch: biến/tham số không dùng là dấu hiệu code chết hoặc refactor nửa vời.
+    // Tham số bắt đầu bằng `_` được miễn (dùng khi phải khớp signature của interface).
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "prisma.config.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

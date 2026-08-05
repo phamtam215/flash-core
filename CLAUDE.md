@@ -19,6 +19,10 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
   đúng các thuật ngữ trong file này để Tâm quen dần với từ vựng chuẩn.
 - `docs/git-workflow.md` — quy chuẩn nhánh, commit message, và **quy tắc AI không
   push trước khi Tâm review**. Dùng `/commit` để tạo commit đúng chuẩn.
+- `project-context.md` — nhật ký quyết định: **vì sao** chọn thế này và **những gì đã
+  bị loại bỏ có chủ đích**. Đọc trước khi đề xuất bất cứ thay đổi kiến trúc nào.
+- `docs/claude-guide.md` — hướng dẫn dùng bộ công cụ Claude Code của repo: lệnh nào
+  dùng khi nào, skill nào tự chạy lúc nào, hook nào chặn cái gì.
 
 ## Tech stack (đã chốt — không tự ý đổi)
 - **NestJS + TypeScript** (strict mode), validation bằng **Zod** (không dùng class-validator)
@@ -58,6 +62,48 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 - Không chạy load test / seed dữ liệu lớn lên môi trường cloud (free tier).
 - Không hardcode secret; dùng env qua config module có validate bằng Zod.
 
+## Bộ công cụ Claude Code (chi tiết ở `docs/claude-guide.md`)
+
+**Skill** (tự kích hoạt, không cần gọi tay) — `.claude/skills/`:
+`feature-spec` · `adr-writer` · `review-gate` · `phase-journal` · `essence-explainer` ·
+`nestjs-module` · `concurrency-oversell` ⭐ · `queue-payment-reliability` ·
+`db-postgres-performance` · `test-contract`
+
+**Slash command** — `/spec` · `/adr` · `/review-gate` · `/commit` · `/journal` ·
+`/quiz` (bị kiểm tra ngược) · `/phase-status`
+
+**Hook** (`.claude/settings.json` → `.claude/hooks/`) — enforce luật tự động, không trông
+vào việc AI tự nhớ:
+- `git push` bị **chặn cứng** → chỉ Tâm push, sau khi review.
+- Commit message sai chuẩn hoặc thiếu thân "vì sao" → **chặn**.
+- `k6 run` / seed / `migrate reset` khi biến kết nối trỏ ra cloud → **chặn** (FinOps).
+- Cài package đã bị loại có chủ đích → **chặn**; package lạ → **hỏi Tâm** (không tự thêm).
+- Ghi vào `.env` hoặc hardcode secret → **chặn / hỏi**.
+- Đầu mỗi phiên: tự nạp trạng thái phase, số spec/ADR, việc treo.
+
+Nếu một hook chặn, **đừng tìm cách lách** — dừng lại và báo Tâm.
+
+**Agent** — `code-reviewer`: reviewer độc lập chỉ đọc không sửa. Dùng khi diff lớn hoặc
+chạm phần nguy hiểm (trừ tồn kho, transaction, webhook, auth).
+
+**MCP** — Context7 bật sẵn (tra tài liệu đúng phiên bản NestJS/Prisma/BullMQ/Zod).
+Postgres MCP bật ở Phase 2, Playwright MCP ở Phase 3. Xem `docs/mcp-setup.md`.
+
+## Ghi chú kỹ thuật đã chốt ở Phase 0 (khác tài liệu cũ trên mạng)
+- **Prisma 7**: `datasource.url` KHÔNG còn trong `schema.prisma` — nằm ở `prisma.config.ts`.
+  `PrismaClient` phải nhận driver adapter (`@prisma/adapter-pg` bọc `pg.Pool`).
+  Prisma Client được generate vào `src/generated/prisma`, không phải node_modules.
+- **TypeScript 6** (không dùng TS 7 vì `ts-jest` chưa hỗ trợ). `module`/`moduleResolution`
+  = `node16`, và `types` khai báo tường minh trong tsconfig.
+- **Không dùng path alias `@/`** — `nest build` không rewrite alias. Dùng import tương đối.
+- Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
+
 ## Trạng thái hiện tại
 - Phase hiện tại: **Phase 0 — Nền móng** (xem docs/SPEC.md)
+- Đã xong: skeleton NestJS + config Zod + Pino/correlationId + exception filter +
+  Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI. 11/11 unit test pass,
+  lint/typecheck/build sạch.
+- **Còn nợ:** chạy `npm run test:int` (4 integration test đã viết, chưa chạy lần nào vì
+  Docker daemon chưa bật lúc setup); viết ADR cho các quyết định ở
+  `docs/specs/phase0-nen-mong.md` mục cuối.
 - Cập nhật mục này mỗi khi hoàn thành một phase.

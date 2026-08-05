@@ -1,0 +1,57 @@
+# CI của Phase 0: lint + typecheck + unit test. Mục tiêu là `main` luôn xanh
+# (docs/git-workflow.md §1).
+#
+# Integration test (Testcontainers) CHƯA chạy trên CI ở phase này — sẽ bật ở Phase 3 khi
+# đã có test concurrency thật. Lý do hoãn: dựng container trên runner làm CI chậm gấp
+# nhiều lần, và ở Phase 0 chưa có gì để test trên DB thật ngoài kết nối.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint · Typecheck · Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Prisma Client được generate vào src/generated/, không commit → phải generate trước
+      # khi typecheck, nếu không tsc sẽ không tìm thấy type của PrismaClient.
+      #
+      # DATABASE_URL cần có mặt vì `prisma.config.ts` đọc nó qua `env()`. `generate` không
+      # thực sự kết nối DB, nên một URL giả là đủ — nhưng phải hợp lệ về cú pháp.
+      - name: Generate Prisma Client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit test
+        run: npm test -- --coverage
+
+      - name: Build
+        run: npm run build
