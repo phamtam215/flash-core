@@ -1,0 +1,63 @@
+# Flash-Core — Săn Flash Sale Áo Thun
+
+## Dự án này là gì
+API Engine cho hệ thống săn flash sale áo thun, kiến trúc **Modular Monolith**.
+Nghiệp vụ: các đợt sale mở đúng giờ, mẫu áo hot số lượng giới hạn **theo từng SKU
+biến thể (size × màu)**, hàng nghìn user cùng bấm "Săn ngay" → bài toán cốt lõi là
+concurrency (oversell = 0), async/queue, payment webhook, observability.
+
+**Mục đích thật của dự án:** chủ repo (Tâm) dùng dự án để học bản chất hệ thống lớn
+và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết định. Vì vậy:
+**code phải dễ đọc, dễ giải thích — ưu tiên rõ ràng hơn thông minh.**
+
+## Tài liệu bắt buộc đọc
+- `docs/SPEC.md` — spec gốc: 7 phase, deliverable, Definition of Done
+- `docs/specs/` — spec chi tiết từng tính năng (viết trước khi code)
+- `docs/adr/` — các quyết định kiến trúc đã chốt
+- `docs/review-checklist.md` — checklist Tâm dùng để review code của bạn
+- `docs/glossary.md` — từ điển khái niệm của dự án. Khi giải thích, ưu tiên dùng
+  đúng các thuật ngữ trong file này để Tâm quen dần với từ vựng chuẩn.
+- `docs/git-workflow.md` — quy chuẩn nhánh, commit message, và **quy tắc AI không
+  push trước khi Tâm review**. Dùng `/commit` để tạo commit đúng chuẩn.
+
+## Tech stack (đã chốt — không tự ý đổi)
+- **NestJS + TypeScript** (strict mode), validation bằng **Zod** (không dùng class-validator)
+- **PostgreSQL 16** + **Prisma** (pessimistic lock dùng `$queryRaw` trong interactive transaction)
+- **Redis + BullMQ** (queue, delayed jobs, DLQ), Lua script cho atomic decrement
+- **Jest + Supertest + Testcontainers** (integration test chạy trên Postgres/Redis thật)
+- **k6** cho load test (chạy LOCAL, không bắn lên cloud)
+- **Docker Compose** cho local, deploy **GCP Cloud Run** (region us-central1, free tier) + Neon Postgres + Upstash Redis
+- Auth: Argon2, Access + Refresh Token (HttpOnly Cookie), Refresh Token Rotation
+
+## Quy trình làm việc (bắt buộc)
+1. **Không có spec → không code.** Tính năng mới phải có file trong `docs/specs/`
+   theo `docs/templates/feature-spec-template.md`. Nếu Tâm yêu cầu code mà chưa có
+   spec, hãy đề nghị viết spec trước (bạn có thể draft, Tâm duyệt).
+2. **Test là hợp đồng.** Viết test theo danh sách test case trong spec TRƯỚC hoặc
+   cùng lúc với implement. Mọi test phải pass trước khi coi là xong.
+3. **Quyết định kiến trúc → tạo ADR** trong `docs/adr/` theo template (5–10 dòng).
+4. **Sau khi hoàn thành một tính năng**, tóm tắt luồng chạy bằng lời (5–10 câu,
+   tiếng Việt) để Tâm dùng cho bước tự kiểm tra "câu hỏi bản chất".
+5. **Giải thích khi được hỏi.** Khi Tâm hỏi "vì sao", trả lời ở mức bản chất
+   (trade-off, cơ chế bên dưới), không chỉ mô tả code làm gì.
+
+## Convention code
+- Cấu trúc module NestJS: `src/modules/<tên-module>/` gồm controller, service,
+  repository, dto (Zod schema), spec test. Module không import trực tiếp
+  service của module khác — chỉ qua public interface được export.
+- Tiền tệ: lưu số nguyên (VND, không có phần thập phân). Không dùng float cho tiền.
+- Mọi API ghi (POST/PUT) liên quan đơn hàng phải nhận `Idempotency-Key` header.
+- Log bằng Pino, JSON, luôn kèm `correlationId`. Không log dữ liệu nhạy cảm
+  (password, token, số thẻ).
+- Lỗi: dùng exception filter thống nhất, không nuốt lỗi (không có catch rỗng).
+- Transaction boundary phải hẹp nhất có thể; không gọi API ngoài trong transaction.
+
+## Điều cấm
+- Không thêm công nghệ mới (Kafka, K8s, microservices...) — nếu thấy cần, đề xuất
+  qua ADR để Tâm quyết, không tự thêm.
+- Không chạy load test / seed dữ liệu lớn lên môi trường cloud (free tier).
+- Không hardcode secret; dùng env qua config module có validate bằng Zod.
+
+## Trạng thái hiện tại
+- Phase hiện tại: **Phase 0 — Nền móng** (xem docs/SPEC.md)
+- Cập nhật mục này mỗi khi hoàn thành một phase.

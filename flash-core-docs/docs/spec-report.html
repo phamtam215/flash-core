@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flash-Core v2 — Đặc tả & Lộ trình Dự án</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        .gradient-text { background: linear-gradient(to right, #2563eb, #14b8a6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); padding: 2rem; margin-bottom: 2rem; border-top: 4px solid #3b82f6; }
+        .phase { border-left: 4px solid #14b8a6; background: #f0fdfa; border-radius: 0.5rem; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+        .phase h4 { font-weight: 700; color: #0f766e; }
+        .qbox { background: #fefce8; border: 1px solid #fde047; border-radius: 0.5rem; padding: 0.75rem 1rem; margin-top: 0.75rem; font-size: 0.875rem; }
+        .tag { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 9999px; margin-right: 0.35rem; }
+        .tag-core { background: #dbeafe; color: #1e40af; }
+        .tag-cv { background: #fee2e2; color: #b91c1c; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        th, td { border: 1px solid #e2e8f0; padding: 0.6rem 0.75rem; text-align: left; vertical-align: top; }
+        th { background: #f1f5f9; font-weight: 600; }
+        @media print {
+            body { background-color: white; }
+            .no-print { display: none; }
+            .card { box-shadow: none; border: 1px solid #e2e8f0; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="antialiased p-4 md:p-8">
+
+<div class="max-w-4xl mx-auto">
+
+    <!-- Header -->
+    <header class="mb-10 text-center relative">
+        <div class="absolute top-0 right-0 no-print">
+            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">Tải PDF / In</button>
+        </div>
+        <h1 class="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">Dự án <span class="gradient-text">Flash-Core</span> <span class="text-2xl align-top text-teal-600 font-bold">v2</span></h1>
+        <p class="text-xl text-gray-600 font-medium">Săn Flash Sale Áo Thun — High-Performance E-commerce Engine</p>
+        <p class="mt-4 text-sm text-gray-500">Định hướng: Backend Middle → Senior | Kiến trúc: Modular Monolith | Quy trình: AI-assisted, Human-controlled</p>
+    </header>
+
+    <!-- 1. Motivation -->
+    <section class="card">
+        <h2 class="text-2xl font-bold mb-4 text-slate-800">1. Nguyên nhân &amp; Động lực</h2>
+        <div class="space-y-4 text-gray-700 leading-relaxed">
+            <p>Hầu hết pet project của Junior dừng ở mức <strong>CRUD</strong>. Flash-Core giải quyết các bài toán Production thật, và quan trọng hơn: <strong>chứng minh bằng số liệu đo được</strong>, không chỉ bằng lời mô tả.</p>
+            <ul class="list-disc pl-6 space-y-2">
+                <li><strong>Concurrency:</strong> 1.000 người cùng mua 10 sản phẩm — làm sao oversell = 0? Không chỉ làm 1 cách, mà <strong>so sánh 3 chiến lược</strong> và benchmark.</li>
+                <li><strong>Async &amp; Reliability:</strong> tác vụ nặng đẩy xuống Queue, có retry, có Dead Letter Queue, có Outbox pattern để không mất message.</li>
+                <li><strong>Observability:</strong> hệ thống phải "kể" được nó đang làm gì — log có cấu trúc, correlation ID, metrics, health check.</li>
+                <li><strong>FinOps:</strong> kiến trúc chuẩn Production (DB riêng, Cache riêng, Queue riêng) nhưng chi phí ~0đ nhờ free tier (GCP Cloud Run + Neon + Upstash).</li>
+                <li><strong>AI-era Engineering:</strong> AI viết phần lớn code — con người viết spec, review, viết test, ra quyết định kiến trúc. Dự án này là nơi luyện đúng kỹ năng đó.</li>
+            </ul>
+            <p class="font-semibold text-blue-700 mt-4">🎯 Mục tiêu: một "Masterpiece" mà mỗi dòng trên CV đều có bằng chứng kèm theo (benchmark report, test coverage, ADR, sơ đồ kiến trúc).</p>
+        </div>
+    </section>
+
+    <!-- 2. Project idea -->
+    <section class="card">
+        <h2 class="text-2xl font-bold mb-4 text-slate-800">2. Ý tưởng Dự án</h2>
+        <div class="space-y-4 text-gray-700 leading-relaxed">
+            <p>Flash-Core là hệ thống <strong>săn flash sale áo thun</strong> theo kiến trúc <strong>Modular Monolith</strong>: mỗi đợt sale mở đúng giờ, các mẫu áo hot giảm giá sâu với số lượng cực giới hạn <strong>theo từng biến thể size × màu</strong> (ví dụ: mẫu "Đà Nẵng Rider" size L đen chỉ còn 5 chiếc). Hàng nghìn người canh giờ cùng bấm "Săn ngay" — đúng kịch bản tạo ra tranh chấp dữ liệu gắt nhất. Luồng nghiệp vụ: đăng nhập → xem sự kiện sale với đếm ngược &amp; tồn kho realtime → chọn size/màu, săn hàng → đơn Pending giữ chỗ 15 phút → thanh toán qua <strong>cổng sandbox (VNPay sandbox / Stripe test mode)</strong>, webhook xác nhận thành Completed, quá hạn tự hủy và trả hàng về kho. Giá trị cốt lõi nằm ở Backend; FE tối giản do AI đảm nhiệm 100% chỉ để trực quan hóa (xem mục 6).</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 class="font-bold text-blue-600">Auth &amp; Security Module</h4>
+                    <p class="text-sm mt-1">Argon2, Access + Refresh Token (HttpOnly Cookie), <strong>Refresh Token Rotation</strong> chống token theft, Rate Limiting chống brute-force.</p>
+                </div>
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 class="font-bold text-blue-600">Product &amp; Inventory Module</h4>
+                    <p class="text-sm mt-1">Áo thun với biến thể size (S–XXL) × màu lưu bằng JSONB + GIN index; <strong>tồn kho quản lý theo từng SKU biến thể</strong> — kho càng chia nhỏ, tranh chấp càng thực tế. Cursor pagination, đọc query plan bằng <code>EXPLAIN ANALYZE</code>.</p>
+                </div>
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 class="font-bold text-blue-600">Order &amp; Concurrency Module ⭐</h4>
+                    <p class="text-sm mt-1">Trái tim dự án: 3 chiến lược chống oversell (Optimistic / Pessimistic / Redis atomic), <strong>Idempotency Key</strong> chống double-order, Snapshot Price, ACID transaction, isolation levels.</p>
+                </div>
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 class="font-bold text-blue-600">Async &amp; Notification Module</h4>
+                    <p class="text-sm mt-1">BullMQ: gửi email, <strong>tự hủy đơn quá 15 phút chưa thanh toán</strong> (delayed job), retry exponential backoff, DLQ, Outbox pattern.</p>
+                </div>
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 class="font-bold text-blue-600">Observability Module</h4>
+                    <p class="text-sm mt-1">Pino structured logging, correlation ID xuyên suốt request → queue, /health &amp; /ready endpoint, Prometheus metrics, graceful shutdown.</p>
+                </div>
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 class="font-bold text-blue-600">Load Testing &amp; Evidence</h4>
+                    <p class="text-sm mt-1">Kịch bản k6 mô phỏng flash sale, báo cáo so sánh throughput / latency / error rate giữa các chiến lược locking. Đây là <strong>bằng chứng cho CV</strong>.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Tech stack -->
+    <section class="card">
+        <h2 class="text-2xl font-bold mb-4 text-slate-800">3. Tech Stack &amp; Lý do chọn</h2>
+        <div class="text-gray-700 leading-relaxed space-y-4">
+            <p>Tiêu chí: tận dụng nền tảng sẵn có (Node.js, Prisma, GCP) nhưng <strong>cố tình mở rộng</strong> ở những chỗ đáng học nhất.</p>
+            <table>
+                <tr><th>Lớp</th><th>Công nghệ</th><th>Lý do (và điểm học được)</th></tr>
+                <tr><td>Framework</td><td><strong>NestJS + TypeScript</strong></td><td>Ép cấu trúc module rõ ràng — nền tảng lý tưởng cho Modular Monolith. Học DI, Guard, Interceptor, Pipe ở mức bản chất.</td></tr>
+                <tr><td>Validation</td><td><strong>Zod</strong></td><td>Schema-first, dùng chung schema cho validate + type inference — hiểu khái niệm "single source of truth".</td></tr>
+                <tr><td>Database</td><td><strong>PostgreSQL</strong></td><td>Giữ Postgres thay vì MySQL quen thuộc: học JSONB, GIN index, <code>SELECT ... FOR UPDATE SKIP LOCKED</code>, isolation levels — đồng thời mở rộng skill so với MySQL ở công ty.</td></tr>
+                <tr><td>ORM</td><td><strong>Prisma</strong></td><td>Đã quen ở công ty → tập trung vào phần khó: interactive transactions, và <strong>giới hạn của Prisma</strong> (pessimistic lock phải dùng <code>$queryRaw</code>) — bài học "khi nào ORM không đủ".</td></tr>
+                <tr><td>Cache/Queue</td><td><strong>Redis + BullMQ</strong></td><td>Atomic operations (Lua script), delayed jobs, DLQ. Hiểu at-least-once delivery và idempotent consumer.</td></tr>
+                <tr><td>Testing</td><td><strong>Jest + Supertest + Testcontainers</strong></td><td>Integration test chạy trên Postgres/Redis thật (Docker). Test là hợp đồng để kiểm soát code do AI viết.</td></tr>
+                <tr><td>Load test</td><td><strong>k6</strong></td><td>Tạo evidence: kịch bản 1.000 VU tranh mua, đo p95 latency, verify oversell = 0.</td></tr>
+                <tr><td>CI/CD</td><td><strong>GitHub Actions</strong></td><td>Lint → Test → Build → Deploy. Kỹ năng deploy sẵn có ở AMS, nay tự thiết kế pipeline từ đầu.</td></tr>
+                <tr><td>Deploy</td><td><strong>GCP Cloud Run + Neon (Postgres) + Upstash (Redis)</strong></td><td>Tận dụng background GCP. Free tier toàn bộ → FinOps thật. Học cold start, autoscaling, secret management.</td></tr>
+                <tr><td>Local</td><td><strong>Docker Compose</strong></td><td>Một lệnh dựng toàn bộ môi trường: app + Postgres + Redis.</td></tr>
+            </table>
+        </div>
+    </section>
+
+    <!-- 4. AI-era workflow -->
+    <section class="card" style="border-top-color:#8b5cf6">
+        <h2 class="text-2xl font-bold mb-4 text-slate-800">4. Quy trình làm việc với AI — "AI code, tôi control"</h2>
+        <div class="text-gray-700 leading-relaxed space-y-4">
+            <p>Đây là phần khác biệt lớn nhất so với pet project truyền thống. Vai trò của Tâm không phải là gõ code, mà là <strong>Kiến trúc sư kiêm Reviewer</strong>. Quy trình cho mỗi tính năng:</p>
+            <table>
+                <tr><th style="width:22%">Bước</th><th>Ai làm</th><th>Nội dung</th></tr>
+                <tr><td><strong>1. Spec</strong></td><td>Tâm</td><td>Viết spec ngắn theo template: mục tiêu, input/output, edge cases, tiêu chí chấp nhận. Không có spec → không code.</td></tr>
+                <tr><td><strong>2. Test case</strong></td><td>Tâm định nghĩa, AI viết</td><td>Liệt kê các test case phải pass (kể cả case ác ý: gọi API 2 lần cùng idempotency key, 100 request song song…). Test là hợp đồng.</td></tr>
+                <tr><td><strong>3. Implement</strong></td><td>AI (Claude Code)</td><td>Code theo spec, tuân thủ CLAUDE.md của repo (convention, cấu trúc module).</td></tr>
+                <tr><td><strong>4. Review</strong></td><td>Tâm</td><td>Review theo checklist: transaction boundary đúng chưa? lỗi nào bị nuốt? log đủ chưa? N+1 query? <strong>Quy tắc vàng: không merge code mà mình không giải thích lại được luồng chạy.</strong></td></tr>
+                <tr><td><strong>5. ADR</strong></td><td>Tâm</td><td>Mỗi quyết định kiến trúc → 1 file ADR 5–10 dòng (bối cảnh, lựa chọn, trade-off). Cuối dự án có ~10 ADR = tài liệu phỏng vấn cực mạnh.</td></tr>
+                <tr><td><strong>6. Tự kiểm tra</strong></td><td>Tâm</td><td>Trả lời các "câu hỏi bản chất" của phase (xem lộ trình bên dưới) mà không nhìn code. Chưa trả lời được → chưa qua phase.</td></tr>
+            </table>
+            <p class="text-sm text-purple-700 font-medium">💡 Chính quy trình này (spec-driven, review checklist, ADR) là thứ Tâm có thể mang lên CV và cả seminar nội bộ: "cách kiểm soát chất lượng code do AI sinh ra".</p>
+        </div>
+    </section>
+
+    <!-- 5. Roadmap -->
+    <section class="card" style="border-top-color:#14b8a6">
+        <h2 class="text-2xl font-bold mb-4 text-slate-800">5. Lộ trình 7 Phase (~10–12 tuần, mỗi tuần 3–4 buổi tối)</h2>
+
+        <div class="phase">
+            <h4>Phase 0 — Nền móng &amp; Quy trình AI (1 tuần)</h4>
+            <p class="text-sm mt-1">Repo + Docker Compose (Postgres, Redis) + NestJS skeleton + Prisma + CI (lint, test). Viết CLAUDE.md, template Spec/ADR, review checklist.</p>
+            <p class="text-sm mt-1"><span class="tag tag-core">Deliverable</span> <code>docker compose up</code> chạy được toàn bộ; CI xanh trên GitHub.</p>
+            <div class="qbox">🧠 Câu hỏi bản chất: Modular Monolith khác Microservices chỗ nào? Vì sao dự án 1 người KHÔNG nên làm microservices? Ranh giới module được enforce bằng gì trong NestJS?</div>
+        </div>
+
+        <div class="phase">
+            <h4>Phase 1 — Auth &amp; Security (1–1.5 tuần)</h4>
+            <p class="text-sm mt-1">Đăng ký/đăng nhập với Argon2, Access Token (15 phút) + Refresh Token (7 ngày) qua HttpOnly Cookie, Refresh Token Rotation, rate limiting login.</p>
+            <p class="text-sm mt-1"><span class="tag tag-core">Deliverable</span> Bộ integration test cho toàn bộ luồng auth, kể cả case token bị đánh cắp và reuse.</p>
+            <div class="qbox">🧠 Vì sao Argon2 tốt hơn bcrypt? HttpOnly Cookie chống XSS thế nào, và vì sao vẫn phải lo CSRF? Refresh Token Rotation phát hiện token theft ra sao?</div>
+        </div>
+
+        <div class="phase">
+            <h4>Phase 2 — Product &amp; Inventory (1 tuần)</h4>
+            <p class="text-sm mt-1">CRUD mẫu áo thun với biến thể size × màu (JSONB + GIN index), tồn kho theo từng SKU biến thể, cursor-based pagination, seed 100.000 SKU để thấy sự khác biệt của index.</p>
+            <p class="text-sm mt-1"><span class="tag tag-core">Deliverable</span> File so sánh <code>EXPLAIN ANALYZE</code> trước/sau khi đánh index.</p>
+            <div class="qbox">🧠 Cursor pagination hơn offset ở điểm nào khi dữ liệu lớn? GIN index hoạt động khác B-tree ra sao? Khi nào JSONB là lựa chọn tệ?</div>
+        </div>
+
+        <div class="phase">
+            <h4>Phase 3 — Order &amp; Concurrency ⭐ (2–2.5 tuần — trái tim dự án)</h4>
+            <p class="text-sm mt-1">Implement <strong>cả 3 chiến lược</strong> chống oversell, bật/tắt bằng config:</p>
+            <ul class="list-disc pl-5 text-sm mt-1 space-y-1">
+                <li><strong>A. Optimistic Locking:</strong> cột <code>version</code>, update thất bại thì retry — hiểu vì sao phù hợp khi tranh chấp thấp.</li>
+                <li><strong>B. Pessimistic Locking:</strong> <code>SELECT ... FOR UPDATE</code> qua <code>$queryRaw</code> — hiểu lock chờ nhau và nguy cơ deadlock.</li>
+                <li><strong>C. Redis Atomic:</strong> trừ kho trên Redis bằng Lua script (atomic), ghi DB async — hiểu trade-off tốc độ vs độ bền dữ liệu.</li>
+            </ul>
+            <p class="text-sm mt-1">Kèm: <strong>Idempotency Key</strong> cho API đặt hàng, Snapshot Price, transaction bọc đúng ranh giới.</p>
+            <p class="text-sm mt-1"><span class="tag tag-cv">Evidence cho CV</span> Báo cáo k6: 1.000 VU cùng săn 100 chiếc áo của 1 mẫu hot (chia theo các SKU size/màu) — bảng so sánh throughput, p95 latency, tỷ lệ lỗi của A/B/C, và <strong>oversell = 0</strong> ở cả ba.</p>
+            <div class="qbox">🧠 Vì sao check-rồi-update (read → if → write) chắc chắn oversell dưới tải cao? Isolation level nào là mặc định của Postgres và nó cho phép anomaly gì? Nếu Redis chết sau khi trừ kho nhưng trước khi ghi DB thì xử lý sao?</div>
+        </div>
+
+        <div class="phase">
+            <h4>Phase 4 — Async, Queue, Payment Webhook &amp; Reliability (2 tuần)</h4>
+            <p class="text-sm mt-1">BullMQ: gửi email xác nhận, delayed job tự hủy đơn quá 15 phút chưa thanh toán, retry exponential backoff, Dead Letter Queue. Nâng cấp: <strong>Outbox pattern</strong> — ghi event vào DB cùng transaction với đơn hàng, worker đọc outbox đẩy vào queue.</p>
+            <p class="text-sm mt-1"><strong>Tích hợp cổng thanh toán sandbox</strong> (VNPay sandbox hoặc Stripe test mode): verify chữ ký webhook, xử lý webhook idempotent (gateway gửi trùng nhiều lần), và case ác nhất — webhook "đã thanh toán" đến <em>sau khi</em> đơn đã bị tự hủy vì quá hạn.</p>
+            <p class="text-sm mt-1"><span class="tag tag-core">Deliverable</span> Demo "rút dây mạng": kill worker giữa chừng, chứng minh không mất message, không gửi email trùng.</p>
+            <div class="qbox">🧠 At-least-once vs exactly-once — cái nào là thực tế đạt được? Vì sao consumer phải idempotent? Outbox pattern giải quyết vấn đề gì mà "ghi DB xong rồi push queue" không giải quyết được? Vì sao phải verify chữ ký webhook, và xử lý sao khi webhook thanh toán đến sau khi đơn đã bị hủy?</div>
+        </div>
+
+        <div class="phase">
+            <h4>Phase 5 — Observability &amp; Hardening (1 tuần)</h4>
+            <p class="text-sm mt-1">Pino structured log (JSON), correlation ID chảy từ HTTP request xuống tận queue worker, endpoint /health &amp; /ready, Prometheus metrics (orders_created_total, queue_depth…), graceful shutdown (đóng server → chờ job xong → đóng DB).</p>
+            <p class="text-sm mt-1"><span class="tag tag-core">Deliverable</span> Từ 1 request lỗi bất kỳ, truy được toàn bộ hành trình của nó qua log chỉ bằng 1 correlation ID.</p>
+            <div class="qbox">🧠 /health khác /ready thế nào và Cloud Run dùng chúng ra sao? Graceful shutdown sai thì mất gì? Log thế nào để vừa debug được vừa không lộ dữ liệu nhạy cảm?</div>
+        </div>
+
+        <div class="phase">
+            <h4>Phase 6 — Deploy, FinOps &amp; Đóng gói CV (1–1.5 tuần)</h4>
+            <p class="text-sm mt-1">Deploy Cloud Run (free tier) + Neon Postgres + Upstash Redis, GitHub Actions tự động deploy khi merge main, secret qua Secret Manager. Hoàn thiện README: sơ đồ kiến trúc, hướng dẫn chạy 1 lệnh, link báo cáo benchmark, danh mục ADR.</p>
+            <p class="text-sm mt-1"><span class="tag tag-cv">Evidence cho CV</span> API live trên internet + repo public với README chuẩn "đọc 3 phút hiểu toàn bộ hệ thống".</p>
+            <div class="qbox">🧠 Cold start của Cloud Run ảnh hưởng gì đến flash sale và min-instances giải quyết ra sao? Connection pooling với serverless (Neon pooler) khác gì server truyền thống? Chi phí sẽ phát sinh ở đâu đầu tiên nếu traffic thật tăng?</div>
+        </div>
+    </section>
+
+    <!-- 6. Frontend -->
+    <section class="card" style="border-top-color:#f59e0b">
+        <h2 class="text-2xl font-bold mb-4 text-slate-800">6. Frontend — Công cụ trực quan, AI làm 100%</h2>
+        <div class="text-gray-700 leading-relaxed space-y-4">
+            <p>FE trong dự án này <strong>không phải sản phẩm, mà là công cụ trực quan hóa Backend</strong>. Toàn bộ code FE do AI (Claude) đảm nhiệm; vai trò của Tâm chỉ là viết spec 1 trang và giữ kỷ luật scope.</p>
+            <table>
+                <tr><th style="width:25%">Hạng mục</th><th>Quy định</th></tr>
+                <tr><td><strong>Scope — 4 màn hình</strong></td><td>(1) Đăng nhập / Đăng ký. (2) Trang sự kiện sale: lưới mẫu áo, đồng hồ đếm ngược giờ mở bán, <strong>tồn kho realtime theo từng size/màu</strong>. (3) Chọn size/màu + nút "Săn ngay" → trạng thái đơn: giữ chỗ 15 phút đếm ngược, nút thanh toán qua sandbox gateway. (4) Đơn của tôi: Pending / Completed / Cancelled.</td></tr>
+                <tr><td><strong>Tech</strong></td><td>Vite + React + Tailwind. Tồn kho realtime bằng polling 1–2 giây (đủ dùng, đơn giản); nâng cấp SSE nếu còn thời gian trong timebox.</td></tr>
+                <tr><td><strong>Timebox</strong></td><td>Tối đa 2 buổi tối, làm ở Phase 3 (khi đã có API thật). Quá timebox → cắt còn màn hình (2) và (3). Trước đó dùng Swagger UI thay FE.</td></tr>
+                <tr><td><strong>Miễn trừ quy trình</strong></td><td>FE không cần test, không ADR, không tính coverage, không review kỹ như BE. Chỉ cần chạy được và hiển thị đúng dữ liệu.</td></tr>
+                <tr><td><strong>Vai trò evidence</strong></td><td>Cảnh quay đắt giá nhất của dự án: chạy k6 1.000 VU trong khi màn hình FE hiển thị tồn kho từng SKU <strong>rơi dần về 0 và dừng đúng ở 0</strong> — 10 giây thuyết phục hơn cả trang báo cáo.</td></tr>
+            </table>
+        </div>
+    </section>
+
+    <!-- 7. Definition of Done -->
+    <section class="card" style="border-top-color:#ef4444">
+        <h2 class="text-2xl font-bold mb-4 text-slate-800">7. Definition of Done — Bằng chứng để show CV</h2>
+        <div class="text-gray-700 leading-relaxed space-y-3">
+            <p>Dự án chỉ được coi là xong khi có đủ các bằng chứng sau (mỗi mục là 1 link trong README):</p>
+            <ul class="list-disc pl-6 space-y-2 text-sm md:text-base">
+                <li>✅ Báo cáo benchmark k6 so sánh 3 chiến lược concurrency, kèm kết luận nên dùng chiến lược nào trong tình huống nào.</li>
+                <li>✅ Test coverage ≥ 70% cho các module core (Order, Inventory), integration test chạy trên DB thật.</li>
+                <li>✅ ~10 file ADR ghi lại các quyết định kiến trúc và trade-off.</li>
+                <li>✅ Sơ đồ kiến trúc + sequence diagram cho luồng đặt hàng.</li>
+                <li>✅ API đang chạy live trên Cloud Run, deploy tự động qua CI/CD.</li>
+                <li>✅ Tích hợp cổng thanh toán sandbox với webhook được verify chữ ký và xử lý idempotent — có test cho case webhook trùng và webhook đến muộn.</li>
+                <li>✅ Demo video/GIF 2 phút: chạy k6 trong khi màn hình FE hiển thị tồn kho từng SKU áo rơi về 0 và dừng đúng 0 — chứng minh oversell = 0 bằng mắt thường.</li>
+            </ul>
+            <div class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                <p class="font-semibold text-slate-800 mb-2">Mẫu dòng CV sau khi hoàn thành:</p>
+                <ul class="list-disc pl-5 text-sm space-y-1 text-slate-700">
+                    <li>"Thiết kế và xây dựng flash-sale engine (NestJS, PostgreSQL, Redis) xử lý 1.000 người dùng đồng thời với 0 trường hợp oversell, so sánh 3 chiến lược concurrency control qua benchmark k6."</li>
+                    <li>"Triển khai Outbox pattern + BullMQ đảm bảo không mất message khi worker crash; retry với exponential backoff và DLQ."</li>
+                    <li>"Tích hợp cổng thanh toán (VNPay/Stripe) với webhook xác thực chữ ký, xử lý idempotent và giải quyết race condition giữa thanh toán muộn và tự động hủy đơn."</li>
+                    <li>"Vận hành quy trình AI-assisted development (spec-driven, review checklist, ADR) để kiểm soát chất lượng code sinh bởi AI."</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <footer class="text-center text-gray-500 text-sm mt-8 mb-4 no-print">
+        <p>Flash-Core v2 — Bản đặc tả này là "spec gốc" của dự án. Mỗi phase sẽ có spec chi tiết riêng trước khi bắt đầu code.</p>
+    </footer>
+</div>
+
+</body>
+</html>
