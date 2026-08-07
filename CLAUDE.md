@@ -11,12 +11,16 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 **code phải dễ đọc, dễ giải thích — ưu tiên rõ ràng hơn thông minh.**
 
 ## Tài liệu bắt buộc đọc
+- `docs/architecture.md` — bản đồ code: file nào làm gì, định nghĩa ở đâu, ba quy tắc
+  cấu trúc. Đọc trước khi thêm/sửa file trong `src/`.
 - `docs/SPEC.md` — spec gốc: 7 phase, deliverable, Definition of Done
 - `docs/specs/` — spec chi tiết từng tính năng (viết trước khi code)
 - `docs/adr/` — các quyết định kiến trúc đã chốt
 - `docs/review-checklist.md` — checklist Tâm dùng để review code của bạn
 - `docs/glossary.md` — từ điển khái niệm của dự án. Khi giải thích, ưu tiên dùng
   đúng các thuật ngữ trong file này để Tâm quen dần với từ vựng chuẩn.
+- `docs/tech-playbook.md` — cơ chế, bug hay gặp và tình huống thật của từng phase. Khi
+  giải thích "vì sao", bám sát cách diễn đạt ở đây để Tâm không phải học hai phiên bản.
 - `docs/git-workflow.md` — quy chuẩn nhánh, commit message, và **quy tắc AI không
   push trước khi Tâm review**. Dùng `/commit` để tạo commit đúng chuẩn.
 - `project-context.md` — nhật ký quyết định: **vì sao** chọn thế này và **những gì đã
@@ -75,7 +79,7 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 **Hook** (`.claude/settings.json` → `.claude/hooks/`) — enforce luật tự động, không trông
 vào việc AI tự nhớ:
 - `git push` bị **chặn cứng** → chỉ Tâm push, sau khi review.
-- Commit message sai chuẩn hoặc thiếu thân "vì sao" → **chặn**.
+- Commit message sai chuẩn Conventional Commits → **chặn**; thiếu thân "vì sao" → **hỏi**.
 - `k6 run` / seed / `migrate reset` khi biến kết nối trỏ ra cloud → **chặn** (FinOps).
 - Cài package đã bị loại có chủ đích → **chặn**; package lạ → **hỏi Tâm** (không tự thêm).
 - Ghi vào `.env` hoặc hardcode secret → **chặn / hỏi**.
@@ -103,7 +107,9 @@ Postgres MCP bật ở Phase 2, Playwright MCP ở Phase 3. Xem `docs/mcp-setup.
 - Đã xong: skeleton NestJS + config Zod + Pino/correlationId + exception filter +
   Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI. 11/11 unit test pass,
   lint/typecheck/build sạch.
-- **Còn nợ:** chạy `npm run test:int` (4 integration test đã viết, chưa chạy lần nào vì
-  Docker daemon chưa bật lúc setup); viết ADR cho các quyết định ở
-  `docs/specs/phase0-nen-mong.md` mục cuối.
+- **Còn nợ (nguồn sự thật duy nhất — các file khác trỏ về đây):**
+  1. Chạy `npm run test:int` — 5 integration test đã viết, chưa chạy lần nào (Docker chưa bật).
+  2. Viết ADR cho 5 quyết định kỹ thuật ở `docs/specs/phase0-nen-mong.md` mục cuối. Hiện 0/10.
+  3. Kiểm tra CI: commit `4e2f5aa` đã push lên origin/main nên workflow đã kích hoạt,
+     nhưng **chưa ai xem kết quả**. Mở tab Actions trên GitHub xác nhận xanh hay đỏ.
 - Cập nhật mục này mỗi khi hoàn thành một phase.

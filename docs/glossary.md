@@ -4,6 +4,9 @@
 > *cái tên* của các bài toán, để khi va vào thì nhận ra ngay "à, đây là X" và biết
 > phải đào ở đâu. Mỗi mục = tên + vấn đề nó chỉ + dấu hiệu gặp phải.
 > Đọc 20 phút, không cần hiểu sâu. Quay lại đọc kỹ mục nào khi phase đó tới.
+>
+> **Cần hiểu sâu hơn cái tên?** → `docs/tech-playbook.md` có cơ chế, bug hay gặp và tình
+> huống thật của từng phase. File này cho *cái tên*, file kia cho *cách nó hoạt động*.
 
 ---
 

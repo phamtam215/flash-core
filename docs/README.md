@@ -1,64 +1,70 @@
-# Bộ tài liệu Flash-Core — Đọc file này trước
+# Mục lục tài liệu Flash-Core
 
-## Cài vào repo
-Giải nén toàn bộ nội dung vào **thư mục gốc của repo**. Kết quả:
+> **Điểm vào của cả dự án là [`README.md`](../README.md) ở thư mục gốc**, không phải file này.
+> File này chỉ là mục lục: mỗi tài liệu **sở hữu** thông tin gì, và khi nào thì mở nó.
 
-```
-<repo>/
-├── CLAUDE.md                     ← Claude Code tự đọc mỗi phiên
-├── project-context.md            ← nhật ký quyết định: vì sao, và đã loại bỏ gì
-├── .mcp.json                     ← MCP server dùng chung (Context7)
-├── .claude/
-│   ├── settings.json             ← đăng ký hook + permissions
-│   ├── commands/                 ← 7 slash command: /spec /adr /review-gate /commit
-│   │                                /journal /quiz /phase-status
-│   ├── hooks/                    ← 9 script enforce luật tự động (python3)
-│   ├── skills/                   ← 10 skill Claude tự chọn khi gặp việc tương ứng
-│   ├── agents/                   ← code-reviewer: reviewer độc lập, chỉ đọc
-│   └── statusline.sh             ← phase · nhánh · số file đổi · spec/ADR
-├── gitignore.example             ← MERGE tay vào .gitignore của bạn, đừng ghi đè
-└── docs/
-    ├── README.md                 ← file này
-    ├── SPEC.md                   ← spec gốc: 7 phase, DoD
-    ├── claude-guide.md           ← hướng dẫn dùng lệnh/skill/hook của Claude Code
-    ├── mcp-setup.md              ← MCP nào bật khi nào
-    ├── spec-report.html          ← bản trình bày trực quan của SPEC (mở bằng browser)
-    ├── glossary.md               ← từ điển khái niệm, đọc trước khi vào phase
-    ├── git-workflow.md           ← chuẩn commit + quy tắc AI không tự push
-    ├── review-checklist.md       ← dùng mỗi lần review code AI
-    ├── templates/                ← template spec tính năng & ADR
-    ├── specs/                    ← spec chi tiết từng tính năng (bạn sẽ thêm dần)
-    ├── adr/                      ← các quyết định kiến trúc (bạn sẽ thêm dần)
-    └── journal/                  ← nhật ký học tập cuối mỗi phase
-```
+## Nguyên tắc: mỗi thông tin có đúng một chủ
 
-> ⚠️ `gitignore.example` được đặt tên như vậy để **không ghi đè** `.gitignore` sẵn có
-> của bạn. Hãy mở ra và copy các dòng còn thiếu sang. Bắt buộc phải có `.env`.
+Để tài liệu không lệch nhau, mỗi loại thông tin chỉ được **định nghĩa ở một file**; các file
+khác chỉ được **trỏ link tới**, không chép lại.
 
-## Dùng file nào khi nào
+| Thông tin | Chủ sở hữu duy nhất | Ai được trỏ tới |
+|---|---|---|
+| Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) | mọi nơi |
+| **Trạng thái hiện tại + việc còn nợ** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại | README, spec |
+| Kế hoạch 7 phase + Definition of Done | [`SPEC.md`](SPEC.md) | README |
+| Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) | README |
+| **Vì sao** chọn thế này, đã loại bỏ gì | [`../project-context.md`](../project-context.md) §3 + [`adr/`](adr/) | mọi nơi |
+| Chi tiết một tính năng (API, edge case, test) | [`specs/<tên>.md`](specs/) | — |
+| Tên gọi của các bài toán | [`glossary.md`](glossary.md) | — |
+| **Cơ chế / bug / tình huống thật của từng phase** | [`tech-playbook.md`](tech-playbook.md) | glossary |
+| Cách dùng Claude Code trong repo | [`claude-guide.md`](claude-guide.md) | CLAUDE.md (chỉ tóm tắt) |
+| Chuẩn commit, quy tắc nhánh | [`git-workflow.md`](git-workflow.md) | — |
+| Checklist review code | [`review-checklist.md`](review-checklist.md) | — |
+
+Ngoại lệ có chủ đích: `CLAUDE.md` giữ **bản tóm tắt** bộ công cụ và convention dù
+`claude-guide.md` mới là bản đầy đủ — vì `CLAUDE.md` được nạp tự động mỗi phiên, Claude cần
+thấy ngay mà không phải mở thêm file. Giữ phần tóm tắt đó **ngắn**; chi tiết luôn ở file chủ.
+
+## Mở file nào khi nào
 
 | Thời điểm | File |
 |---|---|
-| Trước khi bắt đầu một phase | `docs/glossary.md` (bảng của phase đó) + `docs/SPEC.md` |
-| Trước khi code một tính năng | Viết spec mới theo `docs/templates/feature-spec-template.md` → lưu vào `docs/specs/` |
-| Khi ra quyết định kiến trúc | `docs/templates/adr-template.md` → lưu vào `docs/adr/` |
-| Sau khi AI viết code | `docs/review-checklist.md` |
-| Khi tạo commit | gõ `/commit` trong Claude Code (chuẩn ở `docs/git-workflow.md`) |
-| Cuối mỗi phase | gõ `/journal <N>` — Claude phỏng vấn bạn rồi ghi `docs/journal/phase-N.md` |
-| Muốn biết đang đứng ở đâu | gõ `/phase-status` |
-| Muốn kiểm tra mình có thật sự hiểu | gõ `/quiz` — Claude hỏi ngược, không giải thích trước |
-| Trước khi đi phỏng vấn | `docs/glossary.md` mục "12 câu hỏi tự kiểm tra" + `docs/adr/` |
-| Muốn hiểu bộ công cụ Claude Code của repo | `docs/claude-guide.md` |
+| Lần đầu vào dự án | [`README.md`](../README.md) → [`architecture.md`](architecture.md) |
+| Muốn biết đang đứng ở đâu, làm gì tiếp | gõ `/phase-status` (báo cáo động, không bao giờ lệch) |
+| Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận diện tên) → [`tech-playbook.md`](tech-playbook.md) (cơ chế + bẫy) → [`SPEC.md`](SPEC.md) |
+| Đang va một bug lạ | [`tech-playbook.md`](tech-playbook.md) — bảng "Bug hay gặp" của phase đó |
+| Không biết sửa file nào | [`architecture.md`](architecture.md) |
+| Trước khi code một tính năng | gõ `/spec <tên>` → tạo file trong [`specs/`](specs/) |
+| Khi phải chọn giữa hai cách làm | gõ `/adr <chủ đề>` → tạo file trong [`adr/`](adr/) |
+| Sau khi Claude viết code | [`review-checklist.md`](review-checklist.md) |
+| Khi tạo commit | gõ `/commit` (chuẩn ở [`git-workflow.md`](git-workflow.md)) |
+| Cuối mỗi phase | gõ `/journal <N>` → ghi vào [`journal/`](journal/) |
+| Muốn kiểm tra mình có thật sự hiểu | gõ `/quiz` |
+| Trước khi đi phỏng vấn | [`glossary.md`](glossary.md) §12 câu tự kiểm tra + [`adr/`](adr/) + [`journal/`](journal/) |
 
-## Câu lệnh đầu tiên với Claude Code
-Mở Claude Code tại thư mục repo và gõ:
+## Thư mục
 
-> Đọc `CLAUDE.md` và `docs/SPEC.md`. Bắt đầu **Phase 0**: draft spec cho phần nền
-> móng (Docker Compose Postgres+Redis, NestJS skeleton, Prisma, CI GitHub Actions)
-> theo `docs/templates/feature-spec-template.md`, lưu vào `docs/specs/`.
-> **Chưa code, chờ tôi duyệt spec trước.**
+```
+docs/
+├── README.md              ← mục lục này
+├── architecture.md        bản đồ code
+├── SPEC.md                kế hoạch 7 phase + Definition of Done
+├── spec-report.html       bản trình bày trực quan của SPEC (mở bằng browser)
+├── glossary.md            từ điển: TÊN của các bài toán (nhận diện, 1 dòng/mục)
+├── tech-playbook.md       cơ chế + bug hay gặp + tình huống thật, theo từng phase
+├── git-workflow.md        chuẩn commit, quy tắc nhánh, AI không tự push
+├── review-checklist.md    checklist review code
+├── claude-guide.md        dùng lệnh/skill/hook/agent nào khi nào
+├── mcp-setup.md           MCP nào bật ở phase nào
+├── templates/             khuôn cho spec tính năng & ADR
+├── specs/                 spec chi tiết từng tính năng   (thêm dần)
+├── adr/                   quyết định kiến trúc            (thêm dần)
+└── journal/               nhật ký học tập cuối phase      (thêm dần)
+```
 
 ## Ba nguyên tắc không được phá
-1. **Không có spec → không code.**
-2. **AI commit, nhưng không push trước khi tôi review.**
-3. **Chưa trả lời được "câu hỏi bản chất" của phase → chưa qua phase.**
+
+1. **Không có spec → không code.** Tính năng mới phải có file trong `specs/`.
+2. **AI commit, nhưng không push trước khi Tâm review.** (có hook chặn `git push`)
+3. **Chưa trả lời được "câu hỏi bản chất" của phase → chưa qua phase.** (dùng `/quiz`)

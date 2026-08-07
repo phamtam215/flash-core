@@ -75,6 +75,8 @@ prisma.config.ts             # cấu hình Prisma CLI (Prisma 7: url không nằ
 docker-compose.yml           # Postgres 16 + Redis 7
 ```
 
+Chi tiết từng file và "muốn sửa X thì mở file nào": [`docs/architecture.md`](docs/architecture.md).
+
 **Quy ước module:** mỗi module trong `src/modules/` gồm `controller` / `service` /
 `repository` / `dto` (Zod) và một `index.ts` là **public interface**. Module khác chỉ import
 từ `index.ts`, không import sâu vào trong. Đó là thứ duy nhất khiến "Modular Monolith" khác
@@ -108,20 +110,21 @@ và [`docs/adr/`](docs/adr/).
 
 Chi tiết deliverable từng phase: [`docs/SPEC.md`](docs/SPEC.md).
 
-### Còn nợ ở Phase 0
+### Trạng thái chi tiết & việc còn nợ
 
-- Chạy `npm run test:int` để xác nhận 4 integration test (viết rồi, chưa chạy lần nào).
-- Viết ADR cho các quyết định kỹ thuật đã lấy — xem
-  [`docs/specs/phase0-nen-mong.md`](docs/specs/phase0-nen-mong.md) mục cuối.
-- `correlationId` chưa xuyên sang worker/queue (chưa có queue — sẽ làm ở Phase 4).
+Danh sách việc còn nợ được giữ ở **một chỗ duy nhất**: mục *"Trạng thái hiện tại"* trong
+[`CLAUDE.md`](CLAUDE.md) — nơi Claude Code đọc tự động mỗi phiên nên khó bị quên cập nhật.
+Chi tiết Phase 0 (danh sách test, quyết định kỹ thuật): [`docs/specs/phase0-nen-mong.md`](docs/specs/phase0-nen-mong.md).
 
 ## Tài liệu
 
 | File | Nội dung |
 |---|---|
+| [`docs/architecture.md`](docs/architecture.md) | **Bản đồ code: file nào làm gì, sửa X thì mở file nào** |
 | [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 7 phase, deliverable, Definition of Done |
 | [`project-context.md`](project-context.md) | Nhật ký quyết định — vì sao, và **đã loại bỏ gì** |
-| [`docs/glossary.md`](docs/glossary.md) | Từ điển khái niệm theo phase + 12 câu hỏi tự kiểm tra |
+| [`docs/glossary.md`](docs/glossary.md) | Từ điển: tên gọi các bài toán + 12 câu hỏi tự kiểm tra |
+| [`docs/tech-playbook.md`](docs/tech-playbook.md) | Kiến thức cần có trước mỗi phase: cơ chế, bug hay gặp, tình huống thật |
 | [`docs/specs/`](docs/specs/) | Spec chi tiết từng tính năng |
 | [`docs/adr/`](docs/adr/) | Các quyết định kiến trúc đã chốt |
 | [`docs/journal/`](docs/journal/) | Nhật ký học tập cuối mỗi phase |
