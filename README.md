@@ -112,14 +112,16 @@ Chi tiết deliverable từng phase: [`docs/SPEC.md`](docs/SPEC.md).
 
 ### Trạng thái chi tiết & việc còn nợ
 
-Danh sách việc còn nợ được giữ ở **một chỗ duy nhất**: mục *"Trạng thái hiện tại"* trong
-[`CLAUDE.md`](CLAUDE.md) — nơi Claude Code đọc tự động mỗi phiên nên khó bị quên cập nhật.
+Danh sách việc còn nợ được giữ ở **một chỗ duy nhất**:
+[`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) — mỗi việc kèm ai làm, gõ lệnh gì,
+và xong là khi nào.
 Chi tiết Phase 0 (danh sách test, quyết định kỹ thuật): [`docs/specs/phase0-nen-mong.md`](docs/specs/phase0-nen-mong.md).
 
 ## Tài liệu
 
 | File | Nội dung |
 |---|---|
+| [`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) | **Việc còn lại của phase đang làm, theo thứ tự** |
 | [`docs/architecture.md`](docs/architecture.md) | **Bản đồ code: file nào làm gì, sửa X thì mở file nào** |
 | [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 7 phase, deliverable, Definition of Done |
 | [`project-context.md`](project-context.md) | Nhật ký quyết định — vì sao, và **đã loại bỏ gì** |

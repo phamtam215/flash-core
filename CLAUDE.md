@@ -114,8 +114,8 @@ Postgres MCP bật ở Phase 2, Playwright MCP ở Phase 3. Xem `docs/mcp-setup.
   Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI.
   **11/11 unit test + 5/5 integration test (Testcontainers, Postgres thật) pass**,
   lint/typecheck/build sạch.
-- **Còn nợ (nguồn sự thật duy nhất — các file khác trỏ về đây):**
-  1. Viết ADR cho 5 quyết định kỹ thuật ở `docs/specs/phase0-nen-mong.md` mục cuối. Hiện 0/10.
-  2. Kiểm tra CI: đã push `015fef2` nên workflow đã kích hoạt, nhưng **chưa ai xem kết quả**.
-     Mở https://github.com/phamtam215/flash-core/actions xác nhận xanh hay đỏ.
-- Cập nhật mục này mỗi khi hoàn thành một phase.
+- **Còn nợ: 4 việc — danh sách đầy đủ ở `docs/phase-0-checklist.md`** (nguồn sự thật duy
+  nhất, đừng chép lại ở đây). Tóm tắt: xác nhận CI xanh → viết 3 ADR (hiện 0) → `/quiz`
+  → `/journal 0` → đóng phase.
+- Khi hoàn thành/tick một việc: **sửa `docs/phase-0-checklist.md`**, rồi cập nhật một dòng
+  tóm tắt ở đây. Sang phase mới thì tạo checklist tương ứng cho phase đó.

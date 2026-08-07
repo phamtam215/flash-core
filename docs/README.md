@@ -11,7 +11,8 @@ khác chỉ được **trỏ link tới**, không chép lại.
 | Thông tin | Chủ sở hữu duy nhất | Ai được trỏ tới |
 |---|---|---|
 | Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) | mọi nơi |
-| **Trạng thái hiện tại + việc còn nợ** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại | README, spec |
+| Trạng thái hiện tại (đang ở phase nào) | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại | README, spec |
+| **Việc còn nợ của phase đang làm** | [`phase-0-checklist.md`](phase-0-checklist.md) | CLAUDE.md, README |
 | Kế hoạch 7 phase + Definition of Done | [`SPEC.md`](SPEC.md) | README |
 | Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) | README |
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`../project-context.md`](../project-context.md) §3 + [`adr/`](adr/) | mọi nơi |
@@ -31,7 +32,8 @@ thấy ngay mà không phải mở thêm file. Giữ phần tóm tắt đó **ng
 | Thời điểm | File |
 |---|---|
 | Lần đầu vào dự án | [`README.md`](../README.md) → [`architecture.md`](architecture.md) |
-| Muốn biết đang đứng ở đâu, làm gì tiếp | gõ `/phase-status` (báo cáo động, không bao giờ lệch) |
+| **"Giờ tôi cần làm gì?"** | [`phase-0-checklist.md`](phase-0-checklist.md) — việc còn lại, theo thứ tự, kèm điều kiện xong |
+| Muốn biết đang đứng ở đâu so với SPEC | gõ `/phase-status` (báo cáo động, không bao giờ lệch) |
 | Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận diện tên) → [`tech-playbook.md`](tech-playbook.md) (cơ chế + bẫy) → [`SPEC.md`](SPEC.md) |
 | Đang va một bug lạ | [`tech-playbook.md`](tech-playbook.md) — bảng "Bug hay gặp" của phase đó |
 | **CI đỏ**, hoặc muốn hiểu test được tổ chức thế nào | [`tech-playbook.md` §Xuyên suốt](tech-playbook.md) — CI & Testing (xuyên suốt mọi phase) |
@@ -49,6 +51,7 @@ thấy ngay mà không phải mở thêm file. Giữ phần tóm tắt đó **ng
 ```
 docs/
 ├── README.md              ← mục lục này
+├── phase-0-checklist.md   VIỆC CÒN LẠI của phase đang làm (mở file này khi bí)
 ├── architecture.md        bản đồ code
 ├── SPEC.md                kế hoạch 7 phase + Definition of Done
 ├── spec-report.html       bản trình bày trực quan của SPEC (mở bằng browser)
