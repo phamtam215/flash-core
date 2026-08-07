@@ -7,11 +7,20 @@
     // package.json của thư viện — đúng cách các package hiện đại muốn được resolve.
     "moduleResolution": "node16",
     "outDir": "./dist",
+    // Phải khai báo tường minh vì `isolatedModules` khiến ts-jest dịch từng file riêng lẻ,
+    // và TypeScript 6 từ chối tự suy ra thư mục gốc trong trường hợp đó (TS5011). Để ở gốc
+    // repo vì tsconfig này bao cả `src/`, `test/` và `prisma.config.ts`.
+    // Bản build (tsconfig.build.json) ghi đè thành "./src" để dist không bị lồng thêm cấp.
+    "rootDir": ".",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
+    // ts-jest cảnh báo (TS151002) rằng module kind node16 chỉ được hỗ trợ đầy đủ khi bật cờ
+    // này. Nó buộc mỗi file phải tự dịch được độc lập — cũng là điều kiện để sau này đổi
+    // sang transpiler nhanh hơn (SWC/esbuild) mà không phải sửa code.
+    "isolatedModules": true,
     // Khai báo tường minh các package type toàn cục được nạp. Không dựa vào cơ chế tự động
     // quét toàn bộ node_modules/@types: nó chậm và khiến type xuất hiện/biến mất tuỳ vào
     // dependency nào tình cờ được cài kèm.

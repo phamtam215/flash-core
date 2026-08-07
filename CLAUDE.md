@@ -100,16 +100,19 @@ Postgres MCP bật ở Phase 2, Playwright MCP ở Phase 3. Xem `docs/mcp-setup.
 - **TypeScript 6** (không dùng TS 7 vì `ts-jest` chưa hỗ trợ). `module`/`moduleResolution`
   = `node16`, và `types` khai báo tường minh trong tsconfig.
 - **Không dùng path alias `@/`** — `nest build` không rewrite alias. Dùng import tương đối.
+- **Prisma Client sinh import kèm đuôi `.js`** nhưng file thật là `.ts` → jest cần
+  `moduleNameMapper: {'^(\\.{1,2}/.*)\\.js$': '$1'}`. Sau khi đổi tsconfig thì **phải
+  `npm run db:generate` lại**, nếu không máy vẫn xanh mà CI đỏ.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
 - Phase hiện tại: **Phase 0 — Nền móng** (xem docs/SPEC.md)
 - Đã xong: skeleton NestJS + config Zod + Pino/correlationId + exception filter +
-  Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI. 11/11 unit test pass,
+  Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI.
+  **11/11 unit test + 5/5 integration test (Testcontainers, Postgres thật) pass**,
   lint/typecheck/build sạch.
 - **Còn nợ (nguồn sự thật duy nhất — các file khác trỏ về đây):**
-  1. Chạy `npm run test:int` — 5 integration test đã viết, chưa chạy lần nào (Docker chưa bật).
-  2. Viết ADR cho 5 quyết định kỹ thuật ở `docs/specs/phase0-nen-mong.md` mục cuối. Hiện 0/10.
-  3. Kiểm tra CI: commit `4e2f5aa` đã push lên origin/main nên workflow đã kích hoạt,
-     nhưng **chưa ai xem kết quả**. Mở tab Actions trên GitHub xác nhận xanh hay đỏ.
+  1. Viết ADR cho 5 quyết định kỹ thuật ở `docs/specs/phase0-nen-mong.md` mục cuối. Hiện 0/10.
+  2. Kiểm tra CI: đã push `015fef2` nên workflow đã kích hoạt, nhưng **chưa ai xem kết quả**.
+     Mở https://github.com/phamtam215/flash-core/actions xác nhận xanh hay đỏ.
 - Cập nhật mục này mỗi khi hoàn thành một phase.

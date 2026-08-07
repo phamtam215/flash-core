@@ -14,6 +14,13 @@ module.exports = {
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/../tsconfig.json' }],
   },
+  // Prisma 7 sinh import kèm đuôi ".js" (đúng chuẩn moduleResolution node16), nhưng file
+  // thật trên đĩa là ".ts" vì client được generate ra dạng TypeScript source. Resolver của
+  // Jest chỉ thử thêm đuôi khi đường dẫn CHƯA có đuôi, nên "./internal/class.js" không bao
+  // giờ tìm thấy "./internal/class.ts". Map ngược lại ở đây.
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
   collectCoverageFrom: [
     '**/*.ts',
     '!**/*.module.ts',

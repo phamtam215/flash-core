@@ -100,7 +100,7 @@ và [`docs/adr/`](docs/adr/).
 
 | Phase | Nội dung | Trạng thái |
 |---|---|---|
-| 0 | Docker Compose · NestJS skeleton · Prisma · CI · convention | 🟡 code xong, integration test chưa chạy |
+| 0 | Docker Compose · NestJS skeleton · Prisma · CI · convention | 🟡 16/16 test xanh, còn nợ ADR |
 | 1 | Auth: Argon2, Access + Refresh Token, rotation, rate limit | ⬜ |
 | 2 | Product & Inventory: SKU size×màu, JSONB + GIN, cursor pagination, seed 100k | ⬜ |
 | 3 | ⭐ Order & Concurrency: 3 chiến lược chống oversell + benchmark k6 1.000 VU | ⬜ |

@@ -70,15 +70,14 @@ Mọi response có header `x-correlation-id`.
 | 9 | Zod pipe trả dữ liệu đã parse khi hợp lệ | unit | ✅ pass |
 | 10 | Zod pipe ném 400 kèm danh sách field lỗi (không phải 500) | unit | ✅ pass |
 | 11 | Zod pipe loại bỏ field lạ do client thêm | unit | ✅ pass |
-| 12 | `GET /health` → 200 và trả về `uptimeSeconds` | integration | ⚠️ **chưa chạy** |
-| 13 | `GET /health` trả `x-correlation-id` trong response header | integration | ⚠️ **chưa chạy** |
-| 14 | `GET /health` giữ nguyên correlationId do client gửi lên | integration | ⚠️ **chưa chạy** |
-| 15 | `GET /ready` → 200 với Postgres thật (Testcontainers) | integration | ⚠️ **chưa chạy** |
-| 16 | Route lạ → 404 qua filter chung, có `correlationId` | integration | ⚠️ **chưa chạy** |
+| 12 | `GET /health` → 200 và trả về `uptimeSeconds` | integration | ✅ pass |
+| 13 | `GET /health` trả `x-correlation-id` trong response header | integration | ✅ pass |
+| 14 | `GET /health` giữ nguyên correlationId do client gửi lên | integration | ✅ pass |
+| 15 | `GET /ready` → 200 với Postgres thật (Testcontainers) | integration | ✅ pass |
+| 16 | Route lạ → 404 qua filter chung, có `correlationId` | integration | ✅ pass |
 
-Test 12–16 (5 test) đã viết ở `test/health.e2e-spec.ts` nhưng **chưa chạy được lần nào** vì
-Docker daemon không bật lúc setup. Chạy `npm run test:int` để xác nhận — đây là việc còn nợ
-lớn nhất của phase này.
+Test 12–16 chạy trên **Postgres 16 thật** qua Testcontainers (`npm run test:int`): 5/5 pass,
+10.4 giây. Tổng cộng Phase 0 có **16/16 test xanh**.
 
 ## Ngoài phạm vi (Non-goals)
 

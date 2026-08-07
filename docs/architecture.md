@@ -144,6 +144,8 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 | `datasource property url is no longer supported` | Prisma 7 bỏ `url` khỏi schema — nó nằm ở `prisma.config.ts`. Tài liệu Prisma 6 trên mạng đã cũ |
 | `nest build` exit 0 nhưng `dist/` rỗng | `.tsbuildinfo` cũ ở root khiến tsc tưởng đã build. Đã sửa bằng `tsBuildInfoFile: ./dist/.tsbuildinfo` |
 | `Cannot find name 'describe'` | `tsconfig.json` khai báo `types` tường minh — thêm type mới phải thêm vào mảng đó |
+| Test xanh ở máy, **đỏ trên CI**: `Cannot find module './internal/class.js'` | Prisma 7 sinh import kèm đuôi `.js` nhưng file thật là `.ts`. Máy vẫn xanh vì đang giữ bản generate **cũ** (sinh trước khi đổi `moduleResolution` sang `node16`). Đã sửa bằng `moduleNameMapper` trong hai file config jest |
+| `TS5011: rootDir must be explicitly set` khi chạy jest | `isolatedModules: true` khiến ts-jest dịch từng file riêng, TS6 không tự suy ra được thư mục gốc. Cần `rootDir` tường minh trong `tsconfig.json` |
 | Import `@/config` chạy được lúc dev nhưng vỡ sau `npm run build` | Dự án **không dùng path alias** — `nest build` là tsc thuần, không rewrite alias. Dùng import tương đối |
 
 ---
