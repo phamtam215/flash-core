@@ -19,8 +19,11 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 - `docs/review-checklist.md` — checklist Tâm dùng để review code của bạn
 - `docs/glossary.md` — từ điển khái niệm của dự án. Khi giải thích, ưu tiên dùng
   đúng các thuật ngữ trong file này để Tâm quen dần với từ vựng chuẩn.
-- `docs/tech-playbook.md` — cơ chế, bug hay gặp và tình huống thật của từng phase. Khi
-  giải thích "vì sao", bám sát cách diễn đạt ở đây để Tâm không phải học hai phiên bản.
+- `docs/tech-playbook.md` — cơ chế, bug hay gặp và tình huống thật của từng phase. Mục
+  **§Xuyên suốt — CI & Testing** là phần Tâm tự nhận còn yếu nhất (GitHub Actions và
+  testing): khi chạm tới CI hoặc test thì giải thích kỹ hơn mức mặc định, và cập nhật mục
+  đó khi CI/bộ test đổi. Khi giải thích "vì sao", bám sát cách diễn đạt ở file này để Tâm
+  không phải học hai phiên bản.
 - `docs/git-workflow.md` — quy chuẩn nhánh, commit message, và **quy tắc AI không
   push trước khi Tâm review**. Dùng `/commit` để tạo commit đúng chuẩn.
 - `project-context.md` — nhật ký quyết định: **vì sao** chọn thế này và **những gì đã

@@ -128,15 +128,25 @@
 
 ---
 
-## Xuyên suốt — Testing & Quy trình
+## Xuyên suốt — CI, Testing & Quy trình
+
+> Phần này có mục riêng đầy đủ ở [`tech-playbook.md` §Xuyên suốt](tech-playbook.md) — cơ chế, bug
+> hay gặp, và cách đọc `ci.yml` của repo này.
 
 | Tên | Vấn đề nó chỉ | Dấu hiệu gặp |
 |---|---|---|
+| **CI vs CD** | CI = tự chứng minh code còn đúng mỗi lần push. CD = tự deploy. Repo này mới có CI | Mỗi lần push lên main |
+| **Workflow / Job / Step / Runner** | Bốn tầng của GitHub Actions. Job = máy riêng, step = cùng máy | Khi đọc `.github/workflows/ci.yml` |
+| **"Máy sạch"** | Runner mới tinh mỗi lần → thứ gì không nằm trong git thì CI phải sinh lại | Vì sao CI phải chạy `db:generate` |
+| **CI đỏ / local xanh** | Có state chỉ tồn tại ở máy local (file gitignore, cache, bản generate cũ) | Đã gặp thật ở Phase 0 |
+| **`npm ci` vs `npm install`** | `ci` cài đúng lockfile và fail nếu lock lệch; `install` được tự sửa lock | Vì sao CI không dùng `install` |
 | **Unit / Integration / E2E test** | Ba tầng test: hàm đơn lẻ / nhiều thành phần thật / toàn luồng | Chiến lược test của dự án |
-| **Test double: Mock / Stub / Fake** | Các cách thay thế dependency khi test | Khi test service gọi DB hoặc payment |
+| **Test double: Mock / Stub / Spy / Fake** | Bốn cách thay thế dependency khi test — hay bị gọi lẫn là "mock" | Khi test service gọi DB hoặc payment |
 | **Testcontainers** | Chạy Postgres/Redis thật trong Docker khi test, không mock | Integration test Phase 3 |
 | **Flaky test** | Test lúc pass lúc fail — thường do timing hoặc state dùng chung | Sẽ gặp khi test concurrency |
-| **Coverage — và cái bẫy của nó** | Đo % code được test; cao không có nghĩa là test tốt | Mục tiêu 70% module core |
+| **Coverage — và cái bẫy của nó** | Đo % code **được chạy qua**, không phải % rủi ro được kiểm chứng | Mục tiêu 70% module core |
+| **Branch coverage** | % nhánh `if` được đi **cả hai chiều** — đáng nhìn hơn line coverage | Khi đọc báo cáo coverage |
+| **Mutation testing** | Cố tình sửa hỏng code xem test có đỏ không — phép thử thật sự của bộ test | Khi nghi bộ test chỉ đẹp số |
 | **Fixture / Seed data** | Dữ liệu mẫu chuẩn bị trước cho test | Seed 100k SKU |
 | **ADR (Architecture Decision Record)** | Ghi lại quyết định + trade-off để sau này giải thích được | Mỗi quyết định lớn |
 | **Technical debt** | Nợ kỹ thuật: chấp nhận làm nhanh, trả sau — phải ghi lại, không được im lặng | Khi cố tình đơn giản hóa |

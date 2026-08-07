@@ -17,7 +17,7 @@ khác chỉ được **trỏ link tới**, không chép lại.
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`../project-context.md`](../project-context.md) §3 + [`adr/`](adr/) | mọi nơi |
 | Chi tiết một tính năng (API, edge case, test) | [`specs/<tên>.md`](specs/) | — |
 | Tên gọi của các bài toán | [`glossary.md`](glossary.md) | — |
-| **Cơ chế / bug / tình huống thật của từng phase** | [`tech-playbook.md`](tech-playbook.md) | glossary |
+| **Cơ chế / bug / tình huống thật của từng phase**, và **CI + Testing** (xuyên suốt) | [`tech-playbook.md`](tech-playbook.md) | glossary |
 | Cách dùng Claude Code trong repo | [`claude-guide.md`](claude-guide.md) | CLAUDE.md (chỉ tóm tắt) |
 | Chuẩn commit, quy tắc nhánh | [`git-workflow.md`](git-workflow.md) | — |
 | Checklist review code | [`review-checklist.md`](review-checklist.md) | — |
@@ -34,6 +34,7 @@ thấy ngay mà không phải mở thêm file. Giữ phần tóm tắt đó **ng
 | Muốn biết đang đứng ở đâu, làm gì tiếp | gõ `/phase-status` (báo cáo động, không bao giờ lệch) |
 | Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận diện tên) → [`tech-playbook.md`](tech-playbook.md) (cơ chế + bẫy) → [`SPEC.md`](SPEC.md) |
 | Đang va một bug lạ | [`tech-playbook.md`](tech-playbook.md) — bảng "Bug hay gặp" của phase đó |
+| **CI đỏ**, hoặc muốn hiểu test được tổ chức thế nào | [`tech-playbook.md` §Xuyên suốt](tech-playbook.md) — CI & Testing (xuyên suốt mọi phase) |
 | Không biết sửa file nào | [`architecture.md`](architecture.md) |
 | Trước khi code một tính năng | gõ `/spec <tên>` → tạo file trong [`specs/`](specs/) |
 | Khi phải chọn giữa hai cách làm | gõ `/adr <chủ đề>` → tạo file trong [`adr/`](adr/) |
@@ -52,7 +53,7 @@ docs/
 ├── SPEC.md                kế hoạch 7 phase + Definition of Done
 ├── spec-report.html       bản trình bày trực quan của SPEC (mở bằng browser)
 ├── glossary.md            từ điển: TÊN của các bài toán (nhận diện, 1 dòng/mục)
-├── tech-playbook.md       cơ chế + bug hay gặp + tình huống thật, theo từng phase
+├── tech-playbook.md       cơ chế + bug hay gặp + tình huống thật (theo phase, + CI & Testing)
 ├── git-workflow.md        chuẩn commit, quy tắc nhánh, AI không tự push
 ├── review-checklist.md    checklist review code
 ├── claude-guide.md        dùng lệnh/skill/hook/agent nào khi nào

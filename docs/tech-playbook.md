@@ -5,6 +5,8 @@
 >
 > **Cách dùng:** đọc mục của phase **trước khi bắt đầu phase đó** (~15 phút/phase). Không
 > đọc hết một lượt. Quay lại khi va vấn đề.
+> Ngoại lệ: hai mục **Phần 0** (thuật ngữ) và **Xuyên suốt** (CI & Testing) dùng ở cả 7 phase
+> — đọc một lần ngay từ đầu.
 >
 > **Chủ trương:** mỗi mục nêu *cơ chế* đủ để tự suy ra hệ quả, rồi dừng. Muốn đào sâu thì
 > đã có từ khoá chuẩn để tra.
@@ -38,6 +40,189 @@
 | **Race condition** | Kết quả sai tuỳ **thứ tự** thực thi | **Deadlock** — hai bên khoá chéo, cả hai **treo** |
 | **4xx** | Lỗi do phía gọi (kể cả "hết hàng") | **5xx** — lỗi do hệ thống mình. Trộn hai loại làm error rate vô nghĩa |
 | **Transaction** | Nhóm thao tác **all-or-nothing** trên một connection | **Batch** — gộp nhiều thao tác cho nhanh, không đảm bảo nguyên tử |
+
+---
+
+# Xuyên suốt — CI & Testing (dùng ở **mọi** phase)
+
+> Đọc phần này **một lần, ngay bây giờ** — khác các mục dưới (đọc trước từng phase). Đây là
+> thứ chạy mỗi lần push, ở cả 7 phase.
+
+## A. GitHub Actions
+
+### Cần rõ
+
+| Thuật ngữ | Một câu | Đừng nhầm với |
+|---|---|---|
+| **CI** (Continuous Integration) | Mỗi lần push, máy tự chứng minh code còn đúng | **CD** — tự động deploy. Repo này mới có CI, chưa có CD |
+| **Workflow** | Một file YAML trong `.github/workflows/`. Một file = một "chương trình CI" | Một repo có nhiều workflow chạy độc lập nhau |
+| **Event** (`on:`) | Điều kiện kích hoạt: `push`, `pull_request`, `schedule`, `workflow_dispatch` (bấm tay) | — |
+| **Job** | Nhóm step chạy trên **một máy ảo riêng**. Job khác nhau = máy khác nhau, **không** chung ổ đĩa | **Step** — chạy trong cùng máy, cùng thư mục |
+| **Step** | Một lệnh (`run:`) hoặc một action (`uses:`). Tuần tự, dừng ở step đầu tiên fail | — |
+| **Runner** | Máy ảo chạy job. `ubuntu-latest` = máy GitHub cấp, **mới tinh mỗi lần** | Không phải máy của anh, không có gì sẵn |
+| **Action** | Đoạn code đóng gói tái dùng. `actions/checkout@v4` = repo `actions/checkout`, tag `v4` | — |
+| **Artifact** | File muốn giữ lại để tải về sau (báo cáo coverage, build output) | **Cache** — chỉ để tăng tốc lần sau, mất lúc nào cũng được, không được phụ thuộc vào |
+
+### Cơ chế phải nắm
+
+- **CI là "máy sạch" — đó chính là toàn bộ giá trị của nó.** Máy anh xanh chỉ chứng minh
+  *"chạy được trên máy anh, với những thứ tình cờ đang có sẵn ở đó"*. CI chứng minh
+  *"chạy được từ số 0, chỉ với những gì thật sự nằm trong git"*.
+- Hệ quả trực tiếp: **thứ gì code cần mà không nằm trong git thì CI phải sinh lại**. Trong
+  repo này đó là `src/generated/prisma` (bị gitignore) → bắt buộc có bước `npm run db:generate`
+  **trước** typecheck. Đây đúng là nguyên nhân bug `Cannot find module './internal/class.js'`
+  chỉ đỏ trên CI: máy local đang giữ bản generate cũ, CI sinh bản mới.
+- **`npm ci` ≠ `npm install`.** `ci` xoá sạch `node_modules`, cài **đúng** `package-lock.json`,
+  và **fail** nếu lock lệch `package.json`. `install` được phép tự sửa lock. CI luôn dùng `ci`
+  để mọi lần chạy có cùng version dependency.
+- **`cache: npm` cache thư mục tải về của npm (`~/.npm`), không cache `node_modules`.**
+  Khoá cache là hash của `package-lock.json`. Nên nó chỉ làm `npm ci` nhanh hơn, không bỏ qua
+  bước cài — và không thể gây "CI xanh nhờ đồ cũ".
+- **Thứ tự step là có chủ đích:** cái **nhanh và hay hỏng** lên trước. lint (giây) → typecheck
+  (giây) → test (chục giây) → build. Fail sớm = biết sớm, đỡ tốn phút chạy.
+- **Job chạy song song mặc định; step chạy tuần tự.** Muốn job B chờ A xong: `needs: A`. Muốn
+  chạy cùng một job trên nhiều phiên bản Node: `strategy.matrix`.
+- **`concurrency` + `cancel-in-progress`**: push 3 lần liên tiếp → huỷ 2 lần chạy cũ, chỉ giữ
+  lần mới nhất. Tiết kiệm phút chạy và tránh đọc nhầm kết quả của commit cũ.
+- **Secret**: khai báo ở Settings → Secrets, dùng qua `${{ secrets.X }}`. GitHub che giá trị
+  trong log — nhưng che bằng **so khớp chuỗi thô**. Nếu code in ra base64 hoặc bản cắt của
+  secret thì **không** che được. Nguyên tắc: đừng in biến env ra log, dù đang debug.
+- **Phút chạy:** repo **public** thì runner tiêu chuẩn miễn phí không giới hạn; repo **private**
+  có hạn mức tháng. Đây là lý do `timeout-minutes` đáng đặt — một job treo có thể ăn 6 tiếng
+  (mặc định của GitHub) trước khi bị cắt.
+
+### Đọc `ci.yml` của repo này
+
+| Khối trong [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Nó làm gì và vì sao |
+|---|---|
+| `on: push/pull_request → main` | Chạy khi push thẳng main **và** khi mở PR vào main. Hai event khác nhau, cùng một workflow |
+| `concurrency: cancel-in-progress` | Push liên tiếp → chỉ giữ lần chạy mới nhất |
+| `runs-on: ubuntu-latest` + `timeout-minutes: 10` | Máy sạch, và tự cắt nếu treo quá 10 phút |
+| `actions/checkout@v4` | Tải code về máy ảo. Mặc định clone **nông** (depth 1) — đủ cho CI, nhưng lệnh nào cần lịch sử git đầy đủ thì phải khai `fetch-depth: 0` |
+| `actions/setup-node@v4` + `node-version-file: .nvmrc` | Node version lấy từ chính file mà máy local dùng → **một nguồn sự thật**, không có chuyện local Node 24 / CI Node 20 |
+| `npm ci` | Cài đúng lock |
+| `npm run db:generate` (kèm `DATABASE_URL` giả) | Sinh Prisma Client vì nó bị gitignore. URL giả là đủ vì `generate` không kết nối DB — nhưng phải **đúng cú pháp**, nếu không `prisma.config.ts` sẽ ném lỗi |
+| `lint` → `typecheck` → `test --coverage` → `build` | Nhanh-và-hay-hỏng trước. `build` để cuối vì nó chỉ hỏng khi 3 bước trên đã xanh |
+
+**Còn nợ có chủ đích:** integration test **chưa** chạy trên CI (lý do ghi ngay đầu `ci.yml`:
+dựng container làm CI chậm nhiều lần, và Phase 0 chưa có gì đáng test trên DB thật). Sẽ bật ở
+Phase 3. Khi bật, có hai cách: `services:` của GitHub Actions (nhanh hơn, nhưng cấu hình khác
+với local) hoặc để nguyên Testcontainers (chậm hơn, nhưng **local và CI chạy y hệt nhau**).
+
+### Bug hay gặp
+
+| Triệu chứng | Nguyên nhân | Cách chặn |
+|---|---|---|
+| **CI đỏ, local xanh** | Có thứ chỉ tồn tại trên máy local: file bị gitignore, biến env, bản build/generate cũ | Tái hiện bằng máy sạch: xoá `node_modules` + `src/generated`, chạy lại từ `npm ci`. **Luôn tái hiện được rồi mới sửa** |
+| CI xanh, local đỏ | Ngược lại — local đang bẩn | Như trên |
+| Workflow **không chạy chút nào** | Sai đường dẫn (phải là `.github/workflows/`), sai nhánh trong `on:`, hoặc YAML sai cú pháp | Tab Actions không hiện tên workflow = GitHub chưa nhận file |
+| Step fail nhưng job vẫn xanh | Lệnh chạy trong pipe/`&&` nuốt mất exit code, hoặc có `continue-on-error` | Mỗi việc một `run:` riêng |
+| Secret lọt vào log | `echo $VAR`, hoặc in cả object config ra khi debug | Không in env. Nếu lỡ lọt: **coi như secret đã lộ**, phải xoay vòng, không chỉ xoá log |
+| CI chậm dần theo tháng | Test tích luỹ, mỗi test lại dựng lại app/DB | Xem mục **B. Testing** — gốc nằm ở cấu trúc test, không phải ở CI |
+
+### Tình huống thực tế
+
+Đội 6 người, `main` đỏ từ 10h sáng. Người thứ hai push lúc 10h30 thấy đỏ, tưởng lỗi của mình,
+mất 40 phút debug. Người thứ ba thấy đỏ nữa thì **thôi không nhìn CI nữa**. Đến chiều không ai
+biết trong đống đỏ đó có bao nhiêu lỗi thật.
+
+Vì vậy luật phổ biến là: **main đỏ thì sửa hoặc revert trong 15 phút, không debug từ từ.** Giá
+trị của CI không nằm ở việc nó chạy test — mà ở việc màu xanh **đáng tin**. Một CI đỏ kinh niên
+tệ hơn không có CI, vì nó dạy cả đội bỏ qua tín hiệu.
+
+---
+
+## B. Testing
+
+### Cần rõ
+
+| Thuật ngữ | Một câu | Đừng nhầm với |
+|---|---|---|
+| **Unit test** | Test **một** đơn vị logic, mọi phụ thuộc thay bằng đồ giả. Nhanh (ms) | Không cần Docker, không chạm mạng/ổ đĩa |
+| **Integration test** | Ghép nhiều mảnh **thật** với nhau (app + Postgres thật) | **E2E** — đi qua giao diện ngoài cùng như người dùng thật |
+| **SUT** | System Under Test — thứ đang bị test | Mọi thứ còn lại là "môi trường" |
+| **Test double** | Từ **chung** cho mọi thứ đóng thế dependency | Bốn loại dưới đây hay bị gọi lẫn là "mock" |
+| ├ **Stub** | Trả sẵn một giá trị. Không kiểm tra gì | **Mock** |
+| ├ **Mock** | Stub **cộng thêm** khẳng định "phải được gọi đúng N lần, đúng tham số" | Mock kiểm tra *tương tác*; stub chỉ cấp *dữ liệu* |
+| ├ **Spy** | Bọc hàm **thật**, hàm vẫn chạy, chỉ ghi lại lời gọi | Stub — stub thay hẳn hàm |
+| └ **Fake** | Bản cài đặt **thật nhưng đơn giản** (repository in-memory) | Có logic thật, không phải trả giá trị cứng |
+| **Fixture** | Dữ liệu chuẩn bị sẵn cho test | **Seed** — dữ liệu mồi cho app chạy thật |
+| **AAA** | Arrange → Act → Assert. Chuẩn bị, gọi, khẳng định | Ba khối tách bạch trong mỗi test |
+| **Flaky test** | Lúc xanh lúc đỏ **mà code không đổi** | Nguy hiểm hơn test đỏ hẳn — nó dạy người ta bỏ qua kết quả test |
+| **Coverage** | % dòng code **được chạy qua** khi test | **Không phải** % code được *kiểm chứng*. Test không có `expect` nào vẫn cho 100% |
+| ├ statement/line | Dòng có được chạy không | Dễ đạt, ít ý nghĩa |
+| └ **branch** | **Mỗi nhánh** `if`/`?:` có được đi cả hai chiều không | Con số đáng nhìn hơn hẳn line coverage |
+
+### Cơ chế phải nắm
+
+- **Kim tự tháp test.** Nhiều unit (nhanh, chỉ thẳng chỗ hỏng) → ít integration → rất ít E2E.
+  Lật ngược ("ice-cream cone": chủ yếu E2E) cho ra CI 40 phút và mỗi lần đỏ không ai biết vì sao.
+- **Câu hỏi chọn tầng test: rủi ro nằm ở đâu?** Rủi ro trong *logic của mình* → unit. Rủi ro
+  nằm ở *tương tác* với thứ mình không viết (khoá của Postgres, thứ tự message của Redis, chữ ký
+  webhook) → **bắt buộc** integration. Mock chỗ đó là tự lừa mình.
+- **Đây chính là lý do repo dùng Testcontainers.** Oversell (Phase 3) chỉ xảy ra khi Postgres
+  thật xử lý lock thật dưới tải thật. Một repository bị mock sẽ **luôn** trả về kết quả đúng —
+  test xanh 100% trong khi production bán quá 50 áo.
+- **Testcontainers** dựng container Docker thật trong vòng đời test, cấp **port ngẫu nhiên**
+  (nên chạy song song không đụng nhau), dọn sau khi xong. Đổi lại: cần Docker daemon đang chạy,
+  và khởi động chậm → dựng **một lần** trong `beforeAll` cho cả file, không phải `beforeEach`.
+- **Jest chạy các *file* test song song** (mỗi file một process, module registry riêng), nhưng
+  **các test *trong* một file thì tuần tự**. `--runInBand` (repo dùng cho integration) ép tất cả
+  về một process, chạy nối đuôi — cần thiết vì nhiều file cùng đụng một DB.
+- **Test phải độc lập với thứ tự chạy.** Nếu đảo thứ tự mà đỏ, nghĩa là có state rò rỉ giữa các
+  test. Đây là mầm của flaky.
+- **Test là hợp đồng về *hành vi*, không phải bản sao của code.** Phép thử: refactor bên trong
+  mà không đổi hành vi — nếu test phải sửa theo, test đó đang bám vào implement. Phép thử ngược:
+  cố tình xoá một `if` trong code — nếu **không** có test nào đỏ thì vùng đó chưa được bảo vệ,
+  bất kể coverage bao nhiêu. (Tự động hoá phép thử này gọi là **mutation testing**.)
+- **Với async/queue (Phase 4): tuyệt đối không `sleep(500)` rồi assert.** Đó là nguồn flaky số
+  một. Chờ theo **điều kiện** — poll cho đến khi trạng thái đổi, có timeout tổng.
+
+### Trong repo này
+
+| | Unit | Integration |
+|---|---|---|
+| Lệnh | `npm test` | `npm run test:int` |
+| Config | [`jest.config.js`](../jest.config.js) | [`test/jest-integration.json`](../test/jest-integration.json) |
+| File | `src/**/*.spec.ts` — **nằm cạnh code nó test** | `test/**/*.e2e-spec.ts` |
+| Cần Docker | Không | **Có** |
+| Chạy trên CI | Có | Chưa (bật ở Phase 3) |
+
+Hai hậu tố `.spec.ts` / `.e2e-spec.ts` chỉ là **quy ước đặt tên của repo** để hai `testRegex`
+tách nhau ra, không phải luật của Jest.
+
+Cả hai config đều cần `moduleNameMapper: {'^(\\.{1,2}/.*)\\.js$': '$1'}` — Prisma 7 sinh import
+kèm đuôi `.js` nhưng file trên đĩa là `.ts`, và Jest chỉ thử thêm đuôi cho đường dẫn **chưa có**
+đuôi. Xoá dòng này đi là CI đỏ ngay.
+
+### Bug hay gặp
+
+| Triệu chứng | Nguyên nhân | Cách chặn |
+|---|---|---|
+| **Test xanh nhưng bug vẫn lọt production** | Mock quá sâu — test đang kiểm tra chính cái mock mình viết | Ở chỗ rủi ro, test qua ranh giới **thật** (DB, HTTP) |
+| Chạy riêng file thì xanh, chạy cả bộ thì đỏ | State dùng chung: biến ở tầng module, bản ghi DB còn sót, mock chưa reset | `clearMocks: true`; mỗi test tự dọn dữ liệu nó tạo |
+| **Flaky** | `setTimeout` cố định, phụ thuộc giờ hệ thống, port cứng, thứ tự chạy | Chờ theo điều kiện; để container tự cấp port; giả lập thời gian bằng fake timer |
+| `Jest did not exit one second after...` | Quên đóng pool / server / container | `afterAll`: `app.close()`, `pool.end()`, `container.stop()` |
+| `Could not find a working container runtime strategy` | Docker daemon chưa bật | Bật Docker. **Không phải lỗi code** — đã gặp thật ở Phase 0 |
+| Coverage cao mà vẫn sợ sửa code | Test bám implement, hoặc test không `expect` gì | Nhìn **branch coverage**, và làm phép thử "xoá một `if`" ở trên |
+
+### Tình huống thực tế
+
+Đêm flash sale, hệ thống bán quá 50 áo. Mở CI ra: xanh, coverage 92%. Lý do: service tồn kho
+được test với một repository **mock** — mock trả về đúng số lượng mọi lúc, nên logic
+`if (stock > 0) stock--` trông hoàn toàn đúng. Race condition không tồn tại trong thế giới của
+mock, vì mock không có transaction, không có lock, không có hai request cùng lúc.
+
+Bài học rút ra là một câu nên nhớ cả dự án: **coverage đo phần code đã chạy, không đo phần rủi
+ro đã được kiểm chứng.** Rủi ro của dự án này nằm ở *tương tác*, và tương tác thì chỉ lộ ra khi
+các mảnh thật chạy cùng nhau.
+
+### Tự kiểm tra
+
+1. CI đỏ mà local xanh — bước **đầu tiên** phải làm là gì, và vì sao không phải là "sửa đại rồi push lại xem"?
+2. Vì sao CI dùng `npm ci` chứ không `npm install`? Điều gì xảy ra nếu dùng `install`?
+3. Mock, stub và fake khác nhau ở điểm nào? Kể một chỗ trong dự án này mà dùng mock là **sai**.
+4. Coverage 100% mà vẫn lọt bug — mô tả một cách cụ thể chuyện đó xảy ra thế nào.
 
 ---
 
@@ -423,6 +608,9 @@ Chỉ tra khi thật sự va vấn đề — đọc trước sẽ quên.
 
 | Chủ đề | Nguồn |
 |---|---|
+| Cú pháp YAML, context `${{ }}`, matrix, reusable workflow | GitHub Docs — *GitHub Actions › Writing workflows* (phần *Workflow syntax* là bản tra cứu đầy đủ) |
+| Test double: mock vs stub vs fake | Martin Fowler — *Mocks Aren't Stubs* và *Test Pyramid* |
+| Jest: config, timer giả, chạy song song | Jest docs — *Configuring Jest* + *Timer Mocks* |
 | Isolation level, MVCC, khoá | Tài liệu chính thức PostgreSQL, chương *Concurrency Control* |
 | Index & query plan | PostgreSQL docs, chương *Performance Tips* + `EXPLAIN` |
 | Auth, lưu mật khẩu, JWT | OWASP Cheat Sheet Series (Password Storage, Session Management) |

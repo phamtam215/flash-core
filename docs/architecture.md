@@ -76,8 +76,11 @@ flash-core/
 │
 ├── docs/                         ← tài liệu (xem docs/README.md)
 ├── .claude/                      ← bộ công cụ Claude Code (xem docs/claude-guide.md)
-└── .github/workflows/ci.yml      ← CI: lint + typecheck + test + build
+├── jest.config.js                ← unit test (src/**/*.spec.ts, không cần Docker)
+└── .github/workflows/ci.yml      ← CI: generate → lint → typecheck → test → build
 ```
+
+Cách CI hoạt động và cách bộ test được chia tầng: [`tech-playbook.md` §Xuyên suốt](tech-playbook.md).
 
 ---
 
@@ -96,6 +99,7 @@ flash-core/
 | Thêm **unit test** | file `*.spec.ts` cạnh code | Chạy `npm test` |
 | Thêm **integration test** | `test/*.e2e-spec.ts` | Chạy `npm run test:int`, cần Docker |
 | Đổi **luật lint** | `eslint.config.mjs` | |
+| Đổi **CI** (thêm bước, đổi Node version) | `.github/workflows/ci.yml` | Node version lấy từ `.nvmrc` — đổi ở đó, không sửa trong yml |
 | Đổi **hành vi của Claude** | `.claude/` — xem `docs/claude-guide.md` | |
 
 ---
