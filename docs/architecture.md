@@ -28,6 +28,51 @@ chuỗi trên chạy thật với Postgres thật.
 
 ---
 
+## Đi theo một request: `GET /ready` khi Postgres đã chết
+
+Bảng trên nói *file nào làm gì*. Phần này nói *chúng ráp vào nhau ra sao* — đi đúng một
+request từ lúc gõ `npm run dev` tới lúc client nhận `503`.
+
+**Lúc khởi động (một lần):**
+
+| # | Ở đâu | Chuyện gì xảy ra |
+|---|---|---|
+| 1 | [`main.ts:4`](../src/main.ts#L4) | `dotenv/config` nạp `.env` vào `process.env`. **Phải là import đầu tiên** |
+| 2 | [`main.ts:13`](../src/main.ts#L13) | Nest dựng `AppModule`, ráp module theo thứ tự cấu hình → log → hạ tầng → nghiệp vụ |
+| 3 | [`config.module.ts:30`](../src/config/config.module.ts#L30) | `validateEnv()` chạy. Thiếu biến → **throw ngay tại đây, app không bao giờ lên** |
+| 4 | [`logger.module.ts:30`](../src/common/logger/logger.module.ts#L30) | Pino nhận `LOG_LEVEL` từ `Env` vừa validate |
+| 5 | [`prisma.service.ts:33`](../src/infra/prisma/prisma.service.ts#L33) | Tạo `pg.Pool` → bọc `PrismaPg` adapter → `super()`. Pool là **một** instance cho cả app |
+| 6 | [`main.ts:24`](../src/main.ts#L24) | Đăng ký shutdown hook, để SIGTERM còn kịp đóng pool |
+
+**Mỗi request:**
+
+| # | Ở đâu | Chuyện gì xảy ra |
+|---|---|---|
+| 7 | [`logger.module.ts:34`](../src/common/logger/logger.module.ts#L34) | `genReqId` chạy **trước mọi thứ**: lấy `x-correlation-id` từ header, hoặc sinh UUID mới. Gắn vào `req.id` **và** vào response header |
+| 8 | [`health.controller.ts:15`](../src/modules/health/health.controller.ts#L15) | Nest định tuyến `/ready` tới đây |
+| 9 | [`health.service.ts:49`](../src/modules/health/health.service.ts#L49) | `SELECT 1` qua Prisma → Postgres chết → `pg` ném lỗi |
+| 10 | [`health.service.ts:54`](../src/modules/health/health.service.ts#L54) | `catch` **có bắt nhưng không nuốt**: log mức `warn`, rồi trả `'down'` |
+| 11 | [`health.controller.ts:21`](../src/modules/health/health.controller.ts#L21) | `ready === false` → ném `ServiceUnavailableException`. Phải là **status code**, vì load balancer không đọc body |
+| 12 | [`all-exceptions.filter.ts:45`](../src/common/filters/all-exceptions.filter.ts#L45) | Filter bắt exception (đăng ký `APP_FILTER` ở `app.module.ts`, nên không controller nào thoát được) |
+| 13 | [`all-exceptions.filter.ts:52`](../src/common/filters/all-exceptions.filter.ts#L52) | Lấy lại `req.id` — **chính là id sinh ở bước 7**. Đây là chỗ hai đầu nối vào nhau |
+| 14 | [`all-exceptions.filter.ts:55`](../src/common/filters/all-exceptions.filter.ts#L55) | 503 < 500? Không — nhưng 503 ≥ 500 nên log mức `error`… *(xem câu hỏi bên dưới)* |
+| 15 | [`all-exceptions.filter.ts:67`](../src/common/filters/all-exceptions.filter.ts#L67) | Trả `{ code, message, correlationId }` — một hình dạng cho mọi lỗi trong toàn app |
+
+**Ba điều đáng rút ra từ mạch này:**
+
+1. **`correlationId` sinh ở bước 7 và được dùng lại ở bước 13** — hai file cách xa nhau, nối
+   với nhau qua `req.id`. Đó là toàn bộ cơ chế "truy một request qua mọi dòng log".
+2. **Không controller nào tự xử lý lỗi.** Chúng chỉ `throw`; filter ở biên lo phần còn lại.
+3. **Bước 3 là lá chắn rẻ nhất của cả hệ thống** — sai cấu hình thì chết lúc `npm run dev`,
+   không phải lúc có khách.
+
+> **Câu hỏi để tự kiểm tra:** bước 14 nói `/ready` trả 503 và filter log ở mức **error**.
+> Nhưng "DB tạm chết" là sự cố vận hành bình thường, không phải bug của code. Vậy log mức
+> `error` ở đây có đúng không, hay nó sẽ làm nhiễu cảnh báo khi lên production? Nếu thấy
+> chưa ổn thì đó là một cải tiến thật — và là chất liệu tốt cho một ADR.
+
+---
+
 ## Cây thư mục — mỗi dòng một trách nhiệm
 
 ```
