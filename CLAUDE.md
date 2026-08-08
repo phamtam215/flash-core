@@ -63,6 +63,19 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 - Lỗi: dùng exception filter thống nhất, không nuốt lỗi (không có catch rỗng).
 - Transaction boundary phải hẹp nhất có thể; không gọi API ngoài trong transaction.
 
+## Ngân sách tài liệu (chốt 2026-08-07 — luật cứng)
+Cuối Phase 0 đo được tỉ lệ **1 dòng code : 5 dòng nói về code** (984 vs 5 198). Sai hướng với
+một dự án mục tiêu là học công nghệ. Từ đây:
+- **Mỗi phase tối đa MỘT file tài liệu mới.** Còn lại là code, test, ADR.
+- **`.claude/` đã đóng băng** — không thêm skill/hook/command. Nó đã chạy tốt, và cấu hình
+  Claude Code không phải kỹ năng backend.
+- Các file quy trình (`claude-guide.md`, `mcp-setup.md`, `review-checklist.md`, bảng sở hữu
+  tài liệu) **chỉ sửa khi sai**, không mở rộng.
+- Không tạo checklist riêng cho từng phase. `docs/phase-0-checklist.md` là ngoại lệ duy nhất.
+- ADR thì cứ viết — nó ép nói ra trade-off, đó là học thật.
+
+Nếu Tâm yêu cầu thêm tài liệu mà ngân sách đã hết, **nói ra tỉ lệ hiện tại trước khi làm**.
+
 ## Điều cấm
 - Không thêm công nghệ mới (Kafka, K8s, microservices...) — nếu thấy cần, đề xuất
   qua ADR để Tâm quyết, không tự thêm.
@@ -114,8 +127,9 @@ Postgres MCP bật ở Phase 2, Playwright MCP ở Phase 3. Xem `docs/mcp-setup.
   Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI.
   **11/11 unit test + 5/5 integration test (Testcontainers, Postgres thật) pass**,
   lint/typecheck/build sạch.
-- **Còn nợ: 4 việc — danh sách đầy đủ ở `docs/phase-0-checklist.md`** (nguồn sự thật duy
-  nhất, đừng chép lại ở đây). Tóm tắt: xác nhận CI xanh → viết 3 ADR (hiện 0) → `/quiz`
-  → `/journal 0` → đóng phase.
+- **Còn nợ: 2 việc — chi tiết ở `docs/phase-0-checklist.md`** (nguồn sự thật duy nhất).
+  Tóm tắt: Tâm push + xác nhận CI xanh → `/quiz` 3 câu → sang Phase 1.
+  ADR đã xong 2/2 (`docs/adr/001`, `002`). Journal Phase 0 **đã bỏ** — Phase 0 là config,
+  không có gì để chiêm nghiệm; bắt đầu journal từ Phase 3.
 - Khi hoàn thành/tick một việc: **sửa `docs/phase-0-checklist.md`**, rồi cập nhật một dòng
   tóm tắt ở đây. Sang phase mới thì tạo checklist tương ứng cho phase đó.

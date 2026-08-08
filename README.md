@@ -147,3 +147,7 @@ Dự án này được phát triển theo quy trình **AI-assisted, spec-driven,
 Cách làm này được ghi ra công khai vì nó là một phần của điều dự án muốn thể hiện: không
 phải "tôi tự gõ từng dòng", mà **"tôi hiểu và chịu trách nhiệm cho từng dòng"** — bằng chứng
 là ADR, test, benchmark và nhật ký học tập.
+
+Vì vậy commit nào có AI tham gia đều giữ dòng `Co-Authored-By: Claude`. Che giấu chuyện này
+là rủi ro lớn hơn nhiều so với việc thừa nhận nó: người phỏng vấn phát hiện ra thì mất cả
+niềm tin, còn nói thẳng thì phần đáng giá — spec, review, quyết định kiến trúc — vẫn nguyên.

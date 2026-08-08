@@ -5,7 +5,12 @@
 >
 > Mỗi việc ghi rõ: **ai làm** · **gõ gì** · **xong là khi nào**. Tick xong thì sửa file này.
 >
-> Cập nhật lần cuối: 2026-08-07 · Còn **4 việc**, ước lượng ~2 giờ.
+> Cập nhật lần cuối: 2026-08-07 · Còn **2 việc**, ~20 phút.
+>
+> **Đã cắt gọn 2026-08-07.** Đo được tỉ lệ 1 dòng code : 5 dòng tài liệu → bỏ ADR về minh bạch
+> AI (chuyển thành 3 dòng trong README, vì nó là chuyện portfolio chứ không phải kỹ thuật) và
+> bỏ journal Phase 0 (phase này là config, không có gì để chiêm nghiệm — journal bắt đầu từ
+> Phase 3). Luật ngân sách tài liệu mới: `CLAUDE.md` §Ngân sách tài liệu.
 
 ---
 
@@ -43,29 +48,24 @@ Commit `5593dcd` chính là bản vá cho lần đỏ trước — lần chạy 
 
 ---
 
-### ☐ 3. Viết ADR
+### ☑ 3. Viết ADR — **XONG 2026-08-07 (2/2, Tâm cần đọc duyệt)**
 
-**Ai:** Claude draft → Tâm duyệt · **~45 phút** · Hiện có **0 ADR**
+- [`adr/001-modular-monolith.md`](adr/001-modular-monolith.md) — quyết định kiến trúc gốc, và
+  là câu hỏi bản chất của Phase 0. Ghi rõ **hai tầng enforce**: NestJS DI chặn *inject*,
+  ESLint chặn *import sâu*.
+- [`adr/002-nen-mong-ky-thuat-phase-0.md`](adr/002-nen-mong-ky-thuat-phase-0.md) — gộp 5 quyết
+  định: Prisma 7 + adapter `pg` · TypeScript 6 · không path alias · tự viết ConfigModule ·
+  `@Global` đúng hai chỗ.
 
-```
-/adr minh bạch về AI trong commit và README
-/adr nền móng kỹ thuật Phase 0
-/adr chọn Modular Monolith thay vì Microservices
-```
+ADR về minh bạch AI **đã bỏ** → 3 dòng trong [`README.md`](../README.md) §Về quy trình phát
+triển. Lý do: đó là quyết định trình bày portfolio, không phải quyết định kỹ thuật.
 
-| # | ADR | Nội dung | Bắt buộc? |
-|---|---|---|---|
-| 001 | Minh bạch về AI | Kết quả của việc 2a | ✅ Đang treo từ đầu dự án |
-| 002 | Nền móng kỹ thuật Phase 0 | Prisma 7 + driver adapter `pg` · TypeScript 6 (không TS 7 vì ts-jest) · không path alias `@/` · tự viết ConfigModule · `@Global` cho Config + Prisma | ✅ |
-| 003 | Modular Monolith vs Microservices | Đây **chính là câu hỏi bản chất** của Phase 0 (việc 4) và là câu chắc chắn bị hỏi khi phỏng vấn. Phải ghi rõ **hai tầng enforce**: NestJS DI (`exports`) chặn việc *inject*, ESLint `no-restricted-imports` chặn việc *import sâu* | ✅ |
+**Không ép cho đủ 10 ADR.** Mục tiêu ~10 ở [`SPEC.md` §7](SPEC.md) là của **cả dự án** —
+Phase 3 (chọn chiến lược lock sau benchmark) và Phase 4 (chọn cổng thanh toán) sẽ tự sinh ra
+nhiều ADR thật. Viết ADR cho quyết định chưa xảy ra là ADR rỗng.
 
-**Không cần ép cho đủ 10 ADR bây giờ.** Mục tiêu ~10 trong [`SPEC.md` §7](SPEC.md) là của
-**cả dự án** — Phase 3 (chọn chiến lược lock) và Phase 4 (chọn cổng thanh toán) sẽ tự sinh ra
-nhiều ADR. Viết ADR cho quyết định chưa xảy ra là ADR rỗng.
-
-**Xong khi:** có 3 file trong [`docs/adr/`](adr/), mỗi file điền đủ 4 mục của
-[template](templates/adr-template.md) — đặc biệt là mục **"Các lựa chọn đã cân nhắc"**.
-ADR không ghi cái đã loại bỏ thì chỉ là ghi chép, không phải quyết định.
+> Ghi chú lệch: thân commit `e9c5ad5` trỏ tới "ADR-003" — sau khi bỏ ADR minh bạch AI thì
+> file đó thành `001`. Lịch sử commit không sửa được; số đúng là **ADR-001**.
 
 ---
 
@@ -94,21 +94,18 @@ Cộng thêm 4 câu về CI & test ở cuối
 
 ---
 
-### ☐ 5. Viết nhật ký học tập
+### ~~5. Viết nhật ký học tập~~ — **ĐÃ BỎ 2026-08-07**
 
-**Ai:** Claude phỏng vấn, Tâm trả lời · **~30 phút**
+Phase 0 là dựng config; không có đủ chất để chiêm nghiệm. Journal bắt đầu từ **Phase 3**, nơi
+có benchmark và ba chiến lược để so sánh — lúc đó mới có gì đáng ghi.
 
-```
-/journal 0
-```
-
-**Xong khi:** có file `docs/journal/phase-0.md` ghi: học được gì, vấp ở đâu, nếu làm lại sẽ
-đổi gì. Bug CI vừa rồi (Prisma 7 sinh `.js`, jest không resolve) là **nguyên liệu tốt nhất**
-của journal này — nó là một bài học thật, không phải lý thuyết.
+Hai bài học kỹ thuật thật của Phase 0 **đã được ghi ở nơi có người đọc** rồi, nên không mất:
+Prisma 7 sinh import `.js` → [`tech-playbook.md` §Xuyên suốt](tech-playbook.md) và
+[`architecture.md` §Những chỗ dễ vấp](architecture.md).
 
 ---
 
-### ☐ 6. Đóng phase
+### ☐ 5. Đóng phase
 
 **Ai:** Claude · **~10 phút**
 
