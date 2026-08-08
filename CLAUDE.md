@@ -123,13 +123,16 @@ Muốn xem lại thì `git log -- .claude/`.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
-- Phase hiện tại: **Phase 0 — Nền móng** (xem docs/SPEC.md)
-- Đã xong: skeleton NestJS + config Zod + Pino/correlationId + exception filter +
-  Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI.
-  **11/11 unit test + 5/5 integration test (Testcontainers, Postgres thật) pass**,
-  lint/typecheck/build sạch.
-- **Còn nợ: 3 việc — chi tiết ở `docs/phase-0-checklist.md`** (nguồn sự thật duy nhất).
-  Tóm tắt: Tâm push + xác nhận CI xanh → đọc 3 câu hỏi bản chất (đã có đáp án sẵn) →
-  đóng phase. ADR đã xong 2/2 (`docs/adr/001`, `002`). Journal Phase 0 **đã bỏ**.
-- Khi hoàn thành/tick một việc: **sửa `docs/phase-0-checklist.md`**, rồi cập nhật một dòng
-  tóm tắt ở đây. Sang phase mới thì tạo checklist tương ứng cho phase đó.
+- Phase hiện tại: **Phase 1 — Auth & Security** (bắt đầu 2026-08-08)
+- **Phase 0 ĐÃ ĐÓNG** 2026-08-08 — hồ sơ ở `docs/phase-0-checklist.md`. Kết quả: skeleton
+  NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
+  module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
+  2 ADR (`docs/adr/001`, `002`).
+- **Spec đã duyệt:** `docs/specs/phase1-auth.md`. Hai quyết định đã chốt: rate limit đếm ở
+  **Redis** (không phải RAM), access token đọc từ **HttpOnly Cookie** (không dùng Bearer).
+- **Việc tiếp theo:** implement theo spec. Phát sinh `src/infra/redis/` — module hạ tầng
+  thứ hai, copy cấu trúc từ `infra/prisma/`.
+- Phase 1 xong khi: 14 test case trong spec pass, **đặc biệt test số 8** (dùng lại refresh
+  token cũ → thu hồi cả family) — đó là deliverable của phase theo `docs/SPEC.md`.
+- Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1** (§Ngân
+  sách tài liệu) — spec đã là danh sách việc.

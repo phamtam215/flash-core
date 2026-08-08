@@ -11,8 +11,7 @@ khác chỉ được **trỏ link tới**, không chép lại.
 | Thông tin | Chủ sở hữu duy nhất | Ai được trỏ tới |
 |---|---|---|
 | Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) | mọi nơi |
-| Trạng thái hiện tại (đang ở phase nào) | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại | README, spec |
-| **Việc còn nợ của phase đang làm** | [`phase-0-checklist.md`](phase-0-checklist.md) | CLAUDE.md, README |
+| **Đang ở phase nào, việc tiếp theo là gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại | README, spec |
 | Kế hoạch 7 phase + Definition of Done | [`SPEC.md`](SPEC.md) | README |
 | Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) | README |
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`../project-context.md`](../project-context.md) §3 + [`adr/`](adr/) | mọi nơi |
@@ -30,7 +29,7 @@ vì file đó được nạp tự động mỗi phiên.
 | Thời điểm | File |
 |---|---|
 | Lần đầu vào dự án | [`README.md`](../README.md) → [`architecture.md`](architecture.md) |
-| **"Giờ tôi cần làm gì?"** | [`phase-0-checklist.md`](phase-0-checklist.md) — việc còn lại, theo thứ tự, kèm điều kiện xong |
+| **"Giờ tôi cần làm gì?"** | [`../CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
 | Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận diện tên) → [`tech-playbook.md`](tech-playbook.md) (cơ chế + bẫy) → [`SPEC.md`](SPEC.md) |
 | Đang va một bug lạ | [`tech-playbook.md`](tech-playbook.md) — bảng "Bug hay gặp" của phase đó |
 | **CI đỏ**, hoặc muốn hiểu test được tổ chức thế nào | [`tech-playbook.md` §Xuyên suốt](tech-playbook.md) — CI & Testing (xuyên suốt mọi phase) |
@@ -46,7 +45,7 @@ vì file đó được nạp tự động mỗi phiên.
 ```
 docs/
 ├── README.md              ← mục lục này
-├── phase-0-checklist.md   VIỆC CÒN LẠI của phase đang làm (mở file này khi bí)
+├── phase-0-checklist.md   hồ sơ Phase 0 (đã đóng)
 ├── architecture.md        bản đồ code
 ├── SPEC.md                kế hoạch 7 phase + Definition of Done
 ├── glossary.md            từ điển: TÊN của các bài toán (nhận diện, 1 dòng/mục)

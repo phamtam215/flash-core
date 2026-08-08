@@ -6,7 +6,7 @@ thể (size × màu), và **oversell phải bằng 0**.
 
 Kiến trúc: **Modular Monolith** (NestJS + TypeScript, PostgreSQL 16 + Prisma, Redis + BullMQ).
 
-> **Trạng thái:** Phase 0/6 — Nền móng. README này được cập nhật dần theo từng phase, chỉ
+> **Trạng thái:** Phase 1/6 — Auth & Security. README này được cập nhật dần theo từng phase, chỉ
 > mô tả những gì **đã thật sự chạy được**. Phần chưa làm nằm ở [Lộ trình](#lộ-trình).
 
 ---
@@ -100,8 +100,8 @@ và [`docs/adr/`](docs/adr/).
 
 | Phase | Nội dung | Trạng thái |
 |---|---|---|
-| 0 | Docker Compose · NestJS skeleton · Prisma · CI · convention | 🟡 16/16 test xanh, còn nợ ADR |
-| 1 | Auth: Argon2, Access + Refresh Token, rotation, rate limit | ⬜ |
+| 0 | Docker Compose · NestJS skeleton · Prisma · CI · convention | ✅ **Xong** — 16/16 test, CI xanh, 2 ADR |
+| 1 | Auth: Argon2, Access + Refresh Token, rotation, rate limit | 🟡 Đang làm — [spec](docs/specs/phase1-auth.md) chờ duyệt |
 | 2 | Product & Inventory: SKU size×màu, JSONB + GIN, cursor pagination, seed 100k | ⬜ |
 | 3 | ⭐ Order & Concurrency: 3 chiến lược chống oversell + benchmark k6 1.000 VU | ⬜ |
 | 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ⬜ |
@@ -112,16 +112,15 @@ Chi tiết deliverable từng phase: [`docs/SPEC.md`](docs/SPEC.md).
 
 ### Trạng thái chi tiết & việc còn nợ
 
-Danh sách việc còn nợ được giữ ở **một chỗ duy nhất**:
-[`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) — mỗi việc kèm ai làm, gõ lệnh gì,
-và xong là khi nào.
-Chi tiết Phase 0 (danh sách test, quyết định kỹ thuật): [`docs/specs/phase0-nen-mong.md`](docs/specs/phase0-nen-mong.md).
+Việc đang làm nằm ở [`CLAUDE.md`](CLAUDE.md) §Trạng thái hiện tại.
+Hồ sơ Phase 0 (đã đóng): [`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) và
+[`docs/specs/phase0-nen-mong.md`](docs/specs/phase0-nen-mong.md).
 
 ## Tài liệu
 
 | File | Nội dung |
 |---|---|
-| [`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) | **Việc còn lại của phase đang làm, theo thứ tự** |
+| [`docs/specs/phase1-auth.md`](docs/specs/phase1-auth.md) | **Spec Phase 1 — đang làm** |
 | [`docs/architecture.md`](docs/architecture.md) | **Bản đồ code: file nào làm gì, sửa X thì mở file nào** |
 | [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 7 phase, deliverable, Definition of Done |
 | [`project-context.md`](project-context.md) | Nhật ký quyết định — vì sao, và **đã loại bỏ gì** |

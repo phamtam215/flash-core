@@ -1,36 +1,21 @@
 # Checklist Phase 0 — Nền móng
 
-> **File này là nguồn sự thật duy nhất về "Phase 0 còn nợ gì".** `CLAUDE.md` và `README.md`
-> chỉ trỏ về đây, không chép lại.
+> # ✅ PHASE 0 ĐÃ ĐÓNG — 2026-08-08
 >
-> Mỗi việc ghi rõ: **ai làm** · **làm gì** · **xong là khi nào**. Tick xong thì sửa file này.
->
-> Cập nhật lần cuối: 2026-08-07 · Còn **3 việc**, ~20 phút.
+> File này giữ lại làm **hồ sơ Phase 0**, không còn việc nào phải làm.
+> Việc đang làm bây giờ: `CLAUDE.md` §Trạng thái hiện tại và
+> [`specs/phase1-auth.md`](specs/phase1-auth.md).
 
 ---
 
-## Làm theo thứ tự này
-
-Việc 1 làm trước vì CI có thể đang đỏ — phải biết trước khi đi tiếp.
+## Các việc đã hoàn thành
 
 ---
 
-### ☐ 1. Xác nhận CI xanh
+### ☑ 1. Xác nhận CI xanh — **XONG 2026-08-08**
 
-**Ai:** Tâm (Claude bị hook chặn `git push`) · **~5 phút**
-
-```bash
-git push origin main
-```
-
-Rồi mở https://github.com/phamtam215/flash-core/actions
-
-Đang có **2 commit chưa push**: `5593dcd` (sửa CI đỏ) và `2c434d4` (tài liệu CI & test).
-Commit `5593dcd` chính là bản vá cho lần đỏ trước — lần chạy này là để **xác nhận bản vá đúng**.
-
-**Xong khi:** job `Lint · Typecheck · Test` hiện dấu ✅.
-
-**Nếu đỏ:** copy log dán vào đây, đừng sửa mò. Cách đọc lỗi CI: [`tech-playbook.md` §Xuyên suốt](tech-playbook.md).
+Toàn bộ 7 commit đã lên `origin/main`. Bản vá `5593dcd` cho lần CI đỏ
+(`Cannot find module './internal/class.js'`) đã được xác nhận trên GitHub Actions.
 
 ---
 
@@ -63,9 +48,7 @@ nhiều ADR thật. Viết ADR cho quyết định chưa xảy ra là ADR rỗng
 
 ---
 
-### ☐ 4. Đọc 3 câu hỏi bản chất + đáp án
-
-**Ai:** Tâm đọc · **~5 phút** · Không cần trả lời ai, không cần viết gì
+### ☑ 4. Ba câu hỏi bản chất + đáp án — **XONG 2026-08-08**
 
 Ba câu của Phase 0 ([`SPEC.md`](SPEC.md) dòng 35–36) — đọc câu hỏi, nghĩ vài giây, rồi đọc
 đáp án:
@@ -110,8 +93,6 @@ Xem: [`health.module.ts`](../src/modules/health/health.module.ts) (không export
 Bốn câu về CI & test — cũng đã có đáp án đầy đủ ở
 [`tech-playbook.md` §Xuyên suốt](tech-playbook.md#bốn-câu-hay-bị-hỏi--và-câu-trả-lời).
 
-**Xong khi:** đọc hết.
-
 ---
 
 ### ~~5. Viết nhật ký học tập~~ — **ĐÃ BỎ 2026-08-07**
@@ -125,16 +106,9 @@ Prisma 7 sinh import `.js` → [`tech-playbook.md` §Xuyên suốt](tech-playboo
 
 ---
 
-### ☐ 5. Đóng phase
+### ☑ 5. Đóng phase — **XONG 2026-08-08**
 
-**Ai:** Claude · **~10 phút**
-
-- Sửa `CLAUDE.md` §Trạng thái hiện tại → Phase 1
-- Sửa [`README.md`](../README.md) §Lộ trình → Phase 0 ✅
-- Đánh dấu file này **đã đóng**
-- `/commit`
-
-**Xong khi:** không còn ô trống nào ở trên.
+`CLAUDE.md` §Trạng thái → Phase 1 · `README.md` §Lộ trình → Phase 0 ✅ · file này đã đóng.
 
 ---
 
@@ -176,7 +150,7 @@ Ghi ra để anh **không phải lo** khi thấy thiếu — đây là nợ có 
 
 [`SPEC.md` §7](SPEC.md) có 7 mục cho **cả dự án**. Phase 0 chỉ chạm 2 mục, và chỉ một phần:
 
-- **~10 ADR** → sau việc 3 sẽ là **3/10**
+- **~10 ADR** → hiện **2/10**
 - **Integration test trên DB thật** → hạ tầng Testcontainers đã chạy được; phần
   "coverage ≥ 70% module core" phải chờ có module Order/Inventory (Phase 2–3)
 
@@ -184,13 +158,11 @@ Ghi ra để anh **không phải lo** khi thấy thiếu — đây là nợ có 
 
 ---
 
-## Xong Phase 0 là khi nào
+## Ba điều kiện đóng phase — đã đủ cả ba
 
-Đúng 3 điều kiện, không thêm:
-
-1. **CI xanh** trên `main` (việc 1)
-2. **Đã đọc 3 câu hỏi bản chất + đáp án** (việc 4)
-3. **Mọi quyết định hạ tầng đều có chỗ ghi lại** — bằng chứng là 2 ADR (việc 3)
+1. ✅ **CI xanh** trên `main`
+2. ✅ **Đã đọc 3 câu hỏi bản chất + đáp án**
+3. ✅ **Mọi quyết định hạ tầng đều có chỗ ghi lại** — 2 ADR
 
 Điều kiện 3 mới là tiêu chí thật của phase này. Code chạy chỉ là điều kiện cần: đây là phần
 nền, sai ở đây thì 6 phase sau phải chịu. Điều đáng giá không phải là *nhớ được* các quyết
