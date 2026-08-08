@@ -125,14 +125,13 @@ Chi tiết Phase 0 (danh sách test, quyết định kỹ thuật): [`docs/specs
 | [`docs/architecture.md`](docs/architecture.md) | **Bản đồ code: file nào làm gì, sửa X thì mở file nào** |
 | [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 7 phase, deliverable, Definition of Done |
 | [`project-context.md`](project-context.md) | Nhật ký quyết định — vì sao, và **đã loại bỏ gì** |
-| [`docs/glossary.md`](docs/glossary.md) | Từ điển: tên gọi các bài toán + 12 câu hỏi tự kiểm tra |
+| [`docs/glossary.md`](docs/glossary.md) | Từ điển: tên gọi các bài toán + **12 câu phỏng vấn kèm đáp án** |
 | [`docs/tech-playbook.md`](docs/tech-playbook.md) | Kiến thức cần có trước mỗi phase: cơ chế, bug hay gặp, tình huống thật. có mục **CI & Testing** xuyên suốt |
 | [`docs/specs/`](docs/specs/) | Spec chi tiết từng tính năng |
 | [`docs/adr/`](docs/adr/) | Các quyết định kiến trúc đã chốt |
 | [`docs/journal/`](docs/journal/) | Nhật ký học tập cuối mỗi phase |
 | [`docs/review-checklist.md`](docs/review-checklist.md) | Checklist review code |
 | [`docs/git-workflow.md`](docs/git-workflow.md) | Chuẩn commit, quy tắc nhánh |
-| [`docs/claude-guide.md`](docs/claude-guide.md) | Hướng dẫn dùng Claude Code trong repo này |
 
 ## Về quy trình phát triển
 

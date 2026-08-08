@@ -1,24 +1,47 @@
 ---
-description: Tạo commit theo chuẩn Flash-Core (Conventional Commits + thân giải thích vì sao)
+description: Tạo commit gọn theo chuẩn Conventional Commits, kèm bảng tổng hợp đã làm gì
 ---
 
-Tạo git commit theo quy chuẩn trong `docs/git-workflow.md`. Thực hiện tuần tự:
+Tạo git commit. **Làm nhanh, đừng dài dòng.**
 
-1. `git status` — xem thay đổi đang có.
-2. `git diff` và `git diff --staged` — đọc kỹ nội dung thay đổi.
-3. **Đánh giá phạm vi:** nếu các thay đổi thuộc nhiều ý khác nhau, đề xuất tách
-   thành nhiều commit và hỏi tôi trước khi làm.
-4. Chạy test liên quan. **Nếu test fail, KHÔNG commit** — báo tôi biết lỗi gì.
-5. Kiểm tra không có secret / `.env` / token lọt vào diff.
-6. Stage đúng file cần thiết (không dùng `git add .` một cách mù quáng).
-7. Tạo commit message đúng format:
-   - Dòng đầu: `<type>(<scope>): <mô tả mệnh lệnh, < 50 ký tự>`
-   - Dòng trống
-   - Thân: giải thích **VÌ SAO** chọn cách này (không lặp lại "làm gì"),
-     nêu trade-off đã chấp nhận nếu có
-   - Dòng `Refs:` trỏ tới file spec trong `docs/specs/` và ADR liên quan (nếu có)
-   - Toàn bộ message viết bằng **tiếng Việt**
-8. `git log -1 --stat` để tôi xác nhận kết quả.
+## 4 bước
 
-**KHÔNG tự động push.** Sau khi commit, chỉ báo tôi: "Đã commit, sẵn sàng push khi
-anh review xong." Việc push chỉ thực hiện khi tôi yêu cầu rõ ràng.
+1. `git status` + `git diff` — đọc thay đổi.
+2. `npm run check`. **Fail thì dừng**, báo lỗi, không commit.
+3. Kiểm tra không có secret / `.env` lọt vào diff.
+4. Stage đúng file rồi commit. **Một commit là đủ** — chỉ tách khi thật sự có hai việc
+   không liên quan gì nhau, và tách thì tự quyết, đừng hỏi tôi.
+
+## Message — tối đa 8 dòng
+
+```
+<type>(<scope>): <mô tả mệnh lệnh, dưới 50 ký tự>
+
+<2–4 dòng: vì sao làm thế này, đánh đổi gì nếu có>
+
+Refs: <file spec hoặc ADR liên quan, bỏ qua nếu không có>
+```
+
+Tiếng Việt. **Không viết lại "đã làm gì"** — `git diff` nói rồi. Chỉ viết cái diff không
+nói được: vì sao.
+
+## Sau khi commit — đúng ba phần này, không thêm
+
+**1. Bảng tổng hợp đã làm gì**
+
+| Việc | File |
+|---|---|
+| ... | ... |
+
+**2. Tài liệu đã cập nhật chưa** — nếu thay đổi làm lệch tài liệu nào thì **sửa luôn trong
+cùng commit**, đừng để nợ. Ba chỗ hay lệch: `docs/architecture.md` (thêm/xoá file trong
+`src/`), `docs/phase-0-checklist.md` (xong một việc), `CLAUDE.md` §Trạng thái hiện tại.
+Nếu không có gì lệch thì ghi một dòng: *"Tài liệu không đổi."*
+
+**3. Một dòng cuối:** *"Đã commit, sẵn sàng push khi anh review xong."*
+
+## Cấm
+
+- **Không `git push`** — chỉ Tâm push, sau khi review.
+- Không viết tóm tắt luồng chạy 5–10 câu, không nêu "điểm cần đọc kỹ", không hỏi ngược.
+  Muốn những thứ đó thì Tâm sẽ tự hỏi.

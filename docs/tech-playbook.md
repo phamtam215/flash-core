@@ -17,7 +17,6 @@
 |---|---|
 | [`glossary.md`](glossary.md) | Cái tôi đang gặp **tên là gì**? (nhận diện, 1 dòng/mục) |
 | **`tech-playbook.md`** ← đây | **Nó hoạt động thế nào, hỏng ra sao, tránh bằng cách nào**? |
-| `.claude/skills/*` | Implement thế nào trong repo này? (code, SQL, Lua) |
 | [`adr/`](adr/) | Dự án **chọn** cách nào và vì sao? |
 
 ---
@@ -217,12 +216,57 @@ Bài học rút ra là một câu nên nhớ cả dự án: **coverage đo phầ
 ro đã được kiểm chứng.** Rủi ro của dự án này nằm ở *tương tác*, và tương tác thì chỉ lộ ra khi
 các mảnh thật chạy cùng nhau.
 
-### Tự kiểm tra
+### Bốn câu hay bị hỏi — và câu trả lời
 
-1. CI đỏ mà local xanh — bước **đầu tiên** phải làm là gì, và vì sao không phải là "sửa đại rồi push lại xem"?
-2. Vì sao CI dùng `npm ci` chứ không `npm install`? Điều gì xảy ra nếu dùng `install`?
-3. Mock, stub và fake khác nhau ở điểm nào? Kể một chỗ trong dự án này mà dùng mock là **sai**.
-4. Coverage 100% mà vẫn lọt bug — mô tả một cách cụ thể chuyện đó xảy ra thế nào.
+**1. CI đỏ mà máy mình xanh thì làm gì đầu tiên?**
+
+**Tái hiện lỗi trên máy mình trước**, bằng cách dọn sạch mọi thứ không nằm trong git:
+
+```bash
+rm -rf node_modules src/generated && npm ci && npm run db:generate && npm run check
+```
+
+Vì sao không "sửa đại rồi push lại xem sao": mỗi vòng như thế mất vài phút chờ CI, và quan
+trọng hơn — nếu tình cờ xanh thì **vẫn không biết vì sao**, nên lần sau lại gặp. Sửa được
+mà không hiểu thì chưa gọi là sửa. Bug `Cannot find module './internal/class.js'` của dự án
+này tái hiện được bằng đúng lệnh trên, và chỉ khi tái hiện mới lộ ra nguyên nhân thật là
+bản Prisma Client cũ còn sót trên máy.
+
+**2. Vì sao CI dùng `npm ci` chứ không `npm install`?**
+
+`npm ci` xoá sạch `node_modules` rồi cài **đúng** những gì `package-lock.json` ghi, và
+**báo lỗi** nếu lock lệch với `package.json`. `npm install` thì được phép tự sửa lock cho
+khớp.
+
+Nếu CI dùng `install`: một dependency có thể được cài ở version khác với máy anh, CI xanh
+trong khi máy anh đỏ (hoặc ngược lại), và lock file bị sửa ngầm trên máy ảo rồi vứt đi —
+không ai thấy. `ci` đảm bảo mọi lần chạy đều giống hệt nhau.
+
+**3. Mock, stub, fake khác nhau chỗ nào?**
+
+| | Nó là gì | Ví dụ |
+|---|---|---|
+| **Stub** | Trả sẵn một giá trị cứng, không kiểm tra gì | `findById()` luôn trả về một user mẫu |
+| **Mock** | Stub **cộng thêm** khẳng định về cách nó bị gọi | "`sendEmail` phải được gọi đúng 1 lần với địa chỉ này" |
+| **Fake** | Bản cài đặt **thật nhưng đơn giản**, có logic | Repository lưu vào một `Map` trong RAM |
+
+**Chỗ trong dự án này mà dùng mock là sai: test chống oversell (Phase 3).** Mock repository
+sẽ luôn trả về số tồn kho đúng, vì trong thế giới của mock không có transaction, không có
+lock, không có hai request cùng lúc. Test xanh 100% trong khi production bán quá 50 áo.
+Đó chính là lý do repo dùng Testcontainers với Postgres thật.
+
+**4. Coverage 100% mà vẫn lọt bug — bằng cách nào?**
+
+Coverage chỉ đếm **dòng code có được chạy qua hay không**, nó không kiểm tra kết quả đúng
+hay sai. Một test gọi hàm rồi **không `expect` gì cả** vẫn cho 100% coverage.
+
+Ví dụ cụ thể: hàm tính tiền `total = price * quantity` bị viết nhầm thành `price + quantity`.
+Test gọi hàm đó → dòng code được chạy → coverage 100%. Nhưng nếu test chỉ kiểm tra "hàm
+không ném lỗi" mà không so sánh con số, bug đi thẳng ra production.
+
+Phép thử thật cho bộ test: **xoá một `if` trong code rồi chạy test.** Nếu không có test nào
+đỏ thì vùng đó chưa được bảo vệ, bất kể coverage bao nhiêu. (Làm tự động việc này gọi là
+*mutation testing*.)
 
 ---
 
@@ -261,6 +305,152 @@ các mảnh thật chạy cùng nhau.
 Tháng thứ 6, cần tách module thanh toán ra service riêng. Nếu suốt 6 tháng module khác chỉ
 gọi qua interface công khai thì việc tách là đổi phần implement. Nếu chúng `import` thẳng
 service và dùng cả kiểu dữ liệu nội bộ, việc tách trở thành viết lại.
+
+---
+
+## Logging và `correlationId` — đọc kỹ, code đã dùng từ Phase 0
+
+> Phần này để **ở Phase 0** chứ không phải Phase 5, vì `correlationId` đã chạy trong repo
+> ngay từ bây giờ ([`logger.module.ts`](../src/common/logger/logger.module.ts)). Phase 5 chỉ
+> mở rộng nó ra queue và thêm metrics.
+
+### Bước 1 — Log thường vs structured log
+
+`console.log('User 5 mua áo')` sinh ra **một câu chữ**. Người đọc được, **máy thì không** —
+muốn tìm "mọi lần user 5 mua hàng" phải dùng regex và cầu trời không ai đổi cách viết câu.
+
+Structured log ghi ra **một object JSON mỗi dòng**. Đây là log thật do pino của repo in ra:
+
+```json
+{"level":40,"time":1786177830188,"pid":85352,"hostname":"...","reqId":"018f2c1a-9b3e-7a24-b8d1-2f6c4e0a7d95","skuId":"AO-THUN-DEN-L","remaining":0,"msg":"hết hàng"}
+```
+
+Vì nó là JSON, máy **query được như query database**: *"cho tôi mọi dòng có `skuId` =
+AO-THUN-DEN-L và `level` ≥ 40"*. Đó là toàn bộ lý do dùng JSON thay vì câu chữ.
+
+> `level` là số: 30 = info, 40 = warn, 50 = error. Ở máy anh, `pino-pretty` dịch lại thành
+> chữ cho dễ đọc; lên production thì in JSON thô để máy gom log xử lý.
+
+### Bước 2 — Vấn đề mà `correlationId` sinh ra để giải
+
+Flash sale, 1 000 người bấm "Săn ngay" cùng lúc. Mỗi request in ra 4–5 dòng log. Trong một
+giây, file log có **vài nghìn dòng của cả nghìn người trộn lẫn nhau**:
+
+```
+kiểm tra tồn kho
+hết hàng
+kiểm tra tồn kho
+tạo đơn thành công
+hết hàng
+```
+
+Khách gọi lên: *"tôi bấm mua lúc 20:15 mà báo lỗi"*. Dòng `hết hàng` nào là của khách đó?
+**Không cách nào biết.** Đây là vấn đề thật, không phải chuyện lý thuyết.
+
+### Bước 3 — `correlationId` là gì
+
+Là **một chuỗi ngẫu nhiên duy nhất, gắn cho mỗi request ngay khi nó vừa vào app, và được in
+kèm mọi dòng log của request đó.**
+
+Chỉ vậy thôi. Không có gì phức tạp hơn. Đây là cùng bốn dòng log ở trên nhưng có id (log
+thật, chạy bằng cấu hình pino của repo):
+
+```
+[08:30:40.675] INFO: request bắt đầu   {"reqId":"018f2c1a-...-7d95","req":{"method":"POST","url":"/orders"}}
+[08:30:40.676] INFO: kiểm tra tồn kho  {"reqId":"018f2c1a-...-7d95","skuId":"AO-THUN-DEN-L"}
+[08:30:40.676] WARN: hết hàng          {"reqId":"018f2c1a-...-7d95","skuId":"AO-THUN-DEN-L","remaining":0}
+[08:30:40.676] INFO: request kết thúc  {"reqId":"018f2c1a-...-7d95","res":{"statusCode":409},"responseTime":47}
+```
+
+Giờ dù có trộn với 999 người khác, chỉ cần lọc theo `reqId` là ra **đúng bốn dòng này, đúng
+thứ tự** — toàn bộ câu chuyện của một khách hàng.
+
+> Trong repo, pino đặt tên trường là `reqId`. `correlationId` là tên khái niệm chung; ở
+> exception filter nó được đọc lại qua `request.id`. **Ba tên, một thứ.**
+
+### Bước 4 — Nó sinh ra ở đâu trong repo này
+
+Toàn bộ cơ chế nằm ở **7 dòng** trong
+[`logger.module.ts:34`](../src/common/logger/logger.module.ts#L34):
+
+```ts
+genReqId: (req, res) => {
+  const incoming = req.headers['x-correlation-id'];
+  const id = typeof incoming === 'string' && incoming.length > 0 ? incoming : randomUUID();
+  res.setHeader('x-correlation-id', id);   // trả về cho client
+  return id;                                // pino gắn vào MỌI dòng log của request này
+}
+```
+
+Ba việc, theo thứ tự:
+
+1. **Có id sẵn từ client không?** Nếu có thì dùng lại, **không sinh mới**.
+2. Không có thì `randomUUID()` sinh một cái.
+3. **Ghi id vào response header** để client cầm được.
+
+### Bước 5 — Thực tế dùng thế nào
+
+Đây là phần trả lời câu "thực tế như nào":
+
+| Ai | Làm gì |
+|---|---|
+| Khách | Gặp lỗi, chụp màn hình. Frontend hiện `Mã lỗi: 018f2c1a-…` (lấy từ response header) |
+| Support | Gửi mã đó cho dev |
+| Anh | Dán mã vào ô tìm kiếm của hệ thống log → ra **đúng hành trình của khách đó** |
+
+Không có id: mò log theo mốc thời gian giữa hàng nghìn request → vài giờ, và thường không ra.
+Có id: **một câu query, vài giây.** Đó là toàn bộ giá trị.
+
+Trong dự án này, `{ code, message, correlationId }` là hình dạng của **mọi** response lỗi
+([`all-exceptions.filter.ts:67`](../src/common/filters/all-exceptions.filter.ts#L67)) — nên
+khách luôn có mã để đưa lại.
+
+### Bước 6 — Vì sao phải nhận id từ client nếu client đã gửi
+
+Đây là chỗ mọi người hay bỏ qua. Giả sử sau này có 2 thành phần: API và worker.
+
+- Nếu **mỗi thành phần tự sinh id mới**: một hành động của khách để lại 2 id khác nhau → vẫn
+  không nối được. Vô nghĩa.
+- Nếu **thành phần sau nhận lại id của thành phần trước**: cả chuỗi dùng chung một id → nối
+  được từ đầu tới cuối.
+
+Vì thế dòng `if (incoming) dùng lại` quan trọng ngang với dòng sinh id mới.
+
+### Bước 7 — Chỗ id sẽ đứt (nợ đã biết)
+
+Hiện `reqId` chỉ sống trong phạm vi **một HTTP request**. Đến Phase 4, khi đẩy job vào BullMQ,
+request kết thúc mà job chạy sau — **id không tự đi theo**. Phải nhét nó vào payload của job
+rồi worker đọc ra và log kèm.
+
+Nếu quên, hành trình đứt đúng chỗ khó debug nhất: phần chạy nền, không ai nhìn thấy. Ghi chú
+này đã có sẵn trong comment của
+[`logger.module.ts`](../src/common/logger/logger.module.ts).
+
+### Thử ngay trên máy (2 phút)
+
+```bash
+npm run dev     # terminal 1
+
+# terminal 2:
+curl -i localhost:3000/health | grep -i x-correlation-id
+curl -i -H 'x-correlation-id: TAM-TEST-001' localhost:3000/health | grep -i x-correlation-id
+```
+
+Lệnh đầu: app tự sinh một UUID. Lệnh sau: app **giữ nguyên** `TAM-TEST-001`. Nhìn sang
+terminal 1, dòng log của request thứ hai có `reqId: "TAM-TEST-001"` — chính là bước 3 và
+bước 6 đang chạy.
+
+### Ba thứ không được log
+
+| Không log | Vì sao |
+|---|---|
+| Mật khẩu, token, cookie | Log thường được gom về nơi nhiều người xem được. Log token = phát token |
+| Số thẻ, CVV | Vi phạm PCI-DSS, và không có lý do chính đáng nào |
+| Toàn bộ `req.headers` | Trong đó có `authorization` và `cookie` |
+
+Repo chặn sẵn bằng `redact.paths` ở
+[`logger.module.ts`](../src/common/logger/logger.module.ts) — che **ở tầng logger**, không
+trông vào việc từng người nhớ đừng log. Cách sau chắc chắn hỏng ở lần thứ n.
 
 ---
 
@@ -510,6 +700,11 @@ chuyển thì không được để hệ thống im lặng.**
 ---
 
 # Phase 5 — Observability
+
+> Phần **logging và `correlationId`** đã được giải thích đầy đủ ở
+> [Phase 0 §Logging và correlationId](#logging-và-correlationid--đọc-kỹ-code-đã-dùng-từ-phase-0)
+> — có ví dụ log thật và cách dùng khi khách báo lỗi. Phần dưới đây chỉ là những thứ Phase 5
+> **thêm vào**: đưa id qua queue, metrics, probe, graceful shutdown.
 
 ### Cần rõ
 

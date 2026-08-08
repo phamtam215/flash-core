@@ -25,6 +25,10 @@
 - [ ] Log đủ để debug (correlationId) nhưng không lộ password/token?
 - [ ] Secret không hardcode?
 
-## Tự kiểm tra bản chất (làm cuối cùng, không nhìn code)
-- [ ] Tự kể lại luồng chạy của tính năng trong 5–10 câu
-- [ ] Trả lời được: "nếu phỏng vấn hỏi vì sao làm cách này mà không phải cách kia?"
+## Đọc lại phần "vì sao" (làm cuối cùng)
+- [ ] Claude đã tóm tắt **luồng chạy 5–10 câu** cho thay đổi này chưa? Đọc lại, chỗ nào thấy
+      lạ thì hỏi — **hỏi là được, không cần tự trả lời**.
+- [ ] Quyết định nào trong diff này mà sáu tháng sau sẽ không ai nhớ lý do? Nếu có → viết ADR.
+
+> Trước đây mục này bắt tự kể lại luồng chạy không nhìn code. Đã bỏ (2026-08-07): việc đó
+> biến mỗi lần review thành một bài thi.

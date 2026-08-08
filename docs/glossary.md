@@ -105,7 +105,7 @@
 |---|---|---|
 | **Ba trụ cột: Logs / Metrics / Traces** | Log = sự kiện, Metrics = số đo theo thời gian, Trace = hành trình 1 request | Khung sườn cả phase |
 | **Structured logging** | Log dạng JSON để máy đọc và query được, không phải string | Pino |
-| **Correlation ID / Request ID** | Một ID xuyên suốt request → queue → worker để nối các log lại | Phase 5 deliverable |
+| **Correlation ID / Request ID** | Một ID xuyên suốt request → queue → worker để nối các log lại. **Đã chạy từ Phase 0** — giải thích đầy đủ kèm log thật ở [`tech-playbook.md` §Phase 0](tech-playbook.md) | Mỗi lần debug từ báo lỗi của khách |
 | **Liveness vs Readiness probe** | `/health` = còn sống chưa? `/ready` = sẵn sàng nhận traffic chưa? | Cloud Run dùng để quyết định gửi request |
 | **Graceful shutdown / SIGTERM** | Nhận tín hiệu tắt → ngừng nhận request mới, chờ job xong, rồi đóng | Không làm → mất job đang chạy khi deploy |
 | **Cardinality (metrics)** | Nhãn metric có quá nhiều giá trị (vd: userId) → nổ bộ nhớ | Khi đặt label cho Prometheus |
@@ -153,18 +153,94 @@
 
 ---
 
-## 12 câu hỏi tự kiểm tra cuối dự án
-Nếu trả lời trôi chảy cả 12 câu này mà không nhìn code, dự án đã đạt mục tiêu học tập:
+## 12 câu hay bị hỏi khi phỏng vấn — kèm câu trả lời
 
-1. Vì sao `if (stock > 0) stock--` chắc chắn oversell dưới tải cao?
-2. Optimistic và pessimistic locking — khi nào chọn cái nào, dựa trên số liệu nào?
-3. Isolation level mặc định của Postgres là gì, nó cho phép anomaly nào?
-4. Deadlock xảy ra thế nào, và làm sao giảm khả năng gặp?
-5. Idempotency-Key phải được kiểm tra ở đâu trong luồng, vì sao đúng chỗ đó?
-6. Dual write problem là gì, Outbox pattern giải quyết nó ra sao?
-7. Vì sao exactly-once gần như không đạt được, và giải pháp thực tế là gì?
-8. Webhook "đã thanh toán" đến sau khi đơn đã tự hủy — xử lý thế nào cho đúng nghiệp vụ?
-9. Từ một request lỗi, truy lại toàn bộ hành trình của nó bằng cách nào?
-10. Graceful shutdown làm sai thì mất gì cụ thể?
-11. Cold start ảnh hưởng flash sale ra sao, đánh đổi bằng tiền thế nào?
-12. Nếu phải làm lại dự án này, quyết định nào sẽ đổi và vì sao?
+> **Cách dùng:** đọc câu hỏi, tự nghĩ vài giây, rồi đọc đáp án. Không cần viết ra, không cần
+> trả lời ai. Đáp án ở đây là **bản rút gọn để nhớ** — mỗi câu đều có mục chi tiết hơn ở
+> [`tech-playbook.md`](tech-playbook.md).
+>
+> Câu 1–8 chỉ trả lời được đầy đủ sau khi làm xong Phase 3–4. Trước đó đọc để **biết trước
+> mình sắp học gì**, không cần thuộc.
+
+**1. Vì sao `if (stock > 0) stock--` chắc chắn oversell dưới tải cao?**
+Vì đó là ba thao tác rời nhau — đọc, kiểm tra, ghi — chứ không phải một. Giữa lúc đọc và lúc
+ghi, một request khác chen vào và cũng đọc được cùng con số cũ. Tồn kho còn 1, hai người cùng
+đọc thấy 1, cả hai cùng thấy `> 0` là đúng, cả hai cùng trừ → bán 2 chiếc. Tên gọi:
+**read-modify-write** hay **lost update**. Càng nhiều người bấm cùng lúc, khe hở giữa đọc và
+ghi càng dễ bị chen.
+
+**2. Optimistic và pessimistic locking — chọn cái nào?**
+Optimistic không khoá gì cả, chỉ kiểm tra lúc ghi "dữ liệu còn nguyên như lúc tôi đọc không";
+sai thì thua và làm lại. Pessimistic khoá ngay từ lúc đọc, ai đến sau phải **xếp hàng chờ**.
+Ít tranh chấp → optimistic nhanh hơn vì không ai phải chờ. Tranh chấp gắt → optimistic tệ đi
+nhanh, vì hầu hết request đều thua rồi phải làm lại từ đầu, tốn công vô ích. **Chọn dựa trên
+số đo, không dựa trên cảm giác** — đó là mục đích của benchmark k6 ở Phase 3.
+
+**3. Isolation level mặc định của Postgres là gì?**
+**Read Committed.** Nó chỉ đảm bảo anh không đọc được dữ liệu của transaction chưa commit.
+Nó **không** ngăn: đọc cùng một dòng hai lần trong một transaction ra hai kết quả khác nhau
+(*non-repeatable read*), và chạy cùng một câu `WHERE` hai lần ra số dòng khác nhau (*phantom
+read*). Nói cách khác: mặc định của Postgres **không đủ** để chống oversell — phải tự thêm
+khoá hoặc nâng isolation level.
+
+**4. Deadlock xảy ra thế nào?**
+Hai transaction khoá chéo nhau: A giữ dòng 1 và đang chờ dòng 2, B giữ dòng 2 và đang chờ
+dòng 1. Không ai nhường, cả hai treo. Postgres tự phát hiện và **giết một trong hai**, bên
+bị giết nhận lỗi và phải thử lại. Cách giảm: **luôn khoá các dòng theo cùng một thứ tự**
+(ví dụ sắp xếp theo `id` tăng dần trước khi khoá) — nếu mọi người đều đi cùng một chiều thì
+không thể khoá chéo. Và giữ transaction càng ngắn càng tốt.
+
+**5. Idempotency-Key kiểm tra ở đâu?**
+**Trước khi tạo bất kỳ side effect nào** — trước khi trừ kho, trước khi tạo đơn, trước khi
+gọi cổng thanh toán. Vì mục đích của nó là để user bấm "Săn ngay" hai lần (hoặc mạng lag rồi
+retry) không thành hai đơn. Kiểm tra sau khi đã trừ kho thì kho đã bị trừ hai lần rồi, có
+phát hiện trùng cũng muộn.
+
+**6. Dual write problem là gì, Outbox giải quyết ra sao?**
+Dual write = ghi vào **hai nơi** trong một luồng: lưu đơn vào DB, rồi đẩy job vào queue. Nếu
+process chết ở giữa thì DB có đơn mà queue không có job → đơn treo mãi không ai xử lý.
+**Outbox**: thay vì đẩy queue, ghi "việc cần làm" vào **một bảng trong cùng database, trong
+cùng transaction** với đơn hàng. Một transaction thì all-or-nothing, không thể lệch. Sau đó
+một worker đọc bảng đó và đẩy vào queue. Đổi lấy: chậm hơn một nhịp, và phải nuôi thêm worker.
+
+**7. Vì sao exactly-once gần như không đạt được?**
+Vì bên gửi không bao giờ biết chắc bên nhận đã xử lý xong hay chưa — gói tin xác nhận cũng
+có thể mất. Gửi lại thì có nguy cơ trùng; không gửi lại thì có nguy cơ mất. Phải chọn một.
+**Giải pháp thực tế:** chọn **at-least-once** (thà trùng còn hơn mất) rồi làm cho bên nhận
+**idempotent** — xử lý message trùng vẫn ra cùng kết quả. Kết hợp lại thì hiệu quả *giống*
+exactly-once, dù tầng giao vận không hề đảm bảo điều đó.
+
+**8. Webhook "đã thanh toán" đến sau khi đơn đã tự huỷ thì làm gì?**
+Không có câu trả lời kỹ thuật — đây là **quyết định nghiệp vụ**, và biết điều đó mới là
+điểm ghi. Ba hướng: (a) tự động hoàn tiền, (b) nếu còn hàng thì phục hồi đơn, (c) chuyển
+cho người xử lý tay. Về mặt kỹ thuật thứ **bắt buộc** phải có là một **state machine** ghi
+rõ trạng thái nào được chuyển sang trạng thái nào — để `Cancelled → Paid` không bao giờ xảy
+ra âm thầm, và mọi trường hợp lạ đều để lại dấu vết.
+
+**9. Truy lại hành trình của một request lỗi bằng cách nào?**
+Bằng **correlationId**. Mỗi request được gắn một id ngay khi vào (hoặc nhận lại id do client
+gửi lên), id đó đi kèm **mọi dòng log** của request, và được trả về trong response header
+`x-correlation-id`. Khi user báo lỗi kèm id, chỉ cần lọc log theo id đó là ra toàn bộ chuỗi
+sự kiện. Trong dự án này: sinh ở [`logger.module.ts`](../src/common/logger/logger.module.ts),
+dùng lại ở [`all-exceptions.filter.ts`](../src/common/filters/all-exceptions.filter.ts).
+
+**10. Graceful shutdown làm sai thì mất gì?**
+Khi deploy phiên bản mới, cloud gửi SIGTERM để tắt container cũ. Nếu app không xử lý tín hiệu
+đó thì nó **chết ngay lập tức**, và mất ba thứ: request đang xử lý dở (user thấy lỗi dù chẳng
+làm gì sai), job queue đang chạy dở (đơn hàng xử lý một nửa), và connection tới database
+không được đóng — Postgres phải chờ hết timeout mới thu hồi, mà Neon Free giới hạn số
+connection nên deploy vài lần liên tiếp có thể hết connection.
+
+**11. Cold start ảnh hưởng flash sale ra sao?**
+Cloud Run cho phép scale về 0 để khỏi tốn tiền. Nhưng khi không có container nào đang chạy,
+request đầu tiên phải chờ khởi động — vài giây. Với flash sale, request đầu tiên rơi đúng
+lúc mở bán, tức là **đúng lúc đông nhất**. Đánh đổi bằng tiền: đặt `min-instances = 1` để
+luôn có một container thức thì hết cold start, nhưng mất free tier. Dự án này **chọn chịu
+cold start** để giữ chi phí 0đ — và giải thích được lựa chọn đó chính là câu chuyện FinOps
+đáng kể khi phỏng vấn.
+
+**12. Nếu làm lại, sẽ đổi quyết định nào?**
+Câu này **không có đáp án sẵn** — nó là câu duy nhất chỉ anh trả lời được, và cũng là câu
+đáng giá nhất khi phỏng vấn vì nó cho thấy anh có nhìn lại việc mình làm hay không. Cuối
+mỗi phase, nếu thấy điều gì đáng đổi thì ghi ngay vào [`journal/`](journal/) — đến cuối dự
+án ghép lại là có câu trả lời, không phải bịa lúc ngồi trong phòng phỏng vấn.

@@ -3,21 +3,15 @@
 > **File này là nguồn sự thật duy nhất về "Phase 0 còn nợ gì".** `CLAUDE.md` và `README.md`
 > chỉ trỏ về đây, không chép lại.
 >
-> Mỗi việc ghi rõ: **ai làm** · **gõ gì** · **xong là khi nào**. Tick xong thì sửa file này.
+> Mỗi việc ghi rõ: **ai làm** · **làm gì** · **xong là khi nào**. Tick xong thì sửa file này.
 >
-> Cập nhật lần cuối: 2026-08-07 · Còn **2 việc**, ~20 phút.
->
-> **Đã cắt gọn 2026-08-07.** Đo được tỉ lệ 1 dòng code : 5 dòng tài liệu → bỏ ADR về minh bạch
-> AI (chuyển thành 3 dòng trong README, vì nó là chuyện portfolio chứ không phải kỹ thuật) và
-> bỏ journal Phase 0 (phase này là config, không có gì để chiêm nghiệm — journal bắt đầu từ
-> Phase 3). Luật ngân sách tài liệu mới: `CLAUDE.md` §Ngân sách tài liệu.
+> Cập nhật lần cuối: 2026-08-07 · Còn **3 việc**, ~20 phút.
 
 ---
 
 ## Làm theo thứ tự này
 
-Thứ tự không tuỳ tiện: việc 1 có thể đang đỏ (phải biết trước khi làm tiếp), việc 2 chặn
-việc 3, và việc 4 là cổng — không qua thì việc 5–6 vô nghĩa.
+Việc 1 làm trước vì CI có thể đang đỏ — phải biết trước khi đi tiếp.
 
 ---
 
@@ -69,28 +63,54 @@ nhiều ADR thật. Viết ADR cho quyết định chưa xảy ra là ADR rỗng
 
 ---
 
-### ☐ 4. Qua cổng `/quiz` — câu hỏi bản chất
+### ☐ 4. Đọc 3 câu hỏi bản chất + đáp án
 
-**Ai:** Tâm trả lời, **không nhìn code** · **~20 phút**
+**Ai:** Tâm đọc · **~5 phút** · Không cần trả lời ai, không cần viết gì
 
-```
-/quiz
-```
+Ba câu của Phase 0 ([`SPEC.md`](SPEC.md) dòng 35–36) — đọc câu hỏi, nghĩ vài giây, rồi đọc
+đáp án:
 
-Ba câu của Phase 0 ([`SPEC.md`](SPEC.md) dòng 35–36):
+**1. Modular Monolith khác Microservices ở đâu?**
 
-1. Modular Monolith khác Microservices ở đâu?
-2. Vì sao dự án **một người** không nên làm microservices?
-3. **Ranh giới module được enforce bằng cái gì** trong NestJS? (câu khó nhất)
+Microservices = nhiều chương trình chạy riêng, mỗi cái database riêng, nói chuyện qua mạng.
+Modular Monolith = **một** chương trình, **một** database, nhưng bên trong chia thành module
+có ranh giới rõ và chỉ gọi nhau qua cửa chính thức (`index.ts`).
 
-Cộng thêm 4 câu về CI & test ở cuối
-[`tech-playbook.md` §Xuyên suốt](tech-playbook.md) — phần anh tự nhận còn yếu.
+Điểm mấu chốt: khác biệt **không nằm ở cách chia thư mục** — monolith thường cũng chia thư
+mục. Nó nằm ở chỗ có thứ gì **chặn** anh đi cửa sau hay không.
 
-> **Đây là cổng, không phải thủ tục.** Luật số 3 của dự án: chưa trả lời được câu hỏi bản
-> chất → chưa qua phase. Trả lời lí nhí thì quay lại đọc, đừng tick bừa.
+**2. Vì sao dự án một người không nên làm microservices?**
 
-**Xong khi:** trả lời được cả 3 câu không nhìn code, và câu 3 nói được **cơ chế cụ thể**
-(không phải "nhờ chia thư mục").
+Lý do hay được nói: tốn thời gian vào hạ tầng (service discovery, tracing, deploy nhiều
+service) thay vì vào nghiệp vụ. Đúng, nhưng chưa phải lý do mạnh nhất.
+
+Lý do thật với dự án này: **chống oversell trong hệ phân tán là bài toán khác hẳn.** Khi
+tồn kho và đơn hàng nằm ở hai database riêng, anh mất transaction và mất `SELECT FOR UPDATE`
+— tức là mất đúng những công cụ mà cả dự án sinh ra để học. Bài toán sẽ biến thành saga và
+đền bù, khó hơn nhiều và không phải thứ anh đang muốn học.
+
+**3. Ranh giới module được enforce bằng cái gì?**
+
+Bằng **hai tầng, cả hai đều là máy chứ không phải người**:
+
+| Tầng | Chặn cái gì | Lúc nào |
+|---|---|---|
+| **NestJS DI container** | Service không nằm trong `exports` của module thì module khác **không inject được** → `Nest can't resolve dependencies` | Lúc app khởi động |
+| **ESLint `no-restricted-imports`** | `import` thẳng vào file bên trong module khác → lint đỏ → CI đỏ | Lúc chạy `npm run lint` |
+
+Vì sao cần cả hai: DI container chỉ chặn việc **inject**. Nó không ngăn anh import class rồi
+tự `new`, hay import kiểu dữ liệu nội bộ. Không có tầng ESLint thì ranh giới chỉ là quy ước,
+và quy ước xói mòn **im lặng** — không test nào đỏ khi ai đó import sai.
+
+Xem: [`health.module.ts`](../src/modules/health/health.module.ts) (không export
+`HealthService` vì chưa ai cần) và [`eslint.config.mjs`](../eslint.config.mjs).
+
+---
+
+Bốn câu về CI & test — cũng đã có đáp án đầy đủ ở
+[`tech-playbook.md` §Xuyên suốt](tech-playbook.md#bốn-câu-hay-bị-hỏi--và-câu-trả-lời).
+
+**Xong khi:** đọc hết.
 
 ---
 
@@ -114,7 +134,7 @@ Prisma 7 sinh import `.js` → [`tech-playbook.md` §Xuyên suốt](tech-playboo
 - Đánh dấu file này **đã đóng**
 - `/commit`
 
-**Xong khi:** `/phase-status` báo Phase 1, và không còn ô trống nào ở trên.
+**Xong khi:** không còn ô trống nào ở trên.
 
 ---
 
@@ -132,7 +152,7 @@ Prisma 7 sinh import `.js` → [`tech-playbook.md` §Xuyên suốt](tech-playboo
 | ✅ CI GitHub Actions: generate → lint → typecheck → test → build | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) |
 | ✅ **Ranh giới module enforce bằng máy**: ESLint chặn import sâu, đã thử bằng file vi phạm | [`eslint.config.mjs`](../eslint.config.mjs) `no-restricted-imports` |
 | ✅ Spec Phase 0, template spec/ADR, review checklist | [`specs/phase0-nen-mong.md`](specs/phase0-nen-mong.md) |
-| ✅ Bộ công cụ Claude: 10 skill · 7 lệnh · 8 hook · 1 agent · MCP | [`claude-guide.md`](claude-guide.md) |
+| ✅ Bộ công cụ Claude (đã tinh gọn còn 2 lệnh + 3 hook) | [`CLAUDE.md`](../CLAUDE.md) §Bộ công cụ |
 | ✅ Tài liệu: bản đồ code, sổ tay kỹ thuật, từ điển, mục lục | [`docs/README.md`](README.md) |
 
 ---
@@ -169,8 +189,10 @@ Ghi ra để anh **không phải lo** khi thấy thiếu — đây là nợ có 
 Đúng 3 điều kiện, không thêm:
 
 1. **CI xanh** trên `main` (việc 1)
-2. **Trả lời được 3 câu hỏi bản chất** không nhìn code (việc 4)
-3. **Mọi quyết định hạ tầng đều giải thích được** — bằng chứng là ADR (việc 3) + journal (việc 5)
+2. **Đã đọc 3 câu hỏi bản chất + đáp án** (việc 4)
+3. **Mọi quyết định hạ tầng đều có chỗ ghi lại** — bằng chứng là 2 ADR (việc 3)
 
 Điều kiện 3 mới là tiêu chí thật của phase này. Code chạy chỉ là điều kiện cần: đây là phần
-nền, sai ở đây thì 6 phase sau phải chịu.
+nền, sai ở đây thì 6 phase sau phải chịu. Điều đáng giá không phải là *nhớ được* các quyết
+định, mà là **chúng đã được viết ra ở nơi tra lại được** — sáu tháng sau không ai nhớ nổi,
+kể cả người ra quyết định.

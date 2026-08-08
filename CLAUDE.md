@@ -28,8 +28,6 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
   push trước khi Tâm review**. Dùng `/commit` để tạo commit đúng chuẩn.
 - `project-context.md` — nhật ký quyết định: **vì sao** chọn thế này và **những gì đã
   bị loại bỏ có chủ đích**. Đọc trước khi đề xuất bất cứ thay đổi kiến trúc nào.
-- `docs/claude-guide.md` — hướng dẫn dùng bộ công cụ Claude Code của repo: lệnh nào
-  dùng khi nào, skill nào tự chạy lúc nào, hook nào chặn cái gì.
 
 ## Tech stack (đã chốt — không tự ý đổi)
 - **NestJS + TypeScript** (strict mode), validation bằng **Zod** (không dùng class-validator)
@@ -47,10 +45,22 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 2. **Test là hợp đồng.** Viết test theo danh sách test case trong spec TRƯỚC hoặc
    cùng lúc với implement. Mọi test phải pass trước khi coi là xong.
 3. **Quyết định kiến trúc → tạo ADR** trong `docs/adr/` theo template (5–10 dòng).
-4. **Sau khi hoàn thành một tính năng**, tóm tắt luồng chạy bằng lời (5–10 câu,
-   tiếng Việt) để Tâm dùng cho bước tự kiểm tra "câu hỏi bản chất".
-5. **Giải thích khi được hỏi.** Khi Tâm hỏi "vì sao", trả lời ở mức bản chất
-   (trade-off, cơ chế bên dưới), không chỉ mô tả code làm gì.
+4. **Tài liệu phải đúng ở mỗi commit.** Sửa code làm lệch tài liệu nào thì sửa luôn trong
+   cùng commit. Ba chỗ hay lệch: `docs/architecture.md`, `docs/phase-0-checklist.md`,
+   §Trạng thái hiện tại của file này.
+5. **Giải thích khi được hỏi**, ở mức bản chất (cơ chế + trade-off).
+
+### Cách nói chuyện với Tâm (chốt 2026-08-07)
+- **Ngắn.** Trả lời xong việc thì dừng. Không tóm tắt luồng chạy 5–10 câu, không liệt kê
+  "điểm cần đọc kỹ", trừ khi Tâm hỏi.
+- **Không kiểm tra ngược.** Không kết thúc bằng câu hỏi bắt Tâm trả lời. Chỗ nào đáng chú ý
+  thì nói thẳng **kèm lời giải đáp ngay**. Lý do: bị hỏi liên tục biến mỗi lượt thành bài
+  kiểm tra và làm mất động lực.
+- **Đi từ đơn giản lên.** Giải thích bằng thứ Tâm đã biết (REST, SQL, async/await, Docker),
+  không nhảy thẳng vào khái niệm nâng cao. Thấy cần khái niệm mới thì nêu tên nó, giải thích
+  một câu, rồi mới dùng.
+- **Tự quyết việc nhỏ.** Tách commit, đặt tên biến, chọn chỗ để file — tự làm rồi báo, đừng
+  hỏi. Chỉ hỏi khi quyết định ảnh hưởng kiến trúc hoặc tốn tiền.
 
 ## Convention code
 - Cấu trúc module NestJS: `src/modules/<tên-module>/` gồm controller, service,
@@ -63,14 +73,12 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 - Lỗi: dùng exception filter thống nhất, không nuốt lỗi (không có catch rỗng).
 - Transaction boundary phải hẹp nhất có thể; không gọi API ngoài trong transaction.
 
-## Ngân sách tài liệu (chốt 2026-08-07 — luật cứng)
-Cuối Phase 0 đo được tỉ lệ **1 dòng code : 5 dòng nói về code** (984 vs 5 198). Sai hướng với
-một dự án mục tiêu là học công nghệ. Từ đây:
+## Ngân sách tài liệu (luật cứng)
+Cuối Phase 0 đo được **1 dòng code : 5 dòng nói về code** (990 vs 5 050). Sai hướng với một
+dự án mục tiêu là học công nghệ, nên đã cắt mạnh ngày 2026-08-07 (`.claude/` từ 3 098 còn
+~350 dòng: xoá 10 skill, 6 hook, 5 command, 1 agent). Từ đây:
 - **Mỗi phase tối đa MỘT file tài liệu mới.** Còn lại là code, test, ADR.
-- **`.claude/` đã đóng băng** — không thêm skill/hook/command. Nó đã chạy tốt, và cấu hình
-  Claude Code không phải kỹ năng backend.
-- Các file quy trình (`claude-guide.md`, `mcp-setup.md`, `review-checklist.md`, bảng sở hữu
-  tài liệu) **chỉ sửa khi sai**, không mở rộng.
+- **Không thêm skill/hook/command mới.** Cấu hình Claude Code không phải kỹ năng backend.
 - Không tạo checklist riêng cho từng phase. `docs/phase-0-checklist.md` là ngoại lệ duy nhất.
 - ADR thì cứ viết — nó ép nói ra trade-off, đó là học thật.
 
@@ -82,32 +90,25 @@ Nếu Tâm yêu cầu thêm tài liệu mà ngân sách đã hết, **nói ra t�
 - Không chạy load test / seed dữ liệu lớn lên môi trường cloud (free tier).
 - Không hardcode secret; dùng env qua config module có validate bằng Zod.
 
-## Bộ công cụ Claude Code (chi tiết ở `docs/claude-guide.md`)
+## Bộ công cụ Claude Code (đã tinh gọn 2026-08-07)
 
-**Skill** (tự kích hoạt, không cần gọi tay) — `.claude/skills/`:
-`feature-spec` · `adr-writer` · `review-gate` · `phase-journal` · `essence-explainer` ·
-`nestjs-module` · `concurrency-oversell` ⭐ · `queue-payment-reliability` ·
-`db-postgres-performance` · `test-contract`
+**2 lệnh:** `/commit` · `/spec`
 
-**Slash command** — `/spec` · `/adr` · `/review-gate` · `/commit` · `/journal` ·
-`/quiz` (bị kiểm tra ngược) · `/phase-status`
+**3 hook** — chỉ chặn thứ gây mất mát thật, không hỏi han lặt vặt:
 
-**Hook** (`.claude/settings.json` → `.claude/hooks/`) — enforce luật tự động, không trông
-vào việc AI tự nhớ:
-- `git push` bị **chặn cứng** → chỉ Tâm push, sau khi review.
-- Commit message sai chuẩn Conventional Commits → **chặn**; thiếu thân "vì sao" → **hỏi**.
-- `k6 run` / seed / `migrate reset` khi biến kết nối trỏ ra cloud → **chặn** (FinOps).
-- Cài package đã bị loại có chủ đích → **chặn**; package lạ → **hỏi Tâm** (không tự thêm).
-- Ghi vào `.env` hoặc hardcode secret → **chặn / hỏi**.
-- Đầu mỗi phiên: tự nạp trạng thái phase, số spec/ADR, việc treo.
+| Hook | Chặn |
+|---|---|
+| `guard_git_push.py` | Mọi `git push` — chỉ Tâm push sau khi review |
+| `guard_cloud_cost.py` | `k6 run` / seed / `migrate reset` khi biến kết nối trỏ ra cloud |
+| `guard_secret_files.py` | Ghi vào `.env`, hoặc hardcode secret trong source |
 
-Nếu một hook chặn, **đừng tìm cách lách** — dừng lại và báo Tâm.
+Nếu hook chặn, **đừng tìm cách lách** — dừng lại và báo Tâm.
 
-**Agent** — `code-reviewer`: reviewer độc lập chỉ đọc không sửa. Dùng khi diff lớn hoặc
-chạm phần nguy hiểm (trừ tồn kho, transaction, webhook, auth).
+**MCP** — Context7 (tra tài liệu đúng phiên bản NestJS/Prisma/BullMQ/Zod).
 
-**MCP** — Context7 bật sẵn (tra tài liệu đúng phiên bản NestJS/Prisma/BullMQ/Zod).
-Postgres MCP bật ở Phase 2, Playwright MCP ở Phase 3. Xem `docs/mcp-setup.md`.
+Đã xoá: 10 skill, 6 hook, 5 command, 1 agent, `docs/claude-guide.md`, `docs/mcp-setup.md`.
+Lý do: chúng chiếm 3 098 dòng — gấp ba lần code — và làm mỗi lượt sửa/commit dài lê thê.
+Muốn xem lại thì `git log -- .claude/`.
 
 ## Ghi chú kỹ thuật đã chốt ở Phase 0 (khác tài liệu cũ trên mạng)
 - **Prisma 7**: `datasource.url` KHÔNG còn trong `schema.prisma` — nằm ở `prisma.config.ts`.
@@ -127,9 +128,8 @@ Postgres MCP bật ở Phase 2, Playwright MCP ở Phase 3. Xem `docs/mcp-setup.
   Prisma 7 (pg adapter) + module `health` mẫu + Docker Compose + CI.
   **11/11 unit test + 5/5 integration test (Testcontainers, Postgres thật) pass**,
   lint/typecheck/build sạch.
-- **Còn nợ: 2 việc — chi tiết ở `docs/phase-0-checklist.md`** (nguồn sự thật duy nhất).
-  Tóm tắt: Tâm push + xác nhận CI xanh → `/quiz` 3 câu → sang Phase 1.
-  ADR đã xong 2/2 (`docs/adr/001`, `002`). Journal Phase 0 **đã bỏ** — Phase 0 là config,
-  không có gì để chiêm nghiệm; bắt đầu journal từ Phase 3.
+- **Còn nợ: 3 việc — chi tiết ở `docs/phase-0-checklist.md`** (nguồn sự thật duy nhất).
+  Tóm tắt: Tâm push + xác nhận CI xanh → đọc 3 câu hỏi bản chất (đã có đáp án sẵn) →
+  đóng phase. ADR đã xong 2/2 (`docs/adr/001`, `002`). Journal Phase 0 **đã bỏ**.
 - Khi hoàn thành/tick một việc: **sửa `docs/phase-0-checklist.md`**, rồi cập nhật một dòng
   tóm tắt ở đây. Sang phase mới thì tạo checklist tương ứng cho phase đó.

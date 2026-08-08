@@ -18,7 +18,7 @@
 | 1 | [`src/main.ts`](../src/main.ts) (32 dòng) | App khởi động thế nào, theo thứ tự nào |
 | 2 | [`src/app.module.ts`](../src/app.module.ts) (25) | Có những mảnh nào, ráp vào nhau ra sao |
 | 3 | [`src/config/env.schema.ts`](../src/config/env.schema.ts) (58) | App cần biến môi trường nào, validate thế nào |
-| 4 | [`src/common/logger/logger.module.ts`](../src/common/logger/logger.module.ts) (76) | `correlationId` sinh ra ở đâu |
+| 4 | [`src/common/logger/logger.module.ts`](../src/common/logger/logger.module.ts) (76) | `correlationId` sinh ra ở đâu — [giải thích đầy đủ](tech-playbook.md) |
 | 5 | [`src/infra/prisma/prisma.service.ts`](../src/infra/prisma/prisma.service.ts) (61) | Kết nối DB, và vì sao pool lại đáng chú ý |
 | 6 | [`src/modules/health/`](../src/modules/health/) (3 file, ~96) | **Khuôn mẫu của mọi module sau này** |
 | 7 | [`src/common/filters/all-exceptions.filter.ts`](../src/common/filters/all-exceptions.filter.ts) (99) | Lỗi đi đâu về đâu |
@@ -55,7 +55,7 @@ request từ lúc gõ `npm run dev` tới lúc client nhận `503`.
 | 11 | [`health.controller.ts:21`](../src/modules/health/health.controller.ts#L21) | `ready === false` → ném `ServiceUnavailableException`. Phải là **status code**, vì load balancer không đọc body |
 | 12 | [`all-exceptions.filter.ts:45`](../src/common/filters/all-exceptions.filter.ts#L45) | Filter bắt exception (đăng ký `APP_FILTER` ở `app.module.ts`, nên không controller nào thoát được) |
 | 13 | [`all-exceptions.filter.ts:52`](../src/common/filters/all-exceptions.filter.ts#L52) | Lấy lại `req.id` — **chính là id sinh ở bước 7**. Đây là chỗ hai đầu nối vào nhau |
-| 14 | [`all-exceptions.filter.ts:55`](../src/common/filters/all-exceptions.filter.ts#L55) | 503 < 500? Không — nhưng 503 ≥ 500 nên log mức `error`… *(xem câu hỏi bên dưới)* |
+| 14 | [`all-exceptions.filter.ts:55`](../src/common/filters/all-exceptions.filter.ts#L55) | 503 ≥ 500 nên filter log ở mức `error` — *xem mục ngay bên dưới, chỗ này chưa ổn* |
 | 15 | [`all-exceptions.filter.ts:67`](../src/common/filters/all-exceptions.filter.ts#L67) | Trả `{ code, message, correlationId }` — một hình dạng cho mọi lỗi trong toàn app |
 
 **Ba điều đáng rút ra từ mạch này:**
@@ -66,10 +66,27 @@ request từ lúc gõ `npm run dev` tới lúc client nhận `503`.
 3. **Bước 3 là lá chắn rẻ nhất của cả hệ thống** — sai cấu hình thì chết lúc `npm run dev`,
    không phải lúc có khách.
 
-> **Câu hỏi để tự kiểm tra:** bước 14 nói `/ready` trả 503 và filter log ở mức **error**.
-> Nhưng "DB tạm chết" là sự cố vận hành bình thường, không phải bug của code. Vậy log mức
-> `error` ở đây có đúng không, hay nó sẽ làm nhiễu cảnh báo khi lên production? Nếu thấy
-> chưa ổn thì đó là một cải tiến thật — và là chất liệu tốt cho một ADR.
+### Một chỗ chưa ổn trong đoạn này — và cách nghĩ về nó
+
+**Hiện tượng:** bước 14 — `/ready` trả 503, mà filter phân loại `status >= 500` là lỗi hệ
+thống nên log ở mức **error**.
+
+**Vì sao đó là vấn đề:** Cloud Run gọi `/ready` liên tục, vài giây một lần. Nếu Postgres
+chớp 2 phút, log sẽ có hàng chục dòng `error` — trong khi đây là sự cố vận hành *bình
+thường*, không phải bug của code. Đến Phase 5 khi gắn cảnh báo theo số dòng `error`, chuông
+sẽ kêu inh ỏi vì chuyện không cần ai dậy lúc 3 giờ sáng. Cảnh báo kêu sai vài lần là người
+ta bắt đầu tắt tiếng nó — và lần thứ n, khi có sự cố thật, không ai nghe.
+
+**Cách sửa, hai hướng:**
+
+| Hướng | Làm gì | Đánh đổi |
+|---|---|---|
+| Sửa ở filter | Thêm ngoại lệ: 503 thì log `warn` | Đơn giản, nhưng gắn luật của một endpoint vào chỗ dùng chung cho cả app |
+| Sửa ở chỗ ném lỗi | Controller ném một `DomainError` riêng có mức log `warn` | Sạch hơn về ranh giới, nhưng phải thêm khái niệm "mức log" vào lớp lỗi |
+
+**Chưa sửa, và đó là chủ đích.** Phase 0 chưa có cảnh báo nên chưa ai đau. Đây là **nợ kỹ
+thuật có ghi chép** — sẽ trả ở Phase 5 cùng lúc với việc dựng metrics, khi đã biết rõ cảnh
+báo được cấu hình thế nào. Sửa bây giờ là đoán mò yêu cầu chưa tồn tại.
 
 ---
 
@@ -120,7 +137,7 @@ flash-core/
 ├── .env.example                  ← danh sách biến môi trường (copy thành .env)
 │
 ├── docs/                         ← tài liệu (xem docs/README.md)
-├── .claude/                      ← bộ công cụ Claude Code (xem docs/claude-guide.md)
+├── .claude/                      ← 2 lệnh + 3 hook (xem CLAUDE.md §Bộ công cụ)
 ├── jest.config.js                ← unit test (src/**/*.spec.ts, không cần Docker)
 └── .github/workflows/ci.yml      ← CI: generate → lint → typecheck → test → build
 ```
@@ -145,7 +162,7 @@ Cách CI hoạt động và cách bộ test được chia tầng: [`tech-playboo
 | Thêm **integration test** | `test/*.e2e-spec.ts` | Chạy `npm run test:int`, cần Docker |
 | Đổi **luật lint** | `eslint.config.mjs` | |
 | Đổi **CI** (thêm bước, đổi Node version) | `.github/workflows/ci.yml` | Node version lấy từ `.nvmrc` — đổi ở đó, không sửa trong yml |
-| Đổi **hành vi của Claude** | `.claude/` — xem `docs/claude-guide.md` | |
+| Đổi **hành vi của Claude** | `CLAUDE.md`, hoặc `.claude/commands/` | |
 
 ---
 
@@ -163,8 +180,7 @@ giới này thì lý do bỏ microservices (`project-context.md` quyết định
 để kể trong phỏng vấn.
 
 Khi hai module cần phụ thuộc nhau, khai báo **interface + injection token** trong `index.ts`
-của module được phụ thuộc — bên gọi phụ thuộc vào interface, không vào class. Xem skill
-`nestjs-module` để có ví dụ đầy đủ.
+của module được phụ thuộc — bên gọi phụ thuộc vào interface, không vào class.
 
 **2. Truy cập DB nằm trong repository của module, không rải khắp service.**
 
@@ -207,5 +223,4 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 | Sẽ làm gì ở 7 phase, Definition of Done | [`docs/SPEC.md`](SPEC.md) |
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`project-context.md`](../project-context.md) |
 | Tên gọi của các bài toán sẽ gặp | [`docs/glossary.md`](glossary.md) |
-| Dùng lệnh/skill/hook nào khi nào | [`docs/claude-guide.md`](claude-guide.md) |
 | Chi tiết Phase 0 đã làm gì, test nào pass | [`docs/specs/phase0-nen-mong.md`](specs/phase0-nen-mong.md) |
