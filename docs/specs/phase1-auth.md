@@ -2,7 +2,8 @@
 
 - **Phase:** 1
 - **Ngày:** 2026-08-08
-- **Trạng thái:** **Đã duyệt** 2026-08-08 — sẵn sàng code
+- **Trạng thái:** **Đã implement** 2026-08-08 — unit test xanh, integration test **chưa chạy**
+  (Docker đang tắt lúc code xong; cần `npm run test:int` để xác nhận)
 
 ## Mục tiêu
 
@@ -37,7 +38,7 @@ login:    { email: string().email(), password: string() }
 |---|---|---|
 | Dùng để | Gọi API hằng ngày | **Chỉ** để xin cặp token mới |
 | Sống | 15 phút | 7 ngày |
-| Lưu ở | HttpOnly Cookie | HttpOnly Cookie, `path=/auth/refresh` |
+| Lưu ở | HttpOnly Cookie, `path=/` | HttpOnly Cookie, `path=/auth` |
 | Server có lưu không | **Không** (stateless, verify bằng chữ ký) | **Có** — lưu hash trong DB để thu hồi được |
 
 Vì sao access token ngắn: nó không thu hồi được, nên rủi ro bị đánh cắp được giới hạn bằng
@@ -114,22 +115,26 @@ luôn lộ.** Đó là toàn bộ ý tưởng.
 
 | # | Test | Loại |
 |---|---|---|
-| 1 | Đăng ký thành công → 201, DB có user, `passwordHash` không phải mật khẩu thô | integration |
-| 2 | Đăng ký email trùng → 409 | integration |
-| 3 | Đăng nhập đúng → 200 + 2 cookie có cờ `HttpOnly` | integration |
-| 4 | Sai mật khẩu và email lạ → **cùng** một response 401 | integration |
-| 5 | `/auth/me` không có token → 401 | integration |
-| 6 | `/auth/me` có access token → 200, **không** có `passwordHash` trong body | integration |
-| 7 | Refresh hợp lệ → cặp token mới, token cũ hết dùng được | integration |
-| 8 | **Dùng lại refresh token cũ → cả family bị thu hồi** (case quan trọng nhất) | integration |
-| 9 | Refresh token hết hạn → 401 | integration |
-| 10 | Logout → refresh token cũ không dùng được nữa | integration |
-| 11 | Access token hết hạn → 401, refresh xong gọi lại thì được | integration |
-| 12 | Đăng nhập sai N lần → 429 | integration |
-| 13 | Zod chặn email sai định dạng / mật khẩu dưới 8 ký tự | unit |
-| 14 | `argon2.verify` đúng/sai | unit |
+| 1 | Đăng ký thành công → 201, DB có user, `passwordHash` không phải mật khẩu thô | integration ⏳ |
+| 2 | Đăng ký email trùng → 409 | integration ⏳ |
+| 3 | Đăng nhập đúng → 200 + 2 cookie có cờ `HttpOnly` | integration ⏳ |
+| 4 | Sai mật khẩu và email lạ → **cùng** một response 401 | integration ⏳ |
+| 5 | `/auth/me` không có token → 401 | integration ⏳ |
+| 6 | `/auth/me` có access token → 200, **không** có `passwordHash` trong body | integration ⏳ |
+| 7 | Refresh hợp lệ → cặp token mới, token cũ hết dùng được | integration ⏳ |
+| 8 | **Dùng lại refresh token cũ → cả family bị thu hồi** (case quan trọng nhất) | integration ⏳ |
+| 9 | Refresh token hết hạn → 401 | integration ⏳ |
+| 10 | Logout → refresh token cũ không dùng được nữa | integration ⏳ |
+| 11 | Access token hết hạn → 401, refresh xong gọi lại thì được | integration ⏳ |
+| 12 | Đăng nhập sai N lần → 429 | integration ⏳ |
+| 13 | Zod chặn email sai định dạng / mật khẩu dưới 8 ký tự | unit ✅ |
+| 14 | Chuẩn hoá email (chữ thường, cắt khoảng trắng), loại field lạ | unit ✅ |
 
 Test 8 là **deliverable của phase này** theo `docs/SPEC.md`.
+
+**Trạng thái thật:** 21/21 unit test xanh (gồm 8 test DTO + 13 test cũ). 12 integration test
+đã viết trong `test/auth.e2e-spec.ts` nhưng **chưa chạy lần nào** — Docker tắt lúc viết xong.
+Chạy `npm run test:int` để xác nhận; chưa xanh thì chưa coi là xong.
 
 ## Ngoài phạm vi
 

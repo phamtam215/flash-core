@@ -35,6 +35,48 @@ export const envSchema = z.object({
    * Giá trị mặc định cho production sẽ được chốt bằng ADR SAU khi có số đo k6.
    */
   INVENTORY_STRATEGY: z.enum(['optimistic', 'pessimistic', 'redis']).default('optimistic'),
+
+  // ── Phase 1: Auth (spec: docs/specs/phase1-auth.md) ────────────────────────────────────
+
+  /**
+   * Khoá ký JWT. **Không có giá trị mặc định** — cố tình để app chết lúc khởi động nếu
+   * thiếu, thay vì âm thầm chạy với một khoá ai cũng đoán được.
+   *
+   * Hai khoá RIÊNG cho access và refresh: nếu dùng chung một khoá, một access token hết hạn
+   * vẫn có chữ ký hợp lệ và có thể bị đem đi giả làm refresh token. Tách khoá thì token loại
+   * này không bao giờ verify được ở loại kia.
+   *
+   * Sinh khoá: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   */
+  JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET cần tối thiểu 32 ký tự'),
+  JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET cần tối thiểu 32 ký tự'),
+
+  /**
+   * Tuổi thọ token, tính bằng GIÂY.
+   *
+   * Access token ngắn (15 phút) vì nó **không thu hồi được** — còn hạn là còn dùng được, kể
+   * cả sau khi user logout. Rút ngắn là cách duy nhất giới hạn thiệt hại khi bị đánh cắp.
+   * Refresh token dài (7 ngày) nhưng thu hồi được vì có bản ghi trong DB.
+   */
+  ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(900),
+  REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(604800),
+
+  /**
+   * Rate limit đăng nhập: tối đa bao nhiêu lần sai trong bao nhiêu giây.
+   * Đếm ở Redis chứ không trong RAM — nhiều instance thì đếm RAM sai ngay (spec §Quyết định 1).
+   */
+  LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+  LOGIN_RATE_LIMIT_WINDOW: z.coerce.number().int().positive().default(60),
+
+  /**
+   * Bật cờ `Secure` cho cookie (chỉ gửi qua HTTPS).
+   * Local chạy http://localhost nên phải TẮT, không thì browser vứt cookie đi.
+   * Production bắt buộc BẬT — không có nó thì token bay qua mạng ở dạng thô.
+   */
+  COOKIE_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = Readonly<z.infer<typeof envSchema>>;

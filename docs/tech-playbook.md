@@ -456,6 +456,115 @@ trông vào việc từng người nhớ đừng log. Cách sau chắc chắn h�
 
 # Phase 1 — Auth & Security
 
+## Cookie, HttpOnly và Redis — giải thích từ đầu
+
+> Ba thứ này Phase 1 dùng liên tục. Đọc mục này trước, rồi mới đọc phần "Cơ chế phải nắm".
+
+### Cookie là gì
+
+Anh đã biết mỗi HTTP request/response đều có **headers**. Cookie chỉ là **hai header đặc
+biệt** mà trình duyệt xử lý giúp:
+
+```
+# Server trả về, sau khi login thành công:
+Set-Cookie: access_token=eyJhbGc...; HttpOnly; Secure; SameSite=Strict; Max-Age=900
+
+# Từ đó browser TỰ ĐỘNG đính kèm vào MỌI request sau tới domain này:
+Cookie: access_token=eyJhbGc...
+```
+
+**Điểm mấu chốt là chữ "tự động".** Frontend không phải viết một dòng code nào — browser tự
+nhớ và tự gửi. So sánh với cách dùng header `Authorization: Bearer <token>`: lúc đó frontend
+phải tự lưu token ở đâu đó, tự nhớ gắn vào từng request, và tự xoá khi logout.
+
+### Các cờ của cookie
+
+| Cờ | Nghĩa | Thiếu nó thì sao |
+|---|---|---|
+| **`HttpOnly`** | JavaScript **không đọc được** cookie này | XSS đọc trộm token |
+| **`Secure`** | Chỉ gửi qua HTTPS | Token bay qua mạng ở dạng thô, ai bắt gói tin cũng thấy |
+| **`SameSite=Strict`** | Chỉ gửi khi request **xuất phát từ chính site mình** | Dính CSRF |
+| **`Max-Age`** | Sống bao nhiêu giây rồi browser tự xoá | Cookie sống mãi |
+| **`Path=/auth/refresh`** | Chỉ gửi khi gọi đúng đường dẫn đó | Refresh token bị đính kèm **mọi** request — lộ ra nhiều nơi vô ích |
+
+### `HttpOnly` chính xác là gì
+
+Cookie **thường** thì JavaScript đọc được:
+
+```js
+document.cookie   // "access_token=eyJhbGc..."  ← đọc thoải mái
+```
+
+Cookie có cờ `HttpOnly` thì trình duyệt **giấu hẳn khỏi JavaScript**:
+
+```js
+document.cookie   // ""  ← không thấy gì, dù cookie vẫn tồn tại và vẫn được gửi đi
+```
+
+Chỉ trình duyệt biết giá trị đó, và nó chỉ dùng khi tự đính vào request.
+
+**Vì sao quan trọng:** giả sử trang có lỗ hổng **XSS** — kẻ tấn công chèn được đoạn JS chạy
+trong trang của anh. Nếu token nằm ở `localStorage` hoặc cookie thường, đoạn JS đó đọc rồi
+gửi về máy nó trong một dòng. Với `HttpOnly`, nó **không lấy được token**.
+
+### Nhưng `HttpOnly` KHÔNG chống CSRF
+
+Đây là chỗ hay hiểu nhầm nhất. **CSRF không cần đọc cookie** — nó lợi dụng đúng cái tính
+"browser tự gửi".
+
+Kịch bản cụ thể: anh đang đăng nhập Flash-Core. Anh mở một trang lạ, trong đó có:
+
+```html
+<form action="https://flash-core.app/orders" method="POST" id="f">...</form>
+<script>document.getElementById('f').submit()</script>
+```
+
+Browser gửi request đó **kèm cookie của anh** (vì cookie thuộc về domain flash-core.app, và
+browser luôn tự đính). Server thấy cookie hợp lệ → tưởng chính anh đặt hàng. Kẻ tấn công
+chưa từng đọc được token, nhưng vẫn hành động thay anh được.
+
+**`SameSite=Strict` chặn việc này:** browser chỉ gửi cookie khi request **xuất phát từ chính
+flash-core.app**. Request bắn từ trang lạ thì không có cookie → server trả 401.
+
+### Redis là gì, và Phase 1 dùng nó làm gì
+
+So với Postgres mà anh đã quen:
+
+| | PostgreSQL | Redis |
+|---|---|---|
+| Lưu ở đâu | Ổ đĩa | **RAM** |
+| Cấu trúc | Bảng, cột, quan hệ | Chỉ **key → value** |
+| Truy vấn | SQL, join, index | Lấy theo đúng key. Không join, không SQL |
+| Tốc độ | Mili giây | **Micro giây** |
+| Mất dữ liệu | Không được phép | Chấp nhận được |
+
+Redis dùng cho **dữ liệu tạm, ghi/đọc rất nhiều, mất cũng không chết ai**. Rate limit đúng
+là loại đó.
+
+**Phase 1 dùng Redis cho đúng một việc: đếm số lần đăng nhập sai.**
+
+```
+INCR   ratelimit:login:tam@example.com     → trả về 1, rồi 2, rồi 3...
+EXPIRE ratelimit:login:tam@example.com 60  → tự xoá sau 60 giây
+```
+
+Vượt ngưỡng (ví dụ 5 lần/phút) → trả 429. Hết 60 giây, key tự biến mất, đếm lại từ đầu —
+**không cần job dọn dẹp**, đó là thứ Postgres không cho không.
+
+**Vì sao không đếm trong RAM của Node?** Vì Cloud Run chạy nhiều instance. Mỗi instance đếm
+riêng thì giới hạn "5 lần/phút" thành 10 với 2 instance, 25 với 5 instance. Redis là **chỗ
+đếm chung** cho mọi instance.
+
+**Vì sao không đếm trong Postgres?** Mỗi lần login sai là một lần ghi. Dưới tấn công
+brute-force đó là hàng nghìn lượt ghi mỗi giây đổ vào database chính — làm chậm cả những
+việc quan trọng như đặt hàng. Redis sinh ra cho đúng loại việc này.
+
+**Một chi tiết sẽ gặp lại ở Phase 3:** `INCR` là thao tác **atomic** — 100 request đồng thời
+cùng gọi thì Redis vẫn đếm đúng 100, không mất lượt nào. Đây chính là tính chất mà chiến
+lược C (Redis atomic decrement) dựa vào để chống oversell.
+
+---
+
 ### Cần rõ
 
 | Thuật ngữ | Một câu |

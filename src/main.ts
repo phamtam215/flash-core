@@ -41,6 +41,7 @@
 import 'dotenv/config';
 
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
@@ -98,6 +99,21 @@ async function bootstrap(): Promise<void> {
   // NẾU BỎ DÒNG NÀY: `bufferLogs: true` ở trên thành có hại — log bị giữ lại mà không ai
   // xả ra, coi như mất trắng phần khởi động. Hai dòng này là một cặp, luôn đi cùng nhau.
   app.useLogger(app.get(Logger));
+
+  // -------------------------------------------------------------------------------------
+  // BƯỚC 3b — Đọc cookie (Phase 1)
+  // -------------------------------------------------------------------------------------
+  //
+  // LÀM GÌ: cookie đi vào dưới dạng MỘT chuỗi trong header `Cookie: a=1; b=2`. Middleware
+  // này tách chuỗi đó thành object và gắn vào `req.cookies` để code đọc `req.cookies.x`.
+  //
+  // NẾU KHÔNG CÓ: `req.cookies` là `undefined`, và guard sẽ coi mọi request là chưa đăng
+  // nhập — triệu chứng là "login thành công nhưng gọi API nào cũng 401", rất dễ đổ oan cho
+  // phần sinh token.
+  //
+  // KHÔNG truyền secret: dự án không dùng cookie ký (signed cookie). Không cần, vì bản thân
+  // token đã là JWT có chữ ký — ký thêm lớp nữa chỉ tốn CPU mà không thêm bảo đảm nào.
+  app.use(cookieParser());
 
   // -------------------------------------------------------------------------------------
   // BƯỚC 4 — Đăng ký dọn dẹp khi bị tắt

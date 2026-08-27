@@ -11,8 +11,8 @@
 // hình, nên số connection trở thành thứ nhìn thấy và điều chỉnh được — đúng bài toán của
 // Phase 3 (pool cạn khi pessimistic lock) và Phase 6 (Neon pooler).
 //
-// Phase 0 cố tình CHƯA có model nghiệp vụ: bảng sản phẩm / biến thể SKU / tồn kho / đơn
-// hàng thuộc Phase 2–3 và phải có spec trong docs/specs/ trước khi thiết kế.
+// Phase 1 thêm `User` và `RefreshToken` (spec: docs/specs/phase1-auth.md).
+// Bảng sản phẩm / biến thể SKU / tồn kho / đơn hàng thuộc Phase 2–3.
 //
 // Ghi chú cho phase sau:
 // - Tồn kho theo SKU biến thể (size × màu) — quyết định #2 trong project-context.md.
@@ -39,4 +39,51 @@ model HealthProbe {
   checkedAt DateTime @default(now()) @map("checked_at")
 
   @@map("health_probe")
+}
+
+/// Tài khoản người dùng.
+///
+/// Chỉ lưu `passwordHash`, KHÔNG bao giờ lưu mật khẩu thô. Hash bằng Argon2id — thuật toán
+/// memory-hard, cố tình tốn RAM để GPU không thử hàng tỷ mật khẩu mỗi giây được.
+/// Salt nằm sẵn bên trong chuỗi hash của Argon2 nên không cần cột riêng.
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+/// Refresh token đã cấp cho user.
+///
+/// Vì sao phải lưu (khác access token — thứ không lưu ở đâu cả): chỉ khi server giữ một bản
+/// ghi thì mới **thu hồi** được. Access token stateless nên còn hạn là còn dùng được, kể cả
+/// sau khi logout — đó là lý do nó phải sống ngắn.
+///
+/// `tokenHash`: lưu SHA-256 của token, KHÔNG lưu token thô. Cùng lý do với mật khẩu — DB rò
+/// rỉ thì kẻ tấn công vẫn không đăng nhập được. Dùng SHA-256 (không phải Argon2) vì token đã
+/// là chuỗi ngẫu nhiên đủ dài, không cần chống dò từ điển, và bước này chạy ở mọi lần refresh
+/// nên phải nhanh.
+///
+/// `familyId`: mọi token sinh ra từ **một lần đăng nhập** dùng chung một familyId. Khi phát
+/// hiện một token đã bị vô hiệu mà vẫn có người dùng lại (reuse detection), thu hồi **cả
+/// family** chứ không riêng token đó — vì lúc đó không biết ai là chủ thật, ai là kẻ trộm.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  familyId  String    @map("family_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Tra theo user khi logout-tất-cả; tra theo family khi reuse detection thu hồi cả chuỗi.
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
 }

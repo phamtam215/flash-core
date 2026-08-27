@@ -128,10 +128,13 @@ Muốn xem lại thì `git log -- .claude/`.
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
   2 ADR (`docs/adr/001`, `002`).
-- **Spec đã duyệt:** `docs/specs/phase1-auth.md`. Hai quyết định đã chốt: rate limit đếm ở
-  **Redis** (không phải RAM), access token đọc từ **HttpOnly Cookie** (không dùng Bearer).
-- **Việc tiếp theo:** implement theo spec. Phát sinh `src/infra/redis/` — module hạ tầng
-  thứ hai, copy cấu trúc từ `infra/prisma/`.
+- **Đã code xong** theo `docs/specs/phase1-auth.md`: module `auth` (register/login/refresh/
+  logout/me), `infra/redis`, migration đầu tiên, guard đọc token từ cookie.
+  **21/21 unit test xanh**, lint/typecheck/build sạch.
+- **CÒN NỢ:** 12 integration test trong `test/auth.e2e-spec.ts` **chưa chạy lần nào** (Docker
+  tắt lúc viết). Chạy `npm run up` rồi `npm run test:int`. Chưa xanh thì chưa xong Phase 1.
+- **Biến môi trường mới** phải thêm vào `.env` và `.env.example`: `JWT_ACCESS_SECRET`,
+  `JWT_REFRESH_SECRET` (mỗi cái ≥32 ký tự). Thiếu là app chết lúc khởi động.
 - Phase 1 xong khi: 14 test case trong spec pass, **đặc biệt test số 8** (dùng lại refresh
   token cũ → thu hồi cả family) — đó là deliverable của phase theo `docs/SPEC.md`.
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1** (§Ngân

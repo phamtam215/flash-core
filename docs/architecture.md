@@ -5,7 +5,7 @@
 > Khác với `README.md` (giới thiệu dự án cho người ngoài) và `docs/SPEC.md` (nói sẽ làm gì),
 > file này mô tả **code hiện có**. Cập nhật mỗi khi thêm module mới.
 >
-> Trạng thái: Phase 0. Toàn bộ code hiện tại là ~600 dòng — đọc hết trong 30 phút.
+> Trạng thái: Phase 1. Code hiện tại ~1 400 dòng.
 
 ---
 
@@ -22,6 +22,7 @@
 | 5 | [`src/infra/prisma/prisma.service.ts`](../src/infra/prisma/prisma.service.ts) (61) | Kết nối DB, và vì sao pool lại đáng chú ý |
 | 6 | [`src/modules/health/`](../src/modules/health/) (3 file, ~96) | **Khuôn mẫu của mọi module sau này** |
 | 7 | [`src/common/filters/all-exceptions.filter.ts`](../src/common/filters/all-exceptions.filter.ts) (99) | Lỗi đi đâu về đâu |
+| 8 | [`src/modules/auth/auth.service.ts`](../src/modules/auth/auth.service.ts) (Phase 1) | Argon2, xoay token, **reuse detection** |
 
 Sau đó đọc [`test/health.e2e-spec.ts`](../test/health.e2e-spec.ts) — nó cho thấy toàn bộ
 chuỗi trên chạy thật với Postgres thật.
@@ -111,13 +112,26 @@ flash-core/
 │   │   ├── logger/logger.module.ts Pino + genReqId(correlationId) + redact dữ liệu nhạy cảm
 │   │   └── index.ts                public interface
 │   │
-│   ├── infra/                    ← KẾT NỐI RA NGOÀI (DB, sau này Redis/queue)
-│   │   └── prisma/
-│   │       ├── prisma.service.ts   pg.Pool → PrismaPg adapter → PrismaClient, đóng khi SIGTERM
-│   │       ├── prisma.module.ts    @Global — pool phải là MỘT instance cho cả app
+│   ├── infra/                    ← KẾT NỐI RA NGOÀI (DB, Redis, sau này queue)
+│   │   ├── prisma/
+│   │   │   ├── prisma.service.ts   pg.Pool → PrismaPg adapter → PrismaClient, đóng khi SIGTERM
+│   │   │   ├── prisma.module.ts    @Global — pool phải là MỘT instance cho cả app
+│   │   │   └── index.ts            public interface
+│   │   └── redis/                  (Phase 1) cấu trúc copy y hệt prisma/
+│   │       ├── redis.service.ts    ioredis + incrementWithExpiry() cho rate limit
+│   │       ├── redis.module.ts     @Global — một kết nối cho cả app
 │   │       └── index.ts            public interface
 │   │
 │   ├── modules/                  ← NGHIỆP VỤ. Mỗi thư mục = một module có ranh giới
+│   │   ├── auth/                   (Phase 1) đăng ký, đăng nhập, refresh token
+│   │   │   ├── auth.controller.ts    HTTP + gắn cookie. Không có logic nghiệp vụ
+│   │   │   ├── auth.service.ts       Argon2, sinh token, REUSE DETECTION, rate limit
+│   │   │   ├── auth.repository.ts    mọi truy cập DB của module gom về đây
+│   │   │   ├── auth.dto.ts           schema Zod + type suy ra từ schema
+│   │   │   ├── auth.errors.ts        lỗi nghiệp vụ kế thừa DomainError
+│   │   │   ├── auth.cookies.ts       4 cờ bảo mật của cookie, giải thích từng cờ
+│   │   │   ├── access-token.guard.ts chặn request chưa đăng nhập, đọc token từ cookie
+│   │   │   └── index.ts              CHỈ export AuthModule + AccessTokenGuard
 │   │   └── health/                 module mẫu — copy cấu trúc này khi tạo module mới
 │   │       ├── health.controller.ts  HTTP: nhận request → gọi service → map response
 │   │       ├── health.service.ts     logic: liveness vs readiness
@@ -151,6 +165,9 @@ Cách CI hoạt động và cách bộ test được chia tầng: [`tech-playboo
 | Muốn… | Sửa/tạo | Lưu ý |
 |---|---|---|
 | Thêm **biến môi trường** | `src/config/env.schema.ts` + `.env.example` + `.env` | Thêm cả 3 chỗ, nếu không app fail lúc khởi động |
+| Sửa **luật mật khẩu / rate limit** | `src/modules/auth/auth.dto.ts`, `auth.service.ts` | Đổi ngưỡng thì sửa `.env`, không sửa code |
+| Sửa **cờ bảo mật của cookie** | `src/modules/auth/auth.cookies.ts` | `path` lúc xoá phải khớp lúc set, nếu không cookie không mất |
+| Bảo vệ một **endpoint mới** | `@UseGuards(AccessTokenGuard)` trong controller | Import từ `../auth`, không import sâu |
 | Thêm **bảng DB** | `prisma/schema.prisma` → `npm run db:migrate` | Tiền dùng `Int` (VND). Cần `CHECK` thì viết SQL raw trong migration |
 | Thêm **module nghiệp vụ** | `src/modules/<tên>/` — copy cấu trúc `health/` | Bắt buộc có `index.ts`. Đăng ký vào `app.module.ts` |
 | Thêm **endpoint** | controller của module đó | Validate body bằng `ZodValidationPipe` |
