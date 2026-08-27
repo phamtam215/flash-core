@@ -120,6 +120,11 @@ Muốn xem lại thì `git log -- .claude/`.
 - **Prisma Client sinh import kèm đuôi `.js`** nhưng file thật là `.ts` → jest cần
   `moduleNameMapper: {'^(\\.{1,2}/.*)\\.js$': '$1'}`. Sau khi đổi tsconfig thì **phải
   `npm run db:generate` lại**, nếu không máy vẫn xanh mà CI đỏ.
+- **Prisma 7 tải query compiler bằng WASM qua `await import(...)`** — luôn vậy, kể cả
+  generator đã đặt `moduleFormat = "cjs"` (cờ đó không đổi cách tải WASM). Jest chạy test
+  trong `vm.Context` nên cần cờ `node --experimental-vm-modules` mới `import()` được — đã
+  thêm vào script `test:int`. Không lộ ở unit test vì `PrismaService` luôn bị mock ở đó.
+  Chi tiết: `docs/tech-playbook.md` §Xuyên suốt → Testing → Bug hay gặp.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
@@ -128,14 +133,15 @@ Muốn xem lại thì `git log -- .claude/`.
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
   2 ADR (`docs/adr/001`, `002`).
-- **Đã code xong** theo `docs/specs/phase1-auth.md`: module `auth` (register/login/refresh/
-  logout/me), `infra/redis`, migration đầu tiên, guard đọc token từ cookie.
-  **21/21 unit test xanh**, lint/typecheck/build sạch.
-- **CÒN NỢ:** 12 integration test trong `test/auth.e2e-spec.ts` **chưa chạy lần nào** (Docker
-  tắt lúc viết). Chạy `npm run up` rồi `npm run test:int`. Chưa xanh thì chưa xong Phase 1.
+- **Code + test xong** theo `docs/specs/phase1-auth.md`: module `auth` (register/login/
+  refresh/logout/me), `infra/redis`, migration đầu tiên, guard đọc token từ cookie.
+  **14/14 test case trong spec pass** — 21/21 unit test + 12/12 integration test
+  (`test/auth.e2e-spec.ts`, chạy thật trên Postgres/Redis qua Testcontainers), kể cả
+  **test số 8** (dùng lại refresh token cũ → thu hồi cả family) — deliverable chính của
+  phase theo `docs/SPEC.md`. Lint/typecheck/build sạch.
 - **Biến môi trường mới** phải thêm vào `.env` và `.env.example`: `JWT_ACCESS_SECRET`,
   `JWT_REFRESH_SECRET` (mỗi cái ≥32 ký tự). Thiếu là app chết lúc khởi động.
-- Phase 1 xong khi: 14 test case trong spec pass, **đặc biệt test số 8** (dùng lại refresh
-  token cũ → thu hồi cả family) — đó là deliverable của phase theo `docs/SPEC.md`.
+- **Còn lại trước khi đóng phase:** Tâm review diff + push. Đóng phase chính thức (journal,
+  cập nhật mục này thành "ĐÃ ĐÓNG") làm sau khi Tâm xác nhận.
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1** (§Ngân
   sách tài liệu) — spec đã là danh sách việc.

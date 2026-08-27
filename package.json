@@ -19,7 +19,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:int": "jest --config ./test/jest-integration.json --runInBand",
+    "test:int": "node --experimental-vm-modules node_modules/.bin/jest --config ./test/jest-integration.json --runInBand",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",

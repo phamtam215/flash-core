@@ -115,26 +115,28 @@ luôn lộ.** Đó là toàn bộ ý tưởng.
 
 | # | Test | Loại |
 |---|---|---|
-| 1 | Đăng ký thành công → 201, DB có user, `passwordHash` không phải mật khẩu thô | integration ⏳ |
-| 2 | Đăng ký email trùng → 409 | integration ⏳ |
-| 3 | Đăng nhập đúng → 200 + 2 cookie có cờ `HttpOnly` | integration ⏳ |
-| 4 | Sai mật khẩu và email lạ → **cùng** một response 401 | integration ⏳ |
-| 5 | `/auth/me` không có token → 401 | integration ⏳ |
-| 6 | `/auth/me` có access token → 200, **không** có `passwordHash` trong body | integration ⏳ |
-| 7 | Refresh hợp lệ → cặp token mới, token cũ hết dùng được | integration ⏳ |
-| 8 | **Dùng lại refresh token cũ → cả family bị thu hồi** (case quan trọng nhất) | integration ⏳ |
-| 9 | Refresh token hết hạn → 401 | integration ⏳ |
-| 10 | Logout → refresh token cũ không dùng được nữa | integration ⏳ |
-| 11 | Access token hết hạn → 401, refresh xong gọi lại thì được | integration ⏳ |
-| 12 | Đăng nhập sai N lần → 429 | integration ⏳ |
+| 1 | Đăng ký thành công → 201, DB có user, `passwordHash` không phải mật khẩu thô | integration ✅ |
+| 2 | Đăng ký email trùng → 409 | integration ✅ |
+| 3 | Đăng nhập đúng → 200 + 2 cookie có cờ `HttpOnly` | integration ✅ |
+| 4 | Sai mật khẩu và email lạ → **cùng** một response 401 | integration ✅ |
+| 5 | `/auth/me` không có token → 401 | integration ✅ |
+| 6 | `/auth/me` có access token → 200, **không** có `passwordHash` trong body | integration ✅ |
+| 7 | Refresh hợp lệ → cặp token mới, token cũ hết dùng được | integration ✅ |
+| 8 | **Dùng lại refresh token cũ → cả family bị thu hồi** (case quan trọng nhất) | integration ✅ |
+| 9 | Refresh token hết hạn → 401 | integration ✅ |
+| 10 | Logout → refresh token cũ không dùng được nữa | integration ✅ |
+| 11 | Access token hết hạn → 401, refresh xong gọi lại thì được | integration ✅ |
+| 12 | Đăng nhập sai N lần → 429 | integration ✅ |
 | 13 | Zod chặn email sai định dạng / mật khẩu dưới 8 ký tự | unit ✅ |
 | 14 | Chuẩn hoá email (chữ thường, cắt khoảng trắng), loại field lạ | unit ✅ |
 
 Test 8 là **deliverable của phase này** theo `docs/SPEC.md`.
 
-**Trạng thái thật:** 21/21 unit test xanh (gồm 8 test DTO + 13 test cũ). 12 integration test
-đã viết trong `test/auth.e2e-spec.ts` nhưng **chưa chạy lần nào** — Docker tắt lúc viết xong.
-Chạy `npm run test:int` để xác nhận; chưa xanh thì chưa coi là xong.
+**Trạng thái thật (2026-08-27):** 14/14 test case pass — 21/21 unit test + 12/12 integration
+test (`test/auth.e2e-spec.ts`, chạy thật qua Testcontainers) + 5 test health e2e đi kèm,
+tổng `npm run test:int` = 17/17. Chạy lần đầu dính bug môi trường (Prisma 7 tải WASM query
+compiler cần `node --experimental-vm-modules` khi chạy dưới Jest) — đã sửa trong
+`package.json`, chi tiết ở `docs/tech-playbook.md` §Xuyên suốt → Testing → Bug hay gặp.
 
 ## Ngoài phạm vi
 

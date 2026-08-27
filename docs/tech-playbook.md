@@ -203,6 +203,7 @@ kèm đuôi `.js` nhưng file trên đĩa là `.ts`, và Jest chỉ thử thêm 
 | **Flaky** | `setTimeout` cố định, phụ thuộc giờ hệ thống, port cứng, thứ tự chạy | Chờ theo điều kiện; để container tự cấp port; giả lập thời gian bằng fake timer |
 | `Jest did not exit one second after...` | Quên đóng pool / server / container | `afterAll`: `app.close()`, `pool.end()`, `container.stop()` |
 | `Could not find a working container runtime strategy` | Docker daemon chưa bật | Bật Docker. **Không phải lỗi code** — đã gặp thật ở Phase 0 |
+| `A dynamic import callback was invoked without --experimental-vm-modules` khi `test:int` | Prisma 7 tải query compiler qua WASM bằng `await import(...)` — luôn vậy, kể cả khi generator đặt `moduleFormat = "cjs"` (cờ đó chỉ đổi cách client tự export, không đổi cách nó tải WASM). Jest chạy test trong `vm.Context`; thiếu cờ này thì Node không có "dynamic import callback" để phục vụ `import()`. Không xảy ra ở unit test vì `PrismaService` ở đó luôn bị mock (`health.service.spec.ts`), chưa từng gọi `$connect()` thật — bug chỉ lộ khi engine khởi động thật, đúng phase đầu tiên có integration test | Gặp thật ở Phase 1. Đã thêm `node --experimental-vm-modules` vào script `test:int` trong `package.json` |
 | Coverage cao mà vẫn sợ sửa code | Test bám implement, hoặc test không `expect` gì | Nhìn **branch coverage**, và làm phép thử "xoá một `if`" ở trên |
 
 ### Tình huống thực tế
