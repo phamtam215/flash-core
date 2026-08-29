@@ -231,7 +231,7 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 
 ---
 
-## Những chỗ dễ vấp (đã gặp thật ở Phase 0)
+## Những chỗ dễ vấp (đã gặp thật)
 
 | Hiện tượng | Nguyên nhân |
 |---|---|
@@ -242,6 +242,7 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 | Test xanh ở máy, **đỏ trên CI**: `Cannot find module './internal/class.js'` | Prisma 7 sinh import kèm đuôi `.js` nhưng file thật là `.ts`. Máy vẫn xanh vì đang giữ bản generate **cũ** (sinh trước khi đổi `moduleResolution` sang `node16`). Đã sửa bằng `moduleNameMapper` trong hai file config jest |
 | `TS5011: rootDir must be explicitly set` khi chạy jest | `isolatedModules: true` khiến ts-jest dịch từng file riêng, TS6 không tự suy ra được thư mục gốc. Cần `rootDir` tường minh trong `tsconfig.json` |
 | Import `@/config` chạy được lúc dev nhưng vỡ sau `npm run build` | Dự án **không dùng path alias** — `nest build` là tsc thuần, không rewrite alias. Dùng import tương đối |
+| (Phase 2) `@UseGuards(GuardTừModuleKhác)` báo thiếu dependency của GUARD (không phải của controller) | `@UseGuards(Class)` **không** tái dùng singleton của module gốc như constructor injection — `GuardsContextCreator` tra thẳng `injectables` của module chứa **controller** rồi tự dựng lại guard ở đó, nên mọi dependency của guard (ở đây `JwtService`) phải resolve được **ngay tại module đang dùng guard**. Sửa bằng cách export cả module cung cấp dependency đó (`JwtModule`), không chỉ export guard — xem `src/modules/auth/auth.module.ts` |
 
 ---
 

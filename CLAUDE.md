@@ -137,14 +137,15 @@ Muốn xem lại thì `git log -- .claude/`.
   `docs/journal/phase-1.md`): module `auth` (register/login/refresh/logout/me), `infra/
   redis`, migration đầu tiên. **14/14 test case pass** — 21 unit + 12 integration
   (`test/auth.e2e-spec.ts`), kể cả test số 8 (reuse detection).
-- **Phase 2 — code xong, CHƯA xác nhận trên Postgres thật** theo
+- **Phase 2 — code + integration test xong, xác nhận trên Postgres/Redis thật** theo
   `docs/specs/phase2-product-inventory.md`: module `product` (CRUD Product/SKU biến thể,
-  cursor pagination, GIN index cho JSONB), migration mới (`Product`/`ProductSku`), seed script
-  100k SKU (`npm run seed`). Lint/typecheck sạch, **43/43 unit test pass** (22 mới). Migration
-  SQL **viết tay** (môi trường code không có Postgres sống để chạy `prisma migrate dev`) —
-  xem §Trạng thái thật cuối spec để biết chính xác còn thiếu gì trước khi coi Phase 2 xong:
-  `npm run test:int` (test product chưa chạy lần nào), `npm run seed` + 2 bằng chứng
-  `EXPLAIN` (test #14, #15 — manual, việc của Tâm).
+  cursor pagination, GIN index cho JSONB), migration mới (`Product`/`ProductSku`, viết tay
+  và chạy đúng ngay lần đầu), seed script 100k SKU (`npm run seed`). **28/28 integration
+  test pass** (`npm run test:int`) + **43/43 unit test pass**, lint/typecheck/build sạch.
+  Một bug thật tìm thấy khi chạy test lần đầu (guard dùng chéo module thiếu dependency) —
+  đã sửa, xem `docs/architecture.md` §Những chỗ dễ vấp.
+  **Còn lại (việc của Tâm, không phải code):** `npm run seed` + 2 bằng chứng `EXPLAIN
+  (ANALYZE, BUFFERS)` (test #14, #15 — manual, xem §Trạng thái thật cuối spec).
 - **Biến môi trường mới** (Phase 1) phải thêm vào `.env` và `.env.example`: `JWT_ACCESS_SECRET`,
   `JWT_REFRESH_SECRET` (mỗi cái ≥32 ký tự). Thiếu là app chết lúc khởi động.
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2** (§Ngân

@@ -352,29 +352,27 @@ GIN, vì sao phải `ANALYZE` sau seed, cách đọc `rows` ước lượng vs `
 `EXPLAIN`, và tình huống thật "8ms máy dev → 900ms 100k dòng, thủ phạm là statistics cũ chứ
 không phải thiếu index". Khoảng 10 phút.
 
-## Trạng thái thật (2026-08-29)
+## Trạng thái thật (2026-08-29, cập nhật sau khi chạy `test:int` thật)
 
-**Đã xong, tự kiểm chứng được (không cần Docker):**
-- Code đủ 8 file module `product/` + cập nhật `schema.prisma`, `app.module.ts`
-- `npm run lint` và `npm run typecheck` sạch (kể cả `prisma/seed/seed-skus.ts` — đã thêm
-  `prisma/**/*.ts` vào `tsconfig.json` include và glob lint/format trong `package.json`)
-- **43/43 unit test xanh** (21 cũ + 22 mới: `product.dto.spec.ts`, `product.cursor.spec.ts`,
-  `product.slug.spec.ts` — validate Zod, round-trip cursor, sinh slug/sku_code bỏ dấu)
-- Seed script chạy thử với DB giả: sinh đúng 10.000 product × 10 SKU trong RAM, dừng đúng ở
-  bước kết nối (không có Postgres thật trong môi trường code) — logic sinh dữ liệu không lỗi,
-  chưa xác nhận INSERT thật
+**Đã xong, xác nhận trên Postgres/Redis thật (Docker):**
+- **28/28 integration test xanh** (`npm run test:int`: 5 health + 12 auth + 11 product) —
+  migration viết tay chạy đúng ngay lần đầu qua `prisma migrate deploy`, không lỗi SQL
+- **43/43 unit test xanh**, lint/typecheck/build sạch
+- Test #1–5, #7–9, #11–13 trong bảng trên: **tất cả pass**, bao gồm cursor pagination trên 40
+  dòng seed nhanh, `CHECK stock_non_negative` chặn đúng SQL thẳng, soft delete, lost update
 
-**CHƯA xác nhận — cần Docker, việc của Tâm:**
-- [ ] `npm run test:int` — test #1–5, #7–9, #11–13 (integration, viết trong
-      `test/product.e2e-spec.ts`) **chưa chạy lần nào**
-- [ ] Migration `20260829120000_add_product_sku/migration.sql` **viết tay** (không phải
-      `prisma migrate dev` sinh ra — môi trường code không có Postgres sống để chạy lệnh đó).
-      Đã validate bằng `prisma validate`/`generate` (schema hợp lệ), nhưng SQL thật đúng hay
-      sai chỉ lộ ra khi `npm run test:int` chạy `prisma migrate deploy` lần đầu — nếu sai,
-      Postgres sẽ báo lỗi rõ ràng ngay ở bước đó, không âm thầm
-- [ ] `npm run seed` — chưa chạy với Postgres thật
-- [ ] Test #14, #15 (bằng chứng `EXPLAIN (ANALYZE, BUFFERS)`) — **manual, việc của Tâm**, dán
-      kết quả thật vào đây sau khi seed xong
+**Bug thật tìm thấy và đã sửa ở lượt chạy này** (xem `docs/architecture.md` §Những chỗ dễ
+vấp): lần đầu `AccessTokenGuard` được dùng từ NGOÀI `AuthModule` (bởi `ProductController`),
+Nest báo thiếu `JwtService` — `@UseGuards(Class)` không tái dùng singleton của `AuthModule`
+như constructor injection thường, guard bị dựng lại tại module đang dùng nó. Sửa bằng cách
+export thêm `JwtModule` từ `AuthModule` (`src/modules/auth/auth.module.ts`), không chỉ export
+guard.
+
+**CHƯA xác nhận — việc của Tâm (đo đạc, không phải sửa lỗi):**
+- [ ] `npm run seed` — chưa chạy với Postgres thật (100k dòng, không tự chạy vì đây là dữ
+      liệu thật sẽ nằm lại trong DB dev của Tâm, và là bước "tự đo" của phase — xem SPEC.md)
+- [ ] Test #14, #15 (bằng chứng `EXPLAIN (ANALYZE, BUFFERS)`) — **manual**, dán kết quả thật
+      vào đây sau khi seed xong
 
 **Một chỗ spec không nói rõ, tôi tự quyết khi code:** cách sinh `sku_code` (client không gửi,
 spec chỉ ghi ví dụ `"AOTHUN-DEN-M"`). Đã viết `product.slug.ts#generateSkuCode`: bỏ dấu tiếng

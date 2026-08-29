@@ -16,11 +16,18 @@ import { AuthService } from './auth.service';
  *
  * Không export gì trừ những thứ khai trong `index.ts`: `AuthService` là chi tiết nội bộ.
  * Module khác cần biết "ai đang đăng nhập" thì dùng `AccessTokenGuard`, không gọi service.
+ *
+ * `JwtModule` cũng phải export, không chỉ `AccessTokenGuard`. Lý do phát hiện ở Phase 2 khi
+ * `ProductModule` lần đầu dùng `AccessTokenGuard` từ NGOÀI `AuthModule`: `@UseGuards(Class)`
+ * không tái dùng instance đã dựng sẵn của `AuthModule` như constructor injection thường —
+ * `GuardsContextCreator` tra `AccessTokenGuard` trong injectables của module CHỨA CONTROLLER
+ * (ở đây là `ProductModule`) rồi tự dựng lại từ đó, nên `JwtService` (dependency của guard)
+ * phải resolve được NGAY TẠI `ProductModule`, không thừa hưởng từ chỗ `AuthModule` đã có sẵn.
  */
 @Module({
   imports: [JwtModule.register({})],
   controllers: [AuthController],
   providers: [AuthService, AuthRepository, AccessTokenGuard],
-  exports: [AccessTokenGuard],
+  exports: [AccessTokenGuard, JwtModule],
 })
 export class AuthModule {}
