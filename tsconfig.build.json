@@ -11,6 +11,7 @@
     "dist",
     "coverage",
     "test",
+    "prisma",
     "prisma.config.ts",
     "**/*.spec.ts",
     "**/*.e2e-spec.ts"

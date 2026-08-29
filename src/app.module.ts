@@ -7,6 +7,7 @@ import { PrismaModule } from './infra/prisma';
 import { RedisModule } from './infra/redis';
 import { AuthModule } from './modules/auth';
 import { HealthModule } from './modules/health';
+import { ProductModule } from './modules/product';
 
 /**
  * Module gốc.
@@ -17,7 +18,7 @@ import { HealthModule } from './modules/health';
  * `nestjs-module`). Đó là thứ duy nhất khiến "Modular Monolith" khác "monolith".
  */
 @Module({
-  imports: [ConfigModule, LoggerModule, PrismaModule, RedisModule, AuthModule, HealthModule],
+  imports: [ConfigModule, LoggerModule, PrismaModule, RedisModule, AuthModule, ProductModule, HealthModule],
   providers: [
     // Đăng ký filter ở tầng app thay vì bọc từng controller: một hình dạng lỗi cho toàn hệ
     // thống, và không thể quên áp dụng cho endpoint mới.

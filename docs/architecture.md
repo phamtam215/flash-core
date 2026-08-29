@@ -23,6 +23,7 @@
 | 6 | [`src/modules/health/`](../src/modules/health/) (3 file, ~96) | **Khuôn mẫu của mọi module sau này** |
 | 7 | [`src/common/filters/all-exceptions.filter.ts`](../src/common/filters/all-exceptions.filter.ts) (99) | Lỗi đi đâu về đâu |
 | 8 | [`src/modules/auth/auth.service.ts`](../src/modules/auth/auth.service.ts) (Phase 1) | Argon2, xoay token, **reuse detection** |
+| 9 | [`src/modules/product/product.repository.ts`](../src/modules/product/product.repository.ts) (Phase 2) | Cursor pagination, tồn kho theo SKU |
 
 Sau đó đọc [`test/health.e2e-spec.ts`](../test/health.e2e-spec.ts) — nó cho thấy toàn bộ
 chuỗi trên chạy thật với Postgres thật.
@@ -132,6 +133,15 @@ flash-core/
 │   │   │   ├── auth.cookies.ts       4 cờ bảo mật của cookie, giải thích từng cờ
 │   │   │   ├── access-token.guard.ts chặn request chưa đăng nhập, đọc token từ cookie
 │   │   │   └── index.ts              CHỈ export AuthModule + AccessTokenGuard
+│   │   ├── product/                 (Phase 2) sản phẩm + SKU biến thể, cursor pagination
+│   │   │   ├── product.controller.ts CRUD, ghi dùng AccessTokenGuard (import từ ../auth)
+│   │   │   ├── product.service.ts    check-tồn-tại-trước-khi-ghi, cursor decode/paginate
+│   │   │   ├── product.repository.ts mọi truy cập DB (kể cả keyset WHERE) gom về đây
+│   │   │   ├── product.dto.ts        schema Zod: Product/SKU/cursor query
+│   │   │   ├── product.errors.ts     lỗi nghiệp vụ kế thừa DomainError
+│   │   │   ├── product.cursor.ts     encode/decode cursor base64url (createdAt, id)
+│   │   │   ├── product.slug.ts       slugify + sinh sku_code (bỏ dấu tiếng Việt)
+│   │   │   └── index.ts              chỉ export ProductModule (chưa module nào khác cần)
 │   │   └── health/                 module mẫu — copy cấu trúc này khi tạo module mới
 │   │       ├── health.controller.ts  HTTP: nhận request → gọi service → map response
 │   │       ├── health.service.ts     logic: liveness vs readiness
@@ -143,9 +153,12 @@ flash-core/
 │
 ├── test/                         ← integration test (Postgres thật qua Testcontainers)
 │   ├── health.e2e-spec.ts
+│   ├── auth.e2e-spec.ts
+│   ├── product.e2e-spec.ts
 │   └── jest-integration.json       config jest riêng cho integration (chậm, cần Docker)
 │
 ├── prisma/schema.prisma          ← định nghĩa bảng DB
+├── prisma/seed/seed-skus.ts      ← seed 100k SKU (Phase 2), chạy bằng `npm run seed`
 ├── prisma.config.ts              ← cấu hình Prisma CLI (Prisma 7: url KHÔNG nằm trong schema)
 ├── docker-compose.yml            ← Postgres 16 + Redis 7 cho local
 ├── .env.example                  ← danh sách biến môi trường (copy thành .env)

@@ -12,13 +12,16 @@
 // Phase 3 (pool cạn khi pessimistic lock) và Phase 6 (Neon pooler).
 //
 // Phase 1 thêm `User` và `RefreshToken` (spec: docs/specs/phase1-auth.md).
-// Bảng sản phẩm / biến thể SKU / tồn kho / đơn hàng thuộc Phase 2–3.
+// Phase 2 thêm `Product` và `ProductSku` (spec: docs/specs/phase2-product-inventory.md).
+// Đơn hàng thuộc Phase 3.
 //
 // Ghi chú cho phase sau:
-// - Tồn kho theo SKU biến thể (size × màu) — quyết định #2 trong project-context.md.
+// - Tồn kho theo SKU biến thể (size × màu) — quyết định #2 trong project-context.md. Nằm ở
+//   `ProductSku`, không phải `Product`.
 // - Tiền lưu Int (VND, không phần thập phân). Không dùng Float cho tiền.
 // - `CHECK (stock >= 0)` phải viết bằng migration raw SQL (Prisma không có API cho check
-//   constraint). Đó là lưới an toàn cuối chống oversell.
+//   constraint). Đó là lưới an toàn cuối chống oversell — Phase 2 CHƯA chống race condition
+//   thật (đó là Phase 3), CHECK chỉ đảm bảo không âm dù tầng ứng dụng có bug.
 // - `SELECT ... FOR UPDATE` cũng phải dùng `$queryRaw` trong `$transaction` interactive.
 
 generator client {
@@ -86,4 +89,64 @@ model RefreshToken {
   @@index([userId])
   @@index([familyId])
   @@map("refresh_tokens")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum SkuSize {
+  S
+  M
+  L
+  XL
+  XXL
+}
+
+/// Mẫu áo. KHÔNG có giá, KHÔNG có tồn kho — hai thứ đó thuộc về SKU, không thuộc Product.
+model Product {
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String        @unique
+  description String?
+  status      ProductStatus @default(DRAFT)
+
+  /// Thuộc tính MỞ, không cần lọc chính xác cao tần và khác nhau tuỳ mẫu: chất liệu, hoạ
+  /// tiết, xuất xứ, hướng dẫn giặt là... Size/màu KHÔNG nằm ở đây, xem `ProductSku` — đó là
+  /// dữ liệu có tập giá trị đóng, cần validate và join/filter thường xuyên, JSONB làm mất cả
+  /// hai khả năng đó (không `CHECK` được enum, không index rẻ bằng B-tree).
+  attributes Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  skus ProductSku[]
+
+  @@index([attributes], type: Gin)
+  @@map("products")
+}
+
+/// Biến thể bán được thật sự: một tổ hợp size × màu của một Product. Tồn kho gắn Ở ĐÂY,
+/// không phải ở Product — "sản phẩm còn hàng" là suy ra từ "còn SKU nào của nó stock > 0".
+model ProductSku {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  size      SkuSize
+  color     String
+  skuCode   String   @unique @map("sku_code") // mã đọc được cho vận hành, vd AOTHUN-DEN-M
+  priceVnd  Int      @map("price_vnd") // VND, Int — không Float cho tiền
+  stock     Int
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Một product không có 2 SKU trùng size+màu — lưới chặn double-submit ở tầng DB.
+  @@unique([productId, size, color])
+  // Phục vụ keyset pagination của GET /skus (WHERE (created_at, id) < (...) ORDER BY ...).
+  @@index([createdAt, id])
+  @@index([productId])
+  @@map("product_skus")
 }
