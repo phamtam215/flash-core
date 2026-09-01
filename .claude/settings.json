@@ -1,61 +1,56 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_git_push.py\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_cloud_cost.py\"",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_secret_files.py\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
-      "Bash(git show:*)",
-      "Bash(git branch:*)",
-      "Bash(git add:*)",
-      "Bash(docker compose ps:*)",
-      "Bash(docker compose logs:*)",
-      "Bash(docker compose up -d:*)",
-      "Bash(docker compose exec:*)",
-      "Bash(npm test:*)",
-      "Bash(npm run lint:*)",
-      "Bash(npm run build:*)",
-      "Bash(npm run test:*)",
-      "Bash(npx prisma generate:*)",
-      "Bash(npx prisma migrate dev:*)",
-      "Bash(npx prisma validate:*)",
-      "Bash(npx tsc --noEmit:*)",
-      "Read(//Users/phamtam/Workspace/flash-core/**)"
-    ],
-    "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Write(./.env)",
-      "Write(./.env.*)"
+      "Bash(docker *)",
+      "Bash(open -a Docker)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(node *)",
+      "Bash(npx *)",
+      "Bash(bun *)",
+      "Bash(php *)",
+      "Bash(python3 *)",
+      "Bash(curl *)",
+      "Bash(tar *)",
+      "Bash(md5 *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(wc *)",
+      "Bash(cp *)",
+      "Bash(mkdir *)",
+      "mcp__claude_ai_ClickUp__*",
+      "mcp__claude_ai_Figma__*"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "network": {
+      "allowedDomains": ["*"],
+      "allowLocalBinding": true,
+      "allowMachLookup": ["org.chromium.*", "com.apple.*"]
+    },
+    "filesystem": {
+      "allowWrite": [
+        "worktrees",
+        "worktrees/**",
+        "azv-perf-track/.git/worktrees",
+        "azv-perf-track/.git/worktrees/**"
+      ],
+      "allowRead": ["azv-perf-track/.env.example", "azv-perf-track/.env.test.example", "~/.ssh"]
+    },
+    "enableWeakerNestedSandbox": true,
+    "excludedCommands": [
+      "open -a Docker",
+      "docker *",
+      "node *",
+      "npx playwright *",
+      "git push *",
+      "git fetch *",
+      "git pull *",
+      "git worktree *"
     ]
   }
 }
