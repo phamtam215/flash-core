@@ -9,7 +9,7 @@
 <body>
 <div class="layout">
 <nav class="sidebar">
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase 0</h3><a href="phase0-nen-mong.html">Spec Phase 0</a><a href="journal-phase-0.html">Journal Phase 0</a><a href="phase-0-checklist.html">Checklist Phase 0</a></div><div class="nav-group"><h3>Phase 1</h3><a href="phase1-auth.html">Spec Phase 1</a><a href="journal-phase-1.html">Journal Phase 1</a></div><div class="nav-group"><h3>Phase 2</h3><a href="phase2-product-inventory.html">Spec Phase 2</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
 </nav>
 <main class="content">
 
@@ -22,29 +22,25 @@ observability.</p>
 bản đọc tĩnh (offline) của toàn bộ tài liệu Markdown trong repo, để mở trực tiếp bằng trình
 duyệt — bấm vào thẻ hoặc sidebar bên trái để đi tới từng trang.</p>
 
-<h2>Các phase</h2>
+<h2>Các phase — business, technical, kiến thức học được</h2>
+<p>Mỗi trang phase chỉ có 3 phần: <strong>Business</strong> (bài toán gì), <strong>Technical</strong>
+(xây gì), <strong>Kiến thức học được</strong> (câu hỏi bản chất + trả lời). Không có checklist,
+không có bảng test case — muốn xem chi tiết đó thì mở file spec gốc trong <code>docs/specs/</code>.</p>
 <div class="cards">
   <div class="card">
     <h3>Phase 0 — Nền móng &amp; Quy trình AI</h3>
-    <p class="status">Đã đóng — 2026-08-08. 16/16 test pass. 2 ADR đã chốt.</p>
-    <a href="phase0-nen-mong.html">Spec</a>
-    <a href="journal-phase-0.html">Journal</a>
-    <a href="phase-0-checklist.html">Checklist</a>
+    <p class="status">Đã đóng — 2026-08-08.</p>
+    <a href="phase-0.html">Đọc</a>
   </div>
   <div class="card">
     <h3>Phase 1 — Auth &amp; Security</h3>
-    <p class="status">Code + test xong (2026-08-27), chưa đóng chính thức — chờ Tâm review &amp;
-    push. 14/14 test case pass (17/17 khi tính cả health lúc chạy <code>test:int</code>).</p>
-    <a href="phase1-auth.html">Spec</a>
-    <a href="journal-phase-1.html">Journal</a>
+    <p class="status">Code + test xong — chờ Tâm review &amp; push.</p>
+    <a href="phase-1.html">Đọc</a>
   </div>
   <div class="card">
     <h3>Phase 2 — Product &amp; Inventory</h3>
-    <p class="status">Hoàn tất theo Definition of Done, xác nhận trên Postgres/Redis thật.
-    28/28 integration + 43/43 unit test pass, seed 10.000 Product / 100.000 ProductSku đã chạy,
-    bằng chứng <code>EXPLAIN</code> đã có. Còn lại: Tâm tự trả lời 3 câu hỏi bản chất rồi
-    review/push.</p>
-    <a href="phase2-product-inventory.html">Spec</a>
+    <p class="status">Hoàn tất theo Definition of Done, xác nhận trên Postgres/Redis thật.</p>
+    <a href="phase-2.html">Đọc</a>
   </div>
 </div>
 

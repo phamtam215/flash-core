@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 2 — Product & Inventory</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html" class="active">Phase 2 — Product</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+
+
+<h1>Phase 2 — Product &amp; Inventory</h1>
+<p class="status">Hoàn tất theo Definition of Done — 28/28 integration + 43/43 unit test pass,
+seed 100.000 SKU đã chạy, bằng chứng <code>EXPLAIN</code> đã đo trên Postgres thật.</p>
+
+<h2>Business</h2>
+<p>Cần một catalog để user duyệt trước khi săn: mẫu áo + biến thể (size × màu). Tồn kho phải
+tính theo <strong>từng biến thể</strong>, không theo mẫu áo — "hết size M màu đen" là chuyện
+khác hẳn "hết mẫu áo".</p>
+
+<h2>Technical</h2>
+<ul>
+<li><strong>CRUD Product + ProductSku</strong> — tồn kho gắn ở SKU, không phải ở Product.</li>
+<li><strong>Cursor (keyset) pagination</strong> — API <code>GET /skus</code> chịu tải 100.000
+dòng mà không chậm dần theo độ sâu trang.</li>
+<li><strong>JSONB + GIN index</strong> cho thuộc tính <em>mở</em> (chất liệu, xuất xứ) — size/
+màu vẫn là cột thật, có tập giá trị đóng.</li>
+<li><strong><code>CHECK</code> constraint</strong> (<code>stock &gt;= 0</code>) làm lưới an
+toàn cuối — Phase 2 <strong>cố tình chưa</strong> chống race condition thật, đó là việc của
+Phase 3.</li>
+<li><strong>Seed 100.000 dòng</strong> để đo hiệu năng trên dữ liệu thật, không phải suy đoán
+trên vài chục dòng.</li>
+</ul>
+
+<h2>Kiến thức học được (Q&amp;A)</h2>
+<p class="note-inline">Số liệu dưới đây đo thật trên chính repo này (xem
+<a href="tech-playbook.html">tech-playbook.md §Phase 2</a> để xem plan <code>EXPLAIN</code>
+đầy đủ), không phải ví dụ trong sách.</p>
+
+<h3>1. Cursor vs offset pagination khi dữ liệu lớn?</h3>
+<p><code>OFFSET N</code> bắt Postgres đi qua index/bảng, đếm bỏ qua N dòng rồi mới lấy — chi phí
+tăng <strong>tuyến tính</strong> theo N. Keyset dùng
+<code>WHERE (created_at, id) &lt; (mốc)</code> để index <strong>nhảy thẳng</strong> tới vị trí —
+chi phí gần như hằng số bất kể đang ở trang mấy. Số thật: cùng vị trí dòng 80.000/100.000,
+offset đọc 78.563 block/88ms, keyset đọc 22 block/1,8ms — <strong>cùng một index</strong>, khác
+nhau ở cách dùng. Đánh đổi: offset nhảy được tới trang bất kỳ (trang 47), keyset chỉ đi
+tuần tự tiếp/lùi từ một mốc — hợp kiểu cuộn vô hạn, không hợp UI có số trang bấm được.</p>
+
+<h3>2. GIN vs B-tree hợp cho loại truy vấn nào?</h3>
+<p>B-tree: mỗi dòng ứng với <strong>một</strong> giá trị trong cây — hợp <code>=</code>,
+<code>&lt;</code>, <code>&gt;</code>, <code>BETWEEN</code>, <code>ORDER BY</code>. GIN: hợp giá
+trị <strong>nhiều phần tử trong một ô</strong> (một key JSONB, một từ trong văn bản, một phần tử
+mảng) — mỗi phần tử trỏ ngược lại danh sách dòng chứa nó, giống mục lục cuối sách. Có GIN không
+có nghĩa nó luôn thắng: trên 10.000 dòng, Seq Scan (1,65ms) nhỉnh hơn cả truy vấn có GIN
+(1,92ms) — GIN phải tra cấu trúc RỒI đọc lại dòng thật (<code>Recheck Cond</code>), chỉ đáng giá
+khi việc đó giúp <strong>bỏ qua</strong> phần lớn dữ liệu.</p>
+
+<h3>3. Khi nào JSONB là lựa chọn tệ?</h3>
+<ul>
+<li>Cần ràng buộc tập giá trị đóng — JSONB không <code>CHECK</code> được nội dung bên trong
+(gõ nhầm DB vẫn nhận).</li>
+<li>Cần join/filter cao tần trên đúng field đó — containment JSONB luôn tốn hơn so sánh bằng
+trên cột index thẳng, và không làm khoá ngoại được.</li>
+<li>Bảng nhỏ hoặc field ít khi bị lọc — GIN có phí ghi (mỗi <code>INSERT</code>/<code>UPDATE</code>
+phải cập nhật cấu trúc index), trả phí đó mà ít khi query theo field ấy là lỗ.</li>
+<li>Cần đổi cấu trúc dữ liệu về sau — không có migration tự động kiểu đổi kiểu cột, phải tự viết
+script backfill.</li>
+</ul>
+
+
+</main>
+</div>
+</body>
+</html>
