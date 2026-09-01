@@ -9,7 +9,7 @@
 //
 // Điểm (2) hoá ra là điều TỐT cho dự án này: connection pool giờ là `pg.Pool` do mình cấu
 // hình, nên số connection trở thành thứ nhìn thấy và điều chỉnh được — đúng bài toán của
-// Phase 3 (pool cạn khi pessimistic lock) và Phase 6 (Neon pooler).
+// Phase 3 (pool cạn khi pessimistic lock) và Phase 7 (Neon pooler).
 //
 // Phase 1 thêm `User` và `RefreshToken` (spec: docs/specs/phase1-auth.md).
 // Phase 2 thêm `Product` và `ProductSku` (spec: docs/specs/phase2-product-inventory.md).

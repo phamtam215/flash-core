@@ -109,7 +109,7 @@ export class AuthService {
     if (!stored) throw new InvalidRefreshTokenError();
 
     if (stored.revokedAt) {
-      // REUSE DETECTION. Đây là tình huống đáng báo động, phải log ở mức cảnh báo để Phase 5
+      // REUSE DETECTION. Đây là tình huống đáng báo động, phải log ở mức cảnh báo để Phase 6
       // gắn được cảnh báo thật — nó là dấu hiệu token bị đánh cắp.
       const revokedCount = await this.repo.revokeFamily(stored.familyId);
       this.logger.warn(
@@ -220,7 +220,7 @@ export class AuthService {
    *
    * Đánh đổi đã biết: kẻ xấu có thể cố tình gõ sai để **khoá tài khoản người khác** — một
    * dạng từ chối dịch vụ. Chấp nhận ở phase này vì cửa sổ chỉ 60 giây. Cách chặn triệt để là
-   * đếm theo cả email lẫn IP rồi lấy ngưỡng chặt hơn; ghi lại làm nợ cho Phase 5.
+   * đếm theo cả email lẫn IP rồi lấy ngưỡng chặt hơn; ghi lại làm nợ cho Phase 6.
    */
   private async assertNotRateLimited(email: string): Promise<void> {
     const attempts = await this.redis.client.get(this.rateLimitKey(email));

@@ -13,7 +13,7 @@ export const CORRELATION_ID_HEADER = 'x-correlation-id';
  *
  * `genReqId` là trái tim của module này: nó nhận correlation id từ header nếu client (hoặc
  * service gọi trước) đã có, còn không thì sinh mới. Nhờ vậy một request đi qua nhiều thành
- * phần vẫn giữ cùng một id — điều kiện để đạt deliverable của Phase 5: *từ một request lỗi
+ * phần vẫn giữ cùng một id — điều kiện để đạt deliverable của Phase 6: *từ một request lỗi
  * bất kỳ, truy toàn bộ hành trình bằng một correlationId*.
  *
  * Id cũng được ghi vào response header, để khi user báo lỗi họ có thể đưa lại đúng id đó.

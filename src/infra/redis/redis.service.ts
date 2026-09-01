@@ -11,7 +11,7 @@ import { ENV, type Env } from '../../config';
  * tầng nào sau này (BullMQ ở Phase 4) cũng theo khuôn đó.
  *
  * Vì sao chỉ một instance: mỗi `new Redis()` mở một TCP connection thật. Tạo mới ở mỗi chỗ
- * dùng thì số connection tăng theo số service, và Upstash (Phase 6) tính tiền/giới hạn theo
+ * dùng thì số connection tăng theo số service, và Upstash (Phase 7) tính tiền/giới hạn theo
  * connection.
  */
 @Injectable()

@@ -25,7 +25,7 @@ export interface ReadinessReport {
  *   tra dependency. DB chết → trả 503 → load balancer tạm ngừng gửi request, nhưng container
  *   vẫn sống và tự phục hồi khi DB trở lại.
  *
- * Đây là câu hỏi bản chất của Phase 5 và là lỗi cấu hình phổ biến nhất khi deploy.
+ * Đây là câu hỏi bản chất của Phase 6 và là lỗi cấu hình phổ biến nhất khi deploy.
  */
 @Injectable()
 export class HealthService {

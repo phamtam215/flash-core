@@ -17,7 +17,7 @@ import { PrismaClient } from '../../generated/prisma/client';
  *   transaction đang chờ khóa vẫn giữ một connection. Không tách được biến này ra thì lúc
  *   đọc kết quả benchmark sẽ kết luận sai là "pessimistic chậm" trong khi thật ra là
  *   "hết connection".
- * - Ở Phase 6, cùng chỗ này là nơi cắm Neon pooler (PgBouncer): nhiều instance Cloud Run ×
+ * - Ở Phase 7, cùng chỗ này là nơi cắm Neon pooler (PgBouncer): nhiều instance Cloud Run ×
  *   pool mỗi instance có thể vượt giới hạn connection của Neon.
  *
  * Vì sao `extends PrismaClient` chứ không bọc lại (composition): để mọi chỗ dùng vẫn viết
@@ -50,7 +50,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    * Đóng kết nối khi app tắt.
    *
    * Cần `app.enableShutdownHooks()` trong main.ts để hook này thật sự chạy khi nhận SIGTERM.
-   * Bỏ bước này thì lúc Cloud Run thay revision (Phase 6), connection sẽ bị treo lại phía
+   * Bỏ bước này thì lúc Cloud Run thay revision (Phase 7), connection sẽ bị treo lại phía
    * Postgres cho tới khi timeout — và với Neon Free thì connection là tài nguyên có hạn.
    */
   async onModuleDestroy(): Promise<void> {
