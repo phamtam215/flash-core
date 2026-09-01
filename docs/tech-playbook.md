@@ -659,6 +659,57 @@ Nguyên nhân không phải "thiếu index" mà là **planner chọn Seq Scan v�
 `ANALYZE` xong còn 12ms — chưa cần thêm index nào. Bài học: đo trước, đừng thêm index theo
 phản xạ.
 
+### Số thật đo được trong Flash-Core (không phải ví dụ minh hoạ)
+
+Hai bằng chứng dưới đây là kết quả `EXPLAIN` thật, chạy trên 100.000 dòng seed trong chính
+repo này — plan đầy đủ nằm ở `docs/specs/phase2-product-inventory.md` §Trạng thái thật, ở đây
+chỉ giải thích **vì sao** con số lại như vậy.
+
+**1. Offset vs keyset — cùng một vị trí, khác nhau 50 lần**
+
+Lấy 20 dòng bắt đầu từ vị trí thứ 80.000 trong 100.000 dòng:
+
+| Cách | Buffers (số trang 8KB phải đọc) | Thời gian |
+|---|---|---|
+| `OFFSET 80000 LIMIT 20` | 78.563 | 88 ms |
+| `WHERE (created_at, id) < (...) LIMIT 20` (keyset) | 22 | 1,8 ms |
+
+Cả hai dùng **chung một index** (`product_skus_created_at_id_idx`) — khác biệt không nằm ở
+"có index hay không", mà ở **cách index được dùng**:
+
+- `OFFSET` nói với Postgres: "đi theo index từ đầu, đếm đủ 80.000 dòng rồi mới bắt đầu lấy".
+  Giống việc tìm trang 4001 trong một cuốn sách bằng cách lật từng trang một, dù bạn đã biết
+  thứ tự các trang.
+- `WHERE (created_at, id) < (...)` nói: "index ơi, cho tôi nhảy thẳng tới đúng chỗ này". Giống
+  một cuốn từ điển — biết từ cần tìm bắt đầu bằng chữ gì thì mở thẳng đúng phần đó, không lật
+  từ trang 1.
+
+Hệ quả thực tế: `OFFSET` càng lớn (trang càng sâu) thì càng chậm **tuyến tính**. `WHERE` giữ
+nguyên tốc độ dù đang ở trang 2 hay trang 20.000 — đó là lý do API `GET /skus` (chịu tải
+100k dòng) bắt buộc dùng keyset.
+
+**2. GIN index KHÔNG tự động thắng — crossover phụ thuộc kích thước bảng**
+
+Cùng một câu `WHERE attributes @> '{"material":"cotton"}'`, trên bảng `products` (10.000 dòng,
+50% khớp điều kiện):
+
+| Cách | Buffers | Thời gian |
+|---|---|---|
+| Seq Scan (không có GIN) | 200 | 1,65 ms |
+| Bitmap Heap Scan (có GIN) | 207 | 1,92 ms |
+
+**Seq Scan thắng**, dù có GIN index đàng hoàng. Lý do: GIN phải làm thêm hai việc — (1) tra
+cấu trúc index để biết dòng nào khớp, (2) `Recheck Cond` (đọc lại dòng thật từ bảng để xác
+nhận, vì GIN không đảm bảo chính xác tuyệt đối với mọi kiểu điều kiện) — hai bước phụ đó chỉ
+đáng giá khi số dòng bị loại bỏ đủ NHIỀU. Ở đây bảng chỉ có 10.000 dòng và tới một nửa số dòng
+khớp điều kiện, đọc thẳng toàn bộ 200 trang rẻ hơn hẳn việc "tra rồi đọc lại".
+
+**Quy tắc ngón tay cái** rút ra được (không phải số chính xác, chỉ là trực giác để đoán trước
+khi đo): index (bất kỳ loại nào, không riêng GIN) đáng giá khi nó giúp **bỏ qua** phần lớn dữ
+liệu — bảng càng lớn, hoặc điều kiện lọc càng "hiếm" (khớp một tỉ lệ nhỏ số dòng), index càng
+thắng đậm. Bảng nhỏ hoặc điều kiện khớp một nửa dữ liệu thì Seq Scan thường đủ tốt, đôi khi
+còn nhanh hơn. **Luôn `EXPLAIN` để biết, đừng suy đoán.**
+
 ---
 
 # Phase 3 — Concurrency ⭐ (phần quan trọng nhất)

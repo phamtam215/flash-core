@@ -404,10 +404,10 @@ Limit  (cost=0.42..4.59 rows=20 width=92) (actual time=0.412..1.726 rows=20 loop
         Buffers: shared hit=20 read=2
 ```
 
-**Số thô:** offset đọc **1.829 block** (hit+read) và mất **88ms**; keyset đọc **22 block** và
-mất **1.8ms** — ở CÙNG một vị trí trong tập 100k dòng. Cả hai đều dùng chung một index
-(`product_skus_created_at_id_idx`); khác biệt là offset phải quét-rồi-bỏ 80.000 dòng đứng
-trước để tới vị trí, còn keyset nhảy thẳng tới bằng `Index Cond`.
+**Số thô:** offset đọc **78.563 block** (76.754 hit + 1.809 read) và mất **88ms**; keyset đọc
+**22 block** (20 hit + 2 read) và mất **1,8ms** — ở CÙNG một vị trí trong tập 100k dòng. Cả
+hai đều dùng chung một index (`product_skus_created_at_id_idx`); khác biệt là offset phải
+quét-rồi-bỏ 80.000 dòng đứng trước để tới vị trí, còn keyset nhảy thẳng tới bằng `Index Cond`.
 
 ### Bằng chứng test #15 — GIN index trên `products.attributes`, 10.000 dòng
 
