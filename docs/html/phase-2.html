@@ -37,6 +37,23 @@ Phase 3.</li>
 trên vài chục dòng.</li>
 </ul>
 
+<h2>API đã có</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Việc gì</th></tr></thead>
+<tbody>
+<tr><td>POST</td><td><code>/products</code></td><td>AccessTokenGuard</td><td>Tạo sản phẩm, kèm SKU ban đầu (tuỳ chọn)</td></tr>
+<tr><td>GET</td><td><code>/products</code></td><td>Public</td><td>Danh sách sản phẩm, cursor pagination</td></tr>
+<tr><td>GET</td><td><code>/products/:id</code></td><td>Public</td><td>Chi tiết sản phẩm kèm toàn bộ SKU</td></tr>
+<tr><td>PATCH</td><td><code>/products/:id</code></td><td>AccessTokenGuard</td><td>Sửa tên/mô tả/thuộc tính</td></tr>
+<tr><td>DELETE</td><td><code>/products/:id</code></td><td>AccessTokenGuard</td><td>Ngừng bán (soft delete)</td></tr>
+<tr><td>POST</td><td><code>/products/:id/skus</code></td><td>AccessTokenGuard</td><td>Thêm biến thể (size × màu) mới</td></tr>
+<tr><td>GET</td><td><code>/products/:id/skus</code></td><td>Public</td><td>Danh sách SKU của 1 sản phẩm</td></tr>
+<tr><td>PATCH</td><td><code>/products/:id/skus/:skuId</code></td><td>AccessTokenGuard</td><td>Sửa giá/tồn kho/trạng thái SKU</td></tr>
+<tr><td>DELETE</td><td><code>/products/:id/skus/:skuId</code></td><td>AccessTokenGuard</td><td>Ngừng bán 1 biến thể</td></tr>
+<tr><td>GET</td><td><code>/skus</code></td><td>Public</td><td>Toàn bộ SKU hệ thống, cursor pagination — API chịu tải 100k dòng</td></tr>
+</tbody>
+</table></div>
+
 <h2>Kiến thức học được (Q&amp;A)</h2>
 <p class="note-inline">Số liệu dưới đây đo thật trên chính repo này (xem
 <a href="tech-playbook.html">tech-playbook.md §Phase 2</a> để xem plan <code>EXPLAIN</code>
@@ -72,6 +89,24 @@ phải cập nhật cấu trúc index), trả phí đó mà ít khi query theo f
 script backfill.</li>
 </ul>
 
+<p><strong>Code thật</strong> — <code>src/modules/product/product.repository.ts</code>, đúng
+câu keyset vừa giải thích ở câu hỏi #1 (Prisma không có row-value comparison thẳng nên viết
+lại bằng <code>OR</code>):</p>
+<pre><code class="language-typescript">async listProducts(cursor: Cursor | undefined, limit: number) {
+  return this.prisma.product.findMany({
+    where: {
+      status: { not: 'ARCHIVED' },
+      ...(cursor && {
+        OR: [
+          { createdAt: { lt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+        ],
+      }),
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: limit + 1, // lấy dư 1 dòng để biết còn trang sau hay không
+  });
+}</code></pre>
 
 </main>
 </div>

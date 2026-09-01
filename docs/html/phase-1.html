@@ -37,6 +37,18 @@ một lần.</li>
 phải đếm trong RAM của từng process.</li>
 </ul>
 
+<h2>API đã có</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Việc gì</th></tr></thead>
+<tbody>
+<tr><td>POST</td><td><code>/auth/register</code></td><td>Public</td><td>Tạo tài khoản mới</td></tr>
+<tr><td>POST</td><td><code>/auth/login</code></td><td>Public</td><td>Đăng nhập, gắn cookie access + refresh</td></tr>
+<tr><td>POST</td><td><code>/auth/refresh</code></td><td>Cookie refresh</td><td>Đổi refresh token lấy cặp token mới (xoay)</td></tr>
+<tr><td>POST</td><td><code>/auth/logout</code></td><td>Cookie refresh</td><td>Thu hồi refresh token đang dùng — idempotent</td></tr>
+<tr><td>GET</td><td><code>/auth/me</code></td><td>AccessTokenGuard</td><td>Thông tin user đang đăng nhập</td></tr>
+</tbody>
+</table></div>
+
 <h2>Kiến thức học được (Q&amp;A)</h2>
 
 <h3>1. Vì sao Argon2 tốt hơn bcrypt?</h3>
@@ -67,6 +79,17 @@ token và dùng trước, người dùng thật sẽ dùng lại token <em>cũ</
 dùng trước, kẻ trộm dùng token cũ sau — cùng cơ chế bắt được. <strong>Dù ai dùng trước, lần
 dùng thứ hai luôn lộ</strong> — đó là toàn bộ ý tưởng.</p>
 
+<p><strong>Code thật</strong> — <code>src/modules/auth/auth.service.ts</code>, đúng nhánh reuse
+detection vừa giải thích ở trên:</p>
+<pre><code class="language-typescript">if (stored.revokedAt) {
+  // REUSE DETECTION: token đã bị vô hiệu mà vẫn có người dùng lại.
+  const revokedCount = await this.repo.revokeFamily(stored.familyId);
+  this.logger.warn(
+    { userId: stored.userId, familyId: stored.familyId, revokedCount },
+    'Phát hiện refresh token bị dùng lại — đã thu hồi toàn bộ family',
+  );
+  throw new InvalidRefreshTokenError();
+}</code></pre>
 
 </main>
 </div>

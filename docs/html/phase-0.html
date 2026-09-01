@@ -40,6 +40,17 @@ một monolith thường.</li>
 <li><strong>CI</strong>: lint + typecheck + test chạy mỗi lần push.</li>
 </ul>
 
+<h2>API đã có</h2>
+<p>Chưa có API nghiệp vụ (bán hàng) — chỉ 2 endpoint hạ tầng, dùng để load balancer/Cloud Run
+biết app còn sống hay không:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Method</th><th>Path</th><th>Việc gì</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/health</code></td><td>Liveness — process còn sống không? Không kiểm tra DB.</td></tr>
+<tr><td>GET</td><td><code>/ready</code></td><td>Readiness — có nên nhận traffic không? Có kiểm tra DB, trả 503 nếu DB chết.</td></tr>
+</tbody>
+</table></div>
+
 <h2>Kiến thức học được (Q&amp;A)</h2>
 
 <h3>1. Modular Monolith khác Microservices ở đâu?</h3>
@@ -72,6 +83,26 @@ trong module khác, đúng lỗ hổng mà tầng 1 để lọt.</li>
 <p>Thiếu tầng 2 thì ranh giới chỉ còn là quy ước, và nó xói mòn <strong>im lặng</strong> — không
 test nào đỏ khi ai đó phá luật.</p>
 
+<p><strong>Code thật</strong> — <code>eslint.config.mjs</code>, luật chặn import sâu vào module khác:</p>
+<pre><code class="language-typescript">const DEEP_IMPORT_INTO_MODULE = {
+  // './modules/health/health.service'  ❌   nhưng './modules/health'  ✅
+  regex: '(^|/)modules/[^/]+/.+',
+  message: BOUNDARY_MESSAGE,
+};
+'no-restricted-imports': ['error', { patterns: [DEEP_IMPORT_INTO_MODULE] }],</code></pre>
+
+<p><strong>Code thật</strong> — <code>src/common/filters/all-exceptions.filter.ts</code>, "một
+hình dạng lỗi" nhắc ở Technical, nhìn thấy ngay trong code chỉ 3 nhánh:</p>
+<pre><code class="language-typescript">private describe(exception: unknown): { status: number; body: ErrorBody } {
+  if (exception instanceof DomainError) {
+    return { status: exception.httpStatus, body: { code: exception.code, message: exception.message } };
+  }
+  if (exception instanceof HttpException) {
+    return { status: exception.getStatus(), body: { code: 'HTTP_ERROR', message: exception.message } };
+  }
+  // Lỗi lạ, chưa lường trước — vẫn phải trả về ĐÚNG hình dạng, không rò rỉ chi tiết nội bộ.
+  return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống...' } };
+}</code></pre>
 
 </main>
 </div>
