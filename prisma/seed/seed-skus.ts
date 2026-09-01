@@ -99,6 +99,10 @@ async function main(): Promise<void> {
 
   console.log(`Sinh ${String(PRODUCT_COUNT)} product × ${String(SIZES.length * COLORS.length)} SKU...`);
 
+  // `updated_at` (@updatedAt) không có DEFAULT ở DB — Prisma luôn tự set giá trị này ở tầng
+  // ứng dụng mỗi lần ghi, không phải DB. Insert thẳng bằng `pg` thì phải tự cấp, nếu không
+  // Postgres từ chối vì NOT NULL (đã gặp thật khi chạy seed lần đầu).
+  const now = new Date();
   const products: ProductRow[] = [];
   const skus: SkuRow[] = [];
 
@@ -128,21 +132,22 @@ async function main(): Promise<void> {
     }
   }
 
-  await insertBatched(pool, 'Product', products, ['id', 'name', 'slug', 'status', 'attributes'], 'products', (p) => [
-    p.id,
-    p.name,
-    p.slug,
-    'ACTIVE',
-    p.attributes,
-  ]);
+  await insertBatched(
+    pool,
+    'Product',
+    products,
+    ['id', 'name', 'slug', 'status', 'attributes', 'updated_at'],
+    'products',
+    (p) => [p.id, p.name, p.slug, 'ACTIVE', p.attributes, now],
+  );
 
   await insertBatched(
     pool,
     'ProductSku',
     skus,
-    ['id', 'product_id', 'size', 'color', 'sku_code', 'price_vnd', 'stock'],
+    ['id', 'product_id', 'size', 'color', 'sku_code', 'price_vnd', 'stock', 'updated_at'],
     'product_skus',
-    (s) => [s.id, s.productId, s.size, s.color, s.skuCode, s.priceVnd, s.stock],
+    (s) => [s.id, s.productId, s.size, s.color, s.skuCode, s.priceVnd, s.stock, now],
   );
 
   // Bắt buộc — thiếu bước này planner dùng thống kê CŨ (hoặc rỗng), mọi kết luận EXPLAIN sau
