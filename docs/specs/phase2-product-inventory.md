@@ -280,15 +280,14 @@ nhưng là điều kiện đóng phase: kết quả `EXPLAIN` dán vào phần c
 
 ## Definition of Done
 
-- [ ] Test #1–13 xanh (unit + integration qua Testcontainers)
-- [ ] Test #14: bằng chứng `EXPLAIN (ANALYZE, BUFFERS)` offset sâu (80.000) vs keyset trên
-      100.000 dòng `product_skus`, dán plan thật vào spec
-- [ ] Test #15: bằng chứng `EXPLAIN (ANALYZE, BUFFERS)` trước/sau khi thêm GIN index trên
-      `products.attributes`, dán plan thật vào spec, kèm 1 câu kết luận (dùng index hay
-      không, vì sao)
-- [ ] `npm run check` xanh (lint + typecheck + test)
-- [ ] `docs/architecture.md` cập nhật mục module `product/` (theo đúng luật "tài liệu đúng ở
-      mỗi commit")
+- [x] Test #1–13 xanh (unit + integration qua Testcontainers) — 28/28 integration, 43/43 unit
+- [x] Test #14: bằng chứng `EXPLAIN (ANALYZE, BUFFERS)` offset sâu (80.000) vs keyset trên
+      100.000 dòng `product_skus` — xem §Trạng thái thật
+- [x] Test #15: bằng chứng `EXPLAIN (ANALYZE, BUFFERS)` trước/sau khi thêm GIN index trên
+      `products.attributes` — xem §Trạng thái thật (kết luận: Seq Scan thắng ở quy mô 10k dòng)
+- [x] `npm run check` xanh (lint + typecheck + test)
+- [x] `docs/architecture.md` cập nhật mục module `product/`
+- [ ] Tâm tự trả lời 3 câu hỏi bản chất của phase (mục ngay dưới) — cổng cuối trước khi đóng phase
 
 ## Ngoài phạm vi (Non-goals)
 
@@ -352,7 +351,7 @@ GIN, vì sao phải `ANALYZE` sau seed, cách đọc `rows` ước lượng vs `
 `EXPLAIN`, và tình huống thật "8ms máy dev → 900ms 100k dòng, thủ phạm là statistics cũ chứ
 không phải thiếu index". Khoảng 10 phút.
 
-## Trạng thái thật (2026-08-29, cập nhật sau khi chạy `test:int` thật)
+## Trạng thái thật (2026-09-01, cập nhật sau khi seed + đo `EXPLAIN` thật)
 
 **Đã xong, xác nhận trên Postgres/Redis thật (Docker):**
 - **28/28 integration test xanh** (`npm run test:int`: 5 health + 12 auth + 11 product) —
@@ -360,19 +359,93 @@ không phải thiếu index". Khoảng 10 phút.
 - **43/43 unit test xanh**, lint/typecheck/build sạch
 - Test #1–5, #7–9, #11–13 trong bảng trên: **tất cả pass**, bao gồm cursor pagination trên 40
   dòng seed nhanh, `CHECK stock_non_negative` chặn đúng SQL thẳng, soft delete, lost update
+- `npm run seed`: **10.000 Product / 100.000 ProductSku** trong DB dev — đã xác nhận bằng
+  `SELECT count(*)`
+- Test #14, #15 (`EXPLAIN (ANALYZE, BUFFERS)`): **đã đo, xem bằng chứng bên dưới**
 
-**Bug thật tìm thấy và đã sửa ở lượt chạy này** (xem `docs/architecture.md` §Những chỗ dễ
-vấp): lần đầu `AccessTokenGuard` được dùng từ NGOÀI `AuthModule` (bởi `ProductController`),
-Nest báo thiếu `JwtService` — `@UseGuards(Class)` không tái dùng singleton của `AuthModule`
-như constructor injection thường, guard bị dựng lại tại module đang dùng nó. Sửa bằng cách
-export thêm `JwtModule` từ `AuthModule` (`src/modules/auth/auth.module.ts`), không chỉ export
-guard.
+**Hai bug thật tìm thấy khi chạy trên môi trường thật (không lộ ra lúc code/lint/typecheck):**
+1. `AccessTokenGuard` dùng từ NGOÀI `AuthModule` (bởi `ProductController`) — Nest báo thiếu
+   `JwtService`. `@UseGuards(Class)` **không** tái dùng singleton của module gốc như
+   constructor injection: `GuardsContextCreator` tra `AccessTokenGuard` trong `injectables`
+   của module CHỨA CONTROLLER (không đi qua `imports`/`exports`), tự dựng lại guard tại đó.
+   Sửa 2 phần: (a) export thêm `JwtModule` từ `AuthModule`, (b) khai `AccessTokenGuard` trong
+   `providers` của CHÍNH `ProductModule` — xem `docs/architecture.md` §Những chỗ dễ vấp.
+2. `npm run seed` chết vì `updated_at` (`@updatedAt`) không có `DEFAULT` ở DB — Prisma tự set
+   giá trị này ở tầng ứng dụng, insert thẳng bằng `pg` (né Prisma Client) phải tự cấp.
 
-**CHƯA xác nhận — việc của Tâm (đo đạc, không phải sửa lỗi):**
-- [ ] `npm run seed` — chưa chạy với Postgres thật (100k dòng, không tự chạy vì đây là dữ
-      liệu thật sẽ nằm lại trong DB dev của Tâm, và là bước "tự đo" của phase — xem SPEC.md)
-- [ ] Test #14, #15 (bằng chứng `EXPLAIN (ANALYZE, BUFFERS)`) — **manual**, dán kết quả thật
-      vào đây sau khi seed xong
+### Bằng chứng test #14 — offset sâu vs keyset, 100.000 dòng `product_skus`
+
+Cùng VỊ TRÍ (dòng thứ 80.000 trong thứ tự `created_at DESC, id DESC`):
+
+```sql
+-- Offset (Buffers: shared hit=76754 read=1809 · Execution Time: 88.386 ms)
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM product_skus ORDER BY created_at DESC, id DESC OFFSET 80000 LIMIT 20;
+
+Limit  (cost=6254.77..6256.33 rows=20 width=92) (actual time=87.379..88.339 rows=20 loops=1)
+  Buffers: shared hit=76754 read=1809
+  ->  Index Scan Backward using product_skus_created_at_id_idx on product_skus
+        (cost=0.42..7818.35 rows=100000 width=92) (actual time=0.833..86.562 rows=80020 loops=1)
+        Buffers: shared hit=76754 read=1809
+```
+
+```sql
+-- Keyset, CÙNG vị trí (Buffers: shared hit=20 read=2 · Execution Time: 1.766 ms)
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM product_skus
+WHERE (created_at, id) < ('2026-08-29 14:41:16.76', 'ffec9606-e8bc-4333-b69b-03fd58166f0c')
+ORDER BY created_at DESC, id DESC LIMIT 20;
+
+Limit  (cost=0.42..4.59 rows=20 width=92) (actual time=0.412..1.726 rows=20 loops=1)
+  Buffers: shared hit=20 read=2
+  ->  Index Scan Backward using product_skus_created_at_id_idx on product_skus
+        (cost=0.42..3730.55 rows=17893 width=92) (actual time=0.411..1.723 rows=20 loops=1)
+        Index Cond: (ROW(created_at, id) < ROW('2026-08-29 14:41:16.76'::timestamp, ...))
+        Buffers: shared hit=20 read=2
+```
+
+**Số thô:** offset đọc **1.829 block** (hit+read) và mất **88ms**; keyset đọc **22 block** và
+mất **1.8ms** — ở CÙNG một vị trí trong tập 100k dòng. Cả hai đều dùng chung một index
+(`product_skus_created_at_id_idx`); khác biệt là offset phải quét-rồi-bỏ 80.000 dòng đứng
+trước để tới vị trí, còn keyset nhảy thẳng tới bằng `Index Cond`.
+
+### Bằng chứng test #15 — GIN index trên `products.attributes`, 10.000 dòng
+
+```sql
+-- CÓ GIN index — Bitmap Heap Scan (Buffers: shared hit=202 read=5 · Execution Time: 1.917 ms)
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM products WHERE attributes @> '{"material":"cotton"}';
+
+Bitmap Heap Scan on products  (cost=51.54..314.04 rows=5000 width=161) (actual time=0.539..1.657 rows=5000 loops=1)
+  Recheck Cond: (attributes @> '{"material": "cotton"}'::jsonb)
+  Heap Blocks: exact=200
+  Buffers: shared hit=202 read=5
+  ->  Bitmap Index Scan on products_attributes_idx  (cost=0.00..50.29 rows=5000 width=0) (actual time=0.512..0.512 rows=5000 loops=1)
+```
+
+```sql
+-- SAU KHI DROP GIN index (tạm, đã tạo lại đúng như migration ngay sau khi đo) — Seq Scan
+-- (Buffers: shared hit=200 · Execution Time: 1.647 ms)
+DROP INDEX products_attributes_idx;
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM products WHERE attributes @> '{"material":"cotton"}';
+
+Seq Scan on products  (cost=0.00..325.00 rows=5000 width=161) (actual time=0.004..1.451 rows=5000 loops=1)
+  Filter: (attributes @> '{"material": "cotton"}'::jsonb)
+  Rows Removed by Filter: 5000
+  Buffers: shared hit=200
+```
+
+**Số thô:** có GIN → 207 block, 1.9ms. Không GIN (Seq Scan) → 200 block, 1.6ms —
+**Seq Scan nhỉnh hơn** trên 10.000 dòng, đúng bài học đã ghi ở `tech-playbook.md`: bảng còn
+nhỏ thì chi phí mở bitmap index + recheck > chi phí quét thẳng toàn bảng (10.000 dòng vừa
+đủ nằm gọn trong vài trăm block, đọc hết cũng rẻ). GIN chỉ thắng rõ khi bảng lớn hơn nhiều
+hoặc điều kiện lọc chọn lọc hơn (khớp ít dòng hơn hẳn 5.000/10.000 = 50% như ở đây). Index
+đã được tạo lại đúng như migration (`CREATE INDEX ... USING GIN`) + `ANALYZE` ngay sau khi đo
+xong, không để DB lệch với migration.
+
+Câu hỏi bản chất "khi nào JSONB/GIN là lựa chọn tệ" ở dưới — số liệu này là dữ kiện để tự trả
+lời, không phải đáp án có sẵn.
 
 **Một chỗ spec không nói rõ, tôi tự quyết khi code:** cách sinh `sku_code` (client không gửi,
 spec chỉ ghi ví dụ `"AOTHUN-DEN-M"`). Đã viết `product.slug.ts#generateSkuCode`: bỏ dấu tiếng
