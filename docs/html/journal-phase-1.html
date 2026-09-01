@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tổng kết Phase 1 — Auth &amp; Security</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase 0</h3><a href="phase0-nen-mong.html">Spec Phase 0</a><a href="journal-phase-0.html">Journal Phase 0</a><a href="phase-0-checklist.html">Checklist Phase 0</a></div><div class="nav-group"><h3>Phase 1</h3><a href="phase1-auth.html">Spec Phase 1</a><a href="journal-phase-1.html" class="active">Journal Phase 1</a></div><div class="nav-group"><h3>Phase 2</h3><a href="phase2-product-inventory.html">Spec Phase 2</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="tổng-kết-phase-1--auth--security">Tổng kết Phase 1 — Auth &amp; Security</h1>
+<blockquote class="note"><p>Viết ngày 2026-08-27, ngay sau khi 14/14 test case pass. Bản tổng kết <strong>thực tế</strong> (Claude viết), không phải journal học tập đầy đủ — xem lưu ý ở <code>docs/journal/phase-0.md</code>. Phần <strong>Câu hỏi bản chất</strong> để trống cho Tâm tự trả lời.</p></blockquote>
+<h2 id="thời-gian">Thời gian</h2>
+<p>Bắt đầu 2026-08-08 → code + test xong <strong>2026-08-27</strong>. Chưa "đóng phase" chính thức — còn chờ Tâm review diff và push (<code>docs/git-workflow.md</code> §AI không push trước khi review).</p>
+<h2 id="đã-làm">Đã làm</h2>
+<ul><li>Migration <code>User</code> + <code>RefreshToken</code> (spec: <code>docs/specs/phase1-auth.md</code>)</li><li><code>register</code> / <code>login</code> / <code>refresh</code> / <code>logout</code> / <code>me</code></li><li>Argon2id hash mật khẩu (memory-hard, chống GPU brute-force)</li><li>JWT access + refresh, <strong>hai secret riêng</strong> (access verify không lẫn được sang refresh)</li><li><strong>Refresh token rotation + reuse detection</strong>: mỗi token chỉ dùng đúng 1 lần; dùng lại token đã xoay → thu hồi <strong>toàn bộ family</strong>, không riêng token đó — vì không biết ai là chủ thật</li><li>Rate limit login đếm ở Redis (không phải RAM — đúng khi chạy nhiều instance)</li><li>Cookie <code>HttpOnly</code> cho cả access lẫn refresh token</li><li><code>infra/redis</code> — module hạ tầng mới, <code>RedisModule</code>/<code>RedisService</code></li></ul>
+<h2 id="số-liệu">Số liệu</h2>
+<ul><li><strong>14/14 test case trong spec pass</strong>: 21 unit test (8 DTO + 13 khác) + 12 integration test auth + 5 integration test health = <strong>17/17</strong> khi chạy <code>npm run test:int</code></li><li><strong>Test #8 xanh</strong> (dùng lại refresh token cũ → thu hồi cả family) — deliverable chính của phase theo <code>docs/SPEC.md</code></li><li>2 biến môi trường mới bắt buộc: <code>JWT_ACCESS_SECRET</code>, <code>JWT_REFRESH_SECRET</code> (≥32 ký tự)</li></ul>
+<h2 id="bug-đáng-nhớ--lần-đầu-integration-test-thật-sự-chạy">Bug đáng nhớ — lần đầu integration test thật sự chạy</h2>
+<p><code>npm run test:int</code> đỏ 17/17 ngay lần chạy đầu: <code>TypeError: A dynamic import callback was invoked without --experimental-vm-modules</code>. Nguyên nhân: Prisma 7 tải query compiler bằng WASM qua <code>await import(...)</code>, kể cả khi generator đặt <code>moduleFormat = "cjs"</code> (cờ đó không đổi cách tải WASM). Jest chạy test trong <code>vm.Context</code>, cần cờ này mới đăng ký được dynamic import callback. Không lộ ở unit test vì <code>PrismaService</code> ở đó luôn bị mock — bug chỉ hiện khi engine Prisma khởi động thật, đúng lúc integration test chạm vào lần đầu tiên. Đã sửa trong <code>package.json</code> (<code>test:int</code>). Chi tiết: <code>docs/tech-playbook.md</code> §Xuyên suốt → Testing → Bug hay gặp.</p>
+<h2 id="còn-lại-trước-khi-đóng-phase">Còn lại trước khi đóng phase</h2>
+<p>Tâm review diff → push. Sau đó tuỳ chọn: viết journal đầy đủ (câu hỏi bản chất bên dưới) rồi mới mở Phase 2.</p>
+<h2 id="commit-liên-quan">Commit liên quan</h2>
+<p><code>038c68d</code> (feat auth: toàn bộ module) · <code>3ed3044</code> (fix test: <code>--experimental-vm-modules</code>)</p>
+<h2 id="câu-hỏi-bản-chất-của-phase-specmd--tâm-tự-trả-lời">Câu hỏi bản chất của phase (SPEC.md) — Tâm tự trả lời</h2>
+<ul><li>Vì sao Argon2 tốt hơn bcrypt cho việc hash mật khẩu?</li><li><code>HttpOnly</code> chống XSS bằng cách nào — và vì sao có <code>HttpOnly</code> rồi vẫn phải lo CSRF?</li><li>Refresh token rotation phát hiện việc token bị đánh cắp (theft) như thế nào? Nếu kẻ trộm dùng token trước, chuyện gì xảy ra? Nếu chủ thật dùng trước thì sao?</li></ul>
+</main>
+</div>
+</body>
+</html>

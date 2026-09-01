@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bản đồ code — cái gì nằm ở đâu</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase 0</h3><a href="phase0-nen-mong.html">Spec Phase 0</a><a href="journal-phase-0.html">Journal Phase 0</a><a href="phase-0-checklist.html">Checklist Phase 0</a></div><div class="nav-group"><h3>Phase 1</h3><a href="phase1-auth.html">Spec Phase 1</a><a href="journal-phase-1.html">Journal Phase 1</a></div><div class="nav-group"><h3>Phase 2</h3><a href="phase2-product-inventory.html">Spec Phase 2</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html" class="active">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="bản-đồ-code--cái-gì-nằm-ở-đâu">Bản đồ code — cái gì nằm ở đâu</h1>
+<blockquote class="note"><p><strong>File này trả lời đúng một câu hỏi:</strong> <em>"muốn sửa/tìm thứ X thì mở file nào?"</em></p>
+<p>Khác với <code>README.md</code> (giới thiệu dự án cho người ngoài) và <code>docs/SPEC.md</code> (nói sẽ làm gì), file này mô tả <strong>code hiện có</strong>. Cập nhật mỗi khi thêm module mới.</p>
+<p>Trạng thái: Phase 1. Code hiện tại ~1 400 dòng.</p></blockquote>
+<hr>
+<h2 id="đọc-theo-thứ-tự-này-lần-đầu">Đọc theo thứ tự này (lần đầu)</h2>
+<p>Đi theo đúng đường một request chạy, mỗi bước một file:</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>File</th><th>Trả lời câu gì</th></tr></thead><tbody><tr><td>1</td><td><code>src/main.ts</code> (32 dòng)</td><td>App khởi động thế nào, theo thứ tự nào</td></tr><tr><td>2</td><td><code>src/app.module.ts</code> (25)</td><td>Có những mảnh nào, ráp vào nhau ra sao</td></tr><tr><td>3</td><td><code>src/config/env.schema.ts</code> (58)</td><td>App cần biến môi trường nào, validate thế nào</td></tr><tr><td>4</td><td><code>src/common/logger/logger.module.ts</code> (76)</td><td><code>correlationId</code> sinh ra ở đâu — <a href="tech-playbook.html">giải thích đầy đủ</a></td></tr><tr><td>5</td><td><code>src/infra/prisma/prisma.service.ts</code> (61)</td><td>Kết nối DB, và vì sao pool lại đáng chú ý</td></tr><tr><td>6</td><td><code>src/modules/health/</code> (3 file, ~96)</td><td><strong>Khuôn mẫu của mọi module sau này</strong></td></tr><tr><td>7</td><td><code>src/common/filters/all-exceptions.filter.ts</code> (99)</td><td>Lỗi đi đâu về đâu</td></tr><tr><td>8</td><td><code>src/modules/auth/auth.service.ts</code> (Phase 1)</td><td>Argon2, xoay token, <strong>reuse detection</strong></td></tr><tr><td>9</td><td><code>src/modules/product/product.repository.ts</code> (Phase 2)</td><td>Cursor pagination, tồn kho theo SKU</td></tr></tbody></table></div>
+<p>Sau đó đọc <code>test/health.e2e-spec.ts</code> — nó cho thấy toàn bộ chuỗi trên chạy thật với Postgres thật.</p>
+<hr>
+<h2 id="đi-theo-một-request-get-ready-khi-postgres-đã-chết">Đi theo một request: <code>GET /ready</code> khi Postgres đã chết</h2>
+<p>Bảng trên nói <em>file nào làm gì</em>. Phần này nói <em>chúng ráp vào nhau ra sao</em> — đi đúng một request từ lúc gõ <code>npm run dev</code> tới lúc client nhận <code>503</code>.</p>
+<p><strong>Lúc khởi động (một lần):</strong></p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Ở đâu</th><th>Chuyện gì xảy ra</th></tr></thead><tbody><tr><td>1</td><td><code>main.ts:4</code></td><td><code>dotenv/config</code> nạp <code>.env</code> vào <code>process.env</code>. <strong>Phải là import đầu tiên</strong></td></tr><tr><td>2</td><td><code>main.ts:13</code></td><td>Nest dựng <code>AppModule</code>, ráp module theo thứ tự cấu hình → log → hạ tầng → nghiệp vụ</td></tr><tr><td>3</td><td><code>config.module.ts:30</code></td><td><code>validateEnv()</code> chạy. Thiếu biến → <strong>throw ngay tại đây, app không bao giờ lên</strong></td></tr><tr><td>4</td><td><code>logger.module.ts:30</code></td><td>Pino nhận <code>LOG_LEVEL</code> từ <code>Env</code> vừa validate</td></tr><tr><td>5</td><td><code>prisma.service.ts:33</code></td><td>Tạo <code>pg.Pool</code> → bọc <code>PrismaPg</code> adapter → <code>super()</code>. Pool là <strong>một</strong> instance cho cả app</td></tr><tr><td>6</td><td><code>main.ts:24</code></td><td>Đăng ký shutdown hook, để SIGTERM còn kịp đóng pool</td></tr></tbody></table></div>
+<p><strong>Mỗi request:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Ở đâu</th><th>Chuyện gì xảy ra</th></tr></thead><tbody><tr><td>7</td><td><code>logger.module.ts:34</code></td><td><code>genReqId</code> chạy <strong>trước mọi thứ</strong>: lấy <code>x-correlation-id</code> từ header, hoặc sinh UUID mới. Gắn vào <code>req.id</code> <strong>và</strong> vào response header</td></tr><tr><td>8</td><td><code>health.controller.ts:15</code></td><td>Nest định tuyến <code>/ready</code> tới đây</td></tr><tr><td>9</td><td><code>health.service.ts:49</code></td><td><code>SELECT 1</code> qua Prisma → Postgres chết → <code>pg</code> ném lỗi</td></tr><tr><td>10</td><td><code>health.service.ts:54</code></td><td><code>catch</code> <strong>có bắt nhưng không nuốt</strong>: log mức <code>warn</code>, rồi trả <code>'down'</code></td></tr><tr><td>11</td><td><code>health.controller.ts:21</code></td><td><code>ready === false</code> → ném <code>ServiceUnavailableException</code>. Phải là <strong>status code</strong>, vì load balancer không đọc body</td></tr><tr><td>12</td><td><code>all-exceptions.filter.ts:45</code></td><td>Filter bắt exception (đăng ký <code>APP_FILTER</code> ở <code>app.module.ts</code>, nên không controller nào thoát được)</td></tr><tr><td>13</td><td><code>all-exceptions.filter.ts:52</code></td><td>Lấy lại <code>req.id</code> — <strong>chính là id sinh ở bước 7</strong>. Đây là chỗ hai đầu nối vào nhau</td></tr><tr><td>14</td><td><code>all-exceptions.filter.ts:55</code></td><td>503 ≥ 500 nên filter log ở mức <code>error</code> — <em>xem mục ngay bên dưới, chỗ này chưa ổn</em></td></tr><tr><td>15</td><td><code>all-exceptions.filter.ts:67</code></td><td>Trả <code>{ code, message, correlationId }</code> — một hình dạng cho mọi lỗi trong toàn app</td></tr></tbody></table></div>
+<p><strong>Ba điều đáng rút ra từ mạch này:</strong></p>
+<ol><li><strong><code>correlationId</code> sinh ở bước 7 và được dùng lại ở bước 13</strong> — hai file cách xa nhau, nối với nhau qua <code>req.id</code>. Đó là toàn bộ cơ chế "truy một request qua mọi dòng log".</li><li><strong>Không controller nào tự xử lý lỗi.</strong> Chúng chỉ <code>throw</code>; filter ở biên lo phần còn lại.</li><li><strong>Bước 3 là lá chắn rẻ nhất của cả hệ thống</strong> — sai cấu hình thì chết lúc <code>npm run dev</code>, không phải lúc có khách.</li></ol>
+<h3 id="một-chỗ-chưa-ổn-trong-đoạn-này--và-cách-nghĩ-về-nó">Một chỗ chưa ổn trong đoạn này — và cách nghĩ về nó</h3>
+<p><strong>Hiện tượng:</strong> bước 14 — <code>/ready</code> trả 503, mà filter phân loại <code>status &gt;= 500</code> là lỗi hệ thống nên log ở mức <strong>error</strong>.</p>
+<p><strong>Vì sao đó là vấn đề:</strong> Cloud Run gọi <code>/ready</code> liên tục, vài giây một lần. Nếu Postgres chớp 2 phút, log sẽ có hàng chục dòng <code>error</code> — trong khi đây là sự cố vận hành <em>bình thường</em>, không phải bug của code. Đến Phase 5 khi gắn cảnh báo theo số dòng <code>error</code>, chuông sẽ kêu inh ỏi vì chuyện không cần ai dậy lúc 3 giờ sáng. Cảnh báo kêu sai vài lần là người ta bắt đầu tắt tiếng nó — và lần thứ n, khi có sự cố thật, không ai nghe.</p>
+<p><strong>Cách sửa, hai hướng:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Hướng</th><th>Làm gì</th><th>Đánh đổi</th></tr></thead><tbody><tr><td>Sửa ở filter</td><td>Thêm ngoại lệ: 503 thì log <code>warn</code></td><td>Đơn giản, nhưng gắn luật của một endpoint vào chỗ dùng chung cho cả app</td></tr><tr><td>Sửa ở chỗ ném lỗi</td><td>Controller ném một <code>DomainError</code> riêng có mức log <code>warn</code></td><td>Sạch hơn về ranh giới, nhưng phải thêm khái niệm "mức log" vào lớp lỗi</td></tr></tbody></table></div>
+<p><strong>Chưa sửa, và đó là chủ đích.</strong> Phase 0 chưa có cảnh báo nên chưa ai đau. Đây là <strong>nợ kỹ thuật có ghi chép</strong> — sẽ trả ở Phase 5 cùng lúc với việc dựng metrics, khi đã biết rõ cảnh báo được cấu hình thế nào. Sửa bây giờ là đoán mò yêu cầu chưa tồn tại.</p>
+<hr>
+<h2 id="cây-thư-mục--mỗi-dòng-một-trách-nhiệm">Cây thư mục — mỗi dòng một trách nhiệm</h2>
+<pre><code>flash-core/
+│
+├── src/                          ← toàn bộ code chạy
+│   ├── main.ts                     bootstrap: dotenv → Nest → logger → shutdown hooks → listen
+│   ├── app.module.ts               ráp module, đăng ký exception filter toàn cục
+│   │
+│   ├── config/                   ← ĐỌC BIẾN MÔI TRƯỜNG. Không nơi nào khác được đọc process.env
+│   │   ├── env.schema.ts           schema Zod + validateEnv() — nguồn sự thật của mọi biến
+│   │   ├── config.module.ts        @Global, cung cấp object Env qua token ENV
+│   │   └── index.ts                public interface: { ConfigModule, ENV, Env, validateEnv }
+│   │
+│   ├── common/                   ← HẠ TẦNG DÙNG CHUNG. Chỉ thứ ≥2 module dùng mới vào đây
+│   │   ├── errors/domain.error.ts  lớp cha cho lỗi nghiệp vụ (không biết gì về HTTP)
+│   │   ├── filters/…filter.ts      1 hình dạng response lỗi + phân loại 4xx vs 5xx
+│   │   ├── pipes/…pipe.ts          ZodValidationPipe — validate input ở biên
+│   │   ├── logger/logger.module.ts Pino + genReqId(correlationId) + redact dữ liệu nhạy cảm
+│   │   └── index.ts                public interface
+│   │
+│   ├── infra/                    ← KẾT NỐI RA NGOÀI (DB, Redis, sau này queue)
+│   │   ├── prisma/
+│   │   │   ├── prisma.service.ts   pg.Pool → PrismaPg adapter → PrismaClient, đóng khi SIGTERM
+│   │   │   ├── prisma.module.ts    @Global — pool phải là MỘT instance cho cả app
+│   │   │   └── index.ts            public interface
+│   │   └── redis/                  (Phase 1) cấu trúc copy y hệt prisma/
+│   │       ├── redis.service.ts    ioredis + incrementWithExpiry() cho rate limit
+│   │       ├── redis.module.ts     @Global — một kết nối cho cả app
+│   │       └── index.ts            public interface
+│   │
+│   ├── modules/                  ← NGHIỆP VỤ. Mỗi thư mục = một module có ranh giới
+│   │   ├── auth/                   (Phase 1) đăng ký, đăng nhập, refresh token
+│   │   │   ├── auth.controller.ts    HTTP + gắn cookie. Không có logic nghiệp vụ
+│   │   │   ├── auth.service.ts       Argon2, sinh token, REUSE DETECTION, rate limit
+│   │   │   ├── auth.repository.ts    mọi truy cập DB của module gom về đây
+│   │   │   ├── auth.dto.ts           schema Zod + type suy ra từ schema
+│   │   │   ├── auth.errors.ts        lỗi nghiệp vụ kế thừa DomainError
+│   │   │   ├── auth.cookies.ts       4 cờ bảo mật của cookie, giải thích từng cờ
+│   │   │   ├── access-token.guard.ts chặn request chưa đăng nhập, đọc token từ cookie
+│   │   │   └── index.ts              CHỈ export AuthModule + AccessTokenGuard
+│   │   ├── product/                 (Phase 2) sản phẩm + SKU biến thể, cursor pagination
+│   │   │   ├── product.controller.ts CRUD, ghi dùng AccessTokenGuard (import từ ../auth)
+│   │   │   ├── product.service.ts    check-tồn-tại-trước-khi-ghi, cursor decode/paginate
+│   │   │   ├── product.repository.ts mọi truy cập DB (kể cả keyset WHERE) gom về đây
+│   │   │   ├── product.dto.ts        schema Zod: Product/SKU/cursor query
+│   │   │   ├── product.errors.ts     lỗi nghiệp vụ kế thừa DomainError
+│   │   │   ├── product.cursor.ts     encode/decode cursor base64url (createdAt, id)
+│   │   │   ├── product.slug.ts       slugify + sinh sku_code (bỏ dấu tiếng Việt)
+│   │   │   └── index.ts              chỉ export ProductModule (chưa module nào khác cần)
+│   │   └── health/                 module mẫu — copy cấu trúc này khi tạo module mới
+│   │       ├── health.controller.ts  HTTP: nhận request → gọi service → map response
+│   │       ├── health.service.ts     logic: liveness vs readiness
+│   │       ├── health.service.spec.ts unit test nằm CẠNH code nó test
+│   │       ├── health.module.ts      khai báo provider/controller
+│   │       └── index.ts              public interface — module khác chỉ import từ đây
+│   │
+│   └── generated/prisma/         ← code Prisma sinh ra. KHÔNG sửa tay, KHÔNG commit
+│
+├── test/                         ← integration test (Postgres thật qua Testcontainers)
+│   ├── health.e2e-spec.ts
+│   ├── auth.e2e-spec.ts
+│   ├── product.e2e-spec.ts
+│   └── jest-integration.json       config jest riêng cho integration (chậm, cần Docker)
+│
+├── prisma/schema.prisma          ← định nghĩa bảng DB
+├── prisma/seed/seed-skus.ts      ← seed 100k SKU (Phase 2), chạy bằng `npm run seed`
+├── prisma.config.ts              ← cấu hình Prisma CLI (Prisma 7: url KHÔNG nằm trong schema)
+├── docker-compose.yml            ← Postgres 16 + Redis 7 cho local
+├── .env.example                  ← danh sách biến môi trường (copy thành .env)
+│
+├── docs/                         ← tài liệu (xem docs/README.md)
+├── .claude/                      ← 2 lệnh + 3 hook (xem CLAUDE.md §Bộ công cụ)
+├── jest.config.js                ← unit test (src/**/*.spec.ts, không cần Docker)
+└── .github/workflows/ci.yml      ← CI: generate → lint → typecheck → test → build</code></pre>
+<p>Cách CI hoạt động và cách bộ test được chia tầng: <a href="tech-playbook.html"><code>tech-playbook.md</code> §Xuyên suốt</a>.</p>
+<hr>
+<h2 id="muốn-làm-x-thì-sửa-file-nào">Muốn làm X thì sửa file nào</h2>
+<div class="table-wrap"><table><thead><tr><th>Muốn…</th><th>Sửa/tạo</th><th>Lưu ý</th></tr></thead><tbody><tr><td>Thêm <strong>biến môi trường</strong></td><td><code>src/config/env.schema.ts</code> + <code>.env.example</code> + <code>.env</code></td><td>Thêm cả 3 chỗ, nếu không app fail lúc khởi động</td></tr><tr><td>Sửa <strong>luật mật khẩu / rate limit</strong></td><td><code>src/modules/auth/auth.dto.ts</code>, <code>auth.service.ts</code></td><td>Đổi ngưỡng thì sửa <code>.env</code>, không sửa code</td></tr><tr><td>Sửa <strong>cờ bảo mật của cookie</strong></td><td><code>src/modules/auth/auth.cookies.ts</code></td><td><code>path</code> lúc xoá phải khớp lúc set, nếu không cookie không mất</td></tr><tr><td>Bảo vệ một <strong>endpoint mới</strong></td><td><code>@UseGuards(AccessTokenGuard)</code> trong controller</td><td>Import từ <code>../auth</code>, không import sâu</td></tr><tr><td>Thêm <strong>bảng DB</strong></td><td><code>prisma/schema.prisma</code> → <code>npm run db:migrate</code></td><td>Tiền dùng <code>Int</code> (VND). Cần <code>CHECK</code> thì viết SQL raw trong migration</td></tr><tr><td>Thêm <strong>module nghiệp vụ</strong></td><td><code>src/modules/&lt;tên&gt;/</code> — copy cấu trúc <code>health/</code></td><td>Bắt buộc có <code>index.ts</code>. Đăng ký vào <code>app.module.ts</code></td></tr><tr><td>Thêm <strong>endpoint</strong></td><td>controller của module đó</td><td>Validate body bằng <code>ZodValidationPipe</code></td></tr><tr><td>Thêm <strong>loại lỗi nghiệp vụ</strong></td><td>class kế thừa <code>DomainError</code> trong module</td><td>Filter tự map sang HTTP, không cần sửa filter</td></tr><tr><td>Đổi <strong>hình dạng response lỗi</strong></td><td><code>src/common/filters/all-exceptions.filter.ts</code></td><td>Đổi 1 chỗ, áp dụng toàn app</td></tr><tr><td>Thêm <strong>field bị che trong log</strong></td><td><code>redact.paths</code> trong <code>logger.module.ts</code></td><td>Che ở tầng logger, đừng dựa vào "nhớ đừng log"</td></tr><tr><td>Đổi <strong>pool size DB</strong></td><td><code>DATABASE_POOL_MAX</code> trong <code>.env</code></td><td>Biến này quan trọng ở Phase 3 — xem ghi chú trong <code>prisma.service.ts</code></td></tr><tr><td>Thêm <strong>unit test</strong></td><td>file <code>*.spec.ts</code> cạnh code</td><td>Chạy <code>npm test</code></td></tr><tr><td>Thêm <strong>integration test</strong></td><td><code>test/*.e2e-spec.ts</code></td><td>Chạy <code>npm run test:int</code>, cần Docker</td></tr><tr><td>Đổi <strong>luật lint</strong></td><td><code>eslint.config.mjs</code></td><td></td></tr><tr><td>Đổi <strong>CI</strong> (thêm bước, đổi Node version)</td><td><code>.github/workflows/ci.yml</code></td><td>Node version lấy từ <code>.nvmrc</code> — đổi ở đó, không sửa trong yml</td></tr><tr><td>Đổi <strong>hành vi của Claude</strong></td><td><code>CLAUDE.md</code>, hoặc <code>.claude/commands/</code></td><td></td></tr></tbody></table></div>
+<hr>
+<h2 id="ba-quy-tắc-cấu-trúc-vi-phạm-là-mất-kiến-trúc">Ba quy tắc cấu trúc (vi phạm là mất kiến trúc)</h2>
+<p><strong>1. Module chỉ nói chuyện qua <code>index.ts</code>.</strong></p>
+<pre><code class="language-ts">import { HealthModule } from '../health';            // ✅ qua public interface
+import { HealthService } from '../health/health.service';  // ❌ import sâu</code></pre>
+<p>Đây là <strong>thứ duy nhất</strong> khiến "Modular Monolith" khác một monolith thường. Không có ranh giới này thì lý do bỏ microservices (<code>project-context.md</code> quyết định #3) không còn giá trị để kể trong phỏng vấn.</p>
+<p>Khi hai module cần phụ thuộc nhau, khai báo <strong>interface + injection token</strong> trong <code>index.ts</code> của module được phụ thuộc — bên gọi phụ thuộc vào interface, không vào class.</p>
+<p><strong>2. Truy cập DB nằm trong repository của module, không rải khắp service.</strong></p>
+<p>Phase 0 chưa có module nào chạm DB nên chưa có file <code>*.repository.ts</code> — module đầu tiên có DB (Phase 2) sẽ tạo. <code>PrismaService</code> là <code>@Global</code> nhưng điều đó <strong>không</strong> có nghĩa được gọi Prisma ở mọi nơi.</p>
+<p><strong>3. Ba tầng, phụ thuộc chỉ đi một chiều.</strong></p>
+<pre><code>modules/ (nghiệp vụ)  →  infra/ (kết nối ngoài)  →  config/
+        ↘                    ↙
+            common/ (hạ tầng dùng chung)</code></pre>
+<p><code>common/</code> và <code>config/</code> <strong>không bao giờ</strong> import ngược lên <code>modules/</code>. Nếu thấy mình sắp làm thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghiệp vụ đặt nhầm chỗ.</p>
+<hr>
+<h2 id="những-chỗ-dễ-vấp-đã-gặp-thật">Những chỗ dễ vấp (đã gặp thật)</h2>
+<div class="table-wrap"><table><thead><tr><th>Hiện tượng</th><th>Nguyên nhân</th></tr></thead><tbody><tr><td><code>prisma generate</code> báo <code>Cannot resolve environment variable: DATABASE_URL</code></td><td><code>prisma.config.ts</code> đọc biến này qua <code>env()</code>. Cần <code>.env</code> hoặc set biến trước lệnh</td></tr><tr><td><code>datasource property url is no longer supported</code></td><td>Prisma 7 bỏ <code>url</code> khỏi schema — nó nằm ở <code>prisma.config.ts</code>. Tài liệu Prisma 6 trên mạng đã cũ</td></tr><tr><td><code>nest build</code> exit 0 nhưng <code>dist/</code> rỗng</td><td><code>.tsbuildinfo</code> cũ ở root khiến tsc tưởng đã build. Đã sửa bằng <code>tsBuildInfoFile: ./dist/.tsbuildinfo</code></td></tr><tr><td><code>Cannot find name 'describe'</code></td><td><code>tsconfig.json</code> khai báo <code>types</code> tường minh — thêm type mới phải thêm vào mảng đó</td></tr><tr><td>Test xanh ở máy, <strong>đỏ trên CI</strong>: <code>Cannot find module './internal/class.js'</code></td><td>Prisma 7 sinh import kèm đuôi <code>.js</code> nhưng file thật là <code>.ts</code>. Máy vẫn xanh vì đang giữ bản generate <strong>cũ</strong> (sinh trước khi đổi <code>moduleResolution</code> sang <code>node16</code>). Đã sửa bằng <code>moduleNameMapper</code> trong hai file config jest</td></tr><tr><td><code>TS5011: rootDir must be explicitly set</code> khi chạy jest</td><td><code>isolatedModules: true</code> khiến ts-jest dịch từng file riêng, TS6 không tự suy ra được thư mục gốc. Cần <code>rootDir</code> tường minh trong <code>tsconfig.json</code></td></tr><tr><td>Import <code>@/config</code> chạy được lúc dev nhưng vỡ sau <code>npm run build</code></td><td>Dự án <strong>không dùng path alias</strong> — <code>nest build</code> là tsc thuần, không rewrite alias. Dùng import tương đối</td></tr><tr><td>(Phase 2) <code>@UseGuards(GuardTừModuleKhác)</code> báo thiếu dependency của GUARD (không phải của controller)</td><td><code>@UseGuards(Class)</code> <strong>không</strong> tái dùng singleton của module gốc như constructor injection — <code>GuardsContextCreator</code> tra thẳng <code>injectables</code> của module chứa <strong>controller</strong> (không đi qua <code>imports</code>/<code>exports</code>) rồi tự dựng lại guard ở đó, nên mọi dependency của guard (ở đây <code>JwtService</code>) phải resolve được <strong>ngay tại module đang dùng guard</strong>. Sửa <strong>2 phần</strong>: (1) khai guard trong <code>providers</code> của CHÍNH module đang dùng nó (<code>src/modules/product/product.module.ts</code>), không chỉ import module gốc; (2) export cả module cung cấp dependency của guard (<code>JwtModule</code>) từ module gốc (<code>src/modules/auth/auth.module.ts</code>) — thiếu phần nào cũng lỗi</td></tr></tbody></table></div>
+<hr>
+<h2 id="tài-liệu-liên-quan">Tài liệu liên quan</h2>
+<div class="table-wrap"><table><thead><tr><th>Câu hỏi</th><th>File</th></tr></thead><tbody><tr><td>Dự án này là gì, chạy thế nào</td><td><code>README.md</code> <span class="unavail">(chưa có bản HTML)</span></td></tr><tr><td>Sẽ làm gì ở 7 phase, Definition of Done</td><td><code>docs/SPEC.md</code> <span class="unavail">(chưa có bản HTML)</span></td></tr><tr><td><strong>Vì sao</strong> chọn thế này, đã loại bỏ gì</td><td><a href="project-context.html"><code>project-context.md</code></a></td></tr><tr><td>Tên gọi của các bài toán sẽ gặp</td><td><a href="glossary.html"><code>docs/glossary.md</code></a></td></tr><tr><td>Chi tiết Phase 0 đã làm gì, test nào pass</td><td><a href="phase0-nen-mong.html"><code>docs/specs/phase0-nen-mong.md</code></a></td></tr></tbody></table></div>
+</main>
+</div>
+</body>
+</html>

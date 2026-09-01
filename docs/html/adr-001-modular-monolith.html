@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-001: Modular Monolith thay vì Microservices</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase 0</h3><a href="phase0-nen-mong.html">Spec Phase 0</a><a href="journal-phase-0.html">Journal Phase 0</a><a href="phase-0-checklist.html">Checklist Phase 0</a></div><div class="nav-group"><h3>Phase 1</h3><a href="phase1-auth.html">Spec Phase 1</a><a href="journal-phase-1.html">Journal Phase 1</a></div><div class="nav-group"><h3>Phase 2</h3><a href="phase2-product-inventory.html">Spec Phase 2</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html" class="active">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-001-modular-monolith-thay-vì-microservices">ADR-001: Modular Monolith thay vì Microservices</h1>
+<ul><li><strong>Ngày:</strong> 2026-08-07</li><li><strong>Trạng thái:</strong> Đã chốt</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p>Flash-Core là dự án một người, mục tiêu học <strong>bản chất concurrency</strong> (oversell = 0 dưới tải cao) và làm portfolio. Cần chọn cách tách hệ thống trước khi viết dòng code đầu tiên, vì quyết định này không đảo ngược rẻ được. Sức hút của microservices là nó "trông giống hệ thống lớn" trên CV.</p>
+<h2 id="quyết-định">Quyết định</h2>
+<p><strong>Modular Monolith</strong>: một process, một lần deploy, nhưng module có ranh giới rõ và chỉ nói chuyện với nhau qua public interface (<code>index.ts</code> + injection token).</p>
+<h2 id="các-lựa-chọn-đã-cân-nhắc">Các lựa chọn đã cân nhắc</h2>
+<ul><li><strong>Microservices</strong> — <em>ưu</em>: nghe kêu trên CV; tách scale được từng phần. <em>nhược</em>: với một người, toàn bộ thời gian sẽ chảy vào hạ tầng (service discovery, distributed tracing, saga, deploy nhiều service) thay vì vào concurrency. Tệ hơn: <strong>oversell trong hệ phân tán là bài toán khác</strong> — mất đi khả năng dùng transaction và lock của một database duy nhất, tức là mất đúng thứ muốn học.</li><li><strong>Monolith thường</strong> (chia thư mục, không có ranh giới) — <em>ưu</em>: nhanh nhất. <em>nhược</em>: sau 6 tháng thành mớ phụ thuộc chằng chịt, và không kể được câu chuyện kiến trúc nào.</li><li><strong>Modular Monolith</strong> ✅ — giữ được transaction/lock của một DB, vẫn có ranh giới để nói chuyện, và tách ra service riêng sau này là việc đổi phần implement chứ không phải viết lại.</li></ul>
+<h2 id="hệ-quả--trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
+<p><strong>Được:</strong> giữ nguyên vũ khí cần cho Phase 3 — <code>SELECT FOR UPDATE</code>, isolation level, một connection pool đo được. Deploy một container lên Cloud Run, hợp mục tiêu 0đ/tháng.</p>
+<p><strong>Mất:</strong> không scale riêng từng phần được. Chấp nhận vì tải thật của dự án là <strong>local k6</strong>, không phải production.</p>
+<p><strong>Ranh giới được enforce bằng hai tầng — cả hai đều là máy, không phải người:</strong></p>
+<ol><li><strong>NestJS DI container</strong> (runtime): provider không nằm trong <code>exports</code> của module thì module khác không inject được → <code>Nest can't resolve dependencies</code>.</li><li><strong>ESLint <code>no-restricted-imports</code></strong> (lint time, chạy trong CI): chặn <code>import</code> thẳng vào file bên trong module khác. Cần tầng này vì DI chỉ chặn việc <em>inject</em>, không chặn được việc import class rồi tự <code>new</code>, hay import kiểu dữ liệu nội bộ.</li></ol>
+<p>Không có tầng 2 thì ranh giới chỉ là quy ước, và nó xói mòn <strong>im lặng</strong> — không test nào đỏ.</p>
+<p><strong>Xem lại khi:</strong> một module cần scale hoặc deploy độc lập thật sự (ví dụ worker xử lý queue ăn CPU khác hẳn API). Lúc đó tách được vì đã có ranh giới; đó chính là điều ADR này mua.</p>
+</main>
+</div>
+</body>
+</html>

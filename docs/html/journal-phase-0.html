@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tổng kết Phase 0 — Nền móng &amp; Quy trình AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase 0</h3><a href="phase0-nen-mong.html">Spec Phase 0</a><a href="journal-phase-0.html" class="active">Journal Phase 0</a><a href="phase-0-checklist.html">Checklist Phase 0</a></div><div class="nav-group"><h3>Phase 1</h3><a href="phase1-auth.html">Spec Phase 1</a><a href="journal-phase-1.html">Journal Phase 1</a></div><div class="nav-group"><h3>Phase 2</h3><a href="phase2-product-inventory.html">Spec Phase 2</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="tổng-kết-phase-0--nền-móng--quy-trình-ai">Tổng kết Phase 0 — Nền móng &amp; Quy trình AI</h1>
+<blockquote class="note"><p>Viết ngày 2026-08-27, sau khi Phase 0 đã đóng (2026-08-08). Đây là bản tổng kết <strong>thực tế</strong> (Claude viết lại từ git log + tài liệu đã có), không phải journal học tập đầy đủ kiểu skill <code>phase-journal</code> — quyết định gốc (<code>docs/phase-0-checklist.md</code>) là journal chỉ bắt đầu từ Phase 3. Phần <strong>Câu hỏi bản chất</strong> ở cuối cố tình để trống — Tâm tự trả lời, không đọc đáp án trước khi tự nghĩ (lý do: <code>project-context.md</code> §5 — ảo giác thông thạo).</p></blockquote>
+<h2 id="thời-gian">Thời gian</h2>
+<p>Bắt đầu → đóng: 2026-08-05 → <strong>2026-08-08</strong>. Hồ sơ đầy đủ: <code>docs/phase-0-checklist.md</code>.</p>
+<h2 id="đã-làm">Đã làm</h2>
+<ul><li>Skeleton NestJS + TypeScript strict, validate env bằng Zod</li><li>Pino JSON log + <code>correlationId</code> sinh ở middleware, gắn xuyên request → response header</li><li>Exception filter thống nhất (<code>APP_FILTER</code>) — một hình dạng lỗi cho toàn hệ thống</li><li>Prisma 7 + driver adapter <code>@prisma/adapter-pg</code> (bọc <code>pg.Pool</code> tự cấu hình)</li><li>Module <code>health</code> (liveness/readiness) — khuôn mẫu cấu trúc cho mọi module sau</li><li>Docker Compose (Postgres 16 + Redis 7) cho local</li><li>CI GitHub Actions: generate → lint → typecheck → test → build, chạy trên mọi PR/push <code>main</code></li><li><strong>Ranh giới module enforce bằng 2 tầng máy</strong>: NestJS DI (chặn inject) + ESLint <code>no-restricted-imports</code> (chặn import sâu) — đây là thứ duy nhất khiến kiến trúc này khác một monolith thường</li></ul>
+<h2 id="số-liệu">Số liệu</h2>
+<ul><li><strong>16/16 test pass</strong> lúc đóng phase</li><li>Doc budget: đo được <strong>1 dòng code : 5 dòng tài liệu</strong> (990 vs 5.050) → cắt <code>.claude/</code> từ 3.098 dòng còn ~350 (xoá 10 skill, 6 hook, 5 command, 1 agent). Luật mới: <code>CLAUDE.md</code> §Ngân sách tài liệu</li></ul>
+<h2 id="quyết-định-đáng-chú-ý-chi-tiết-ở-adr-không-lặp-lại-ở-đây">Quyết định đáng chú ý (chi tiết ở ADR, không lặp lại ở đây)</h2>
+<ul><li><a href="adr-001-modular-monolith.html"><code>adr/001-modular-monolith.md</code></a> — Modular Monolith thay vì Microservices, và cơ chế 2 tầng enforce ranh giới module</li><li><a href="adr-002-nen-mong-ky-thuat-phase-0.html"><code>adr/002-nen-mong-ky-thuat-phase-0.md</code></a> — 5 quyết định kỹ thuật gộp: Prisma 7 + adapter <code>pg</code>, TypeScript 6, không path alias, tự viết <code>ConfigModule</code>, <code>@Global</code> đúng hai chỗ</li></ul>
+<h2 id="buggotcha-đáng-nhớ">Bug/gotcha đáng nhớ</h2>
+<p>Toàn bộ nằm ở việc Prisma 7 khác hẳn tài liệu cũ trên mạng (đã ghi ở <code>docs/architecture.md</code> §Những chỗ dễ vấp): <code>datasource.url</code> chuyển sang <code>prisma.config.ts</code>, import sinh ra kèm đuôi <code>.js</code> dù file thật là <code>.ts</code> (cần <code>moduleNameMapper</code> trong cả hai config Jest), <code>.tsbuildinfo</code> cũ khiến <code>nest build</code> báo thành công nhưng <code>dist/</code> rỗng.</p>
+<h2 id="commit-liên-quan">Commit liên quan</h2>
+<p><code>e9c5ad5</code> (ESLint chặn import sâu) · <code>ae4e7f3</code> (2 ADR) · <code>8be66e3</code> (checklist) · <code>38910c9</code> (tinh gọn <code>.claude</code>) · <code>b0e9f01</code> (dẫn đường đọc code) · <code>c723684</code> (đóng Phase 0, duyệt spec Phase 1)</p>
+<h2 id="câu-hỏi-bản-chất-của-phase-specmd--tâm-tự-trả-lời">Câu hỏi bản chất của phase (SPEC.md) — Tâm tự trả lời</h2>
+<ul><li>Modular Monolith vs Microservices — khác nhau ở đâu, đánh đổi gì?</li><li>Vì sao dự án một người <strong>không nên</strong> làm microservices?</li><li>Ranh giới module được enforce bằng gì trong NestJS — và vì sao <strong>một mình</strong> DI container của Nest không đủ?</li></ul>
+</main>
+</div>
+</body>
+</html>

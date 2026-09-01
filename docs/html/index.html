@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash-Core — Tài liệu dự án</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase 0</h3><a href="phase0-nen-mong.html">Spec Phase 0</a><a href="journal-phase-0.html">Journal Phase 0</a><a href="phase-0-checklist.html">Checklist Phase 0</a></div><div class="nav-group"><h3>Phase 1</h3><a href="phase1-auth.html">Spec Phase 1</a><a href="journal-phase-1.html">Journal Phase 1</a></div><div class="nav-group"><h3>Phase 2</h3><a href="phase2-product-inventory.html">Spec Phase 2</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+
+<h1>Flash-Core — Tài liệu dự án</h1>
+<p>Flash-Core là API Engine cho hệ thống săn flash sale áo thun, xây theo kiến trúc
+<strong>Modular Monolith</strong>. Bài toán cốt lõi là concurrency dưới tải cao (không được bán
+vượt tồn kho theo từng SKU biến thể), cùng với hàng đợi bất đồng bộ, webhook thanh toán và
+observability.</p>
+<p>Tâm (chủ repo) làm chủ spec, review và ra quyết định kiến trúc; AI viết phần lớn code. Đây là
+bản đọc tĩnh (offline) của toàn bộ tài liệu Markdown trong repo, để mở trực tiếp bằng trình
+duyệt — bấm vào thẻ hoặc sidebar bên trái để đi tới từng trang.</p>
+
+<h2>Các phase</h2>
+<div class="cards">
+  <div class="card">
+    <h3>Phase 0 — Nền móng &amp; Quy trình AI</h3>
+    <p class="status">Đã đóng — 2026-08-08. 16/16 test pass. 2 ADR đã chốt.</p>
+    <a href="phase0-nen-mong.html">Spec</a>
+    <a href="journal-phase-0.html">Journal</a>
+    <a href="phase-0-checklist.html">Checklist</a>
+  </div>
+  <div class="card">
+    <h3>Phase 1 — Auth &amp; Security</h3>
+    <p class="status">Code + test xong (2026-08-27), chưa đóng chính thức — chờ Tâm review &amp;
+    push. 14/14 test case pass (17/17 khi tính cả health lúc chạy <code>test:int</code>).</p>
+    <a href="phase1-auth.html">Spec</a>
+    <a href="journal-phase-1.html">Journal</a>
+  </div>
+  <div class="card">
+    <h3>Phase 2 — Product &amp; Inventory</h3>
+    <p class="status">Hoàn tất theo Definition of Done, xác nhận trên Postgres/Redis thật.
+    28/28 integration + 43/43 unit test pass, seed 10.000 Product / 100.000 ProductSku đã chạy,
+    bằng chứng <code>EXPLAIN</code> đã có. Còn lại: Tâm tự trả lời 3 câu hỏi bản chất rồi
+    review/push.</p>
+    <a href="phase2-product-inventory.html">Spec</a>
+  </div>
+</div>
+
+<h2>ADR — Quyết định kiến trúc</h2>
+<ul>
+  <li><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith thay vì Microservices</a></li>
+  <li><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật Phase 0</a></li>
+</ul>
+
+<h2>Tham khảo xuyên phase</h2>
+<ul>
+  <li><a href="architecture.html">architecture.md</a> — bản đồ code: file nào làm gì, định nghĩa ở đâu</li>
+  <li><a href="tech-playbook.html">tech-playbook.md</a> — cơ chế, bug hay gặp, tình huống thật của từng phase</li>
+  <li><a href="glossary.html">glossary.md</a> — từ điển nhận diện các bài toán hệ thống lớn</li>
+  <li><a href="project-context.html">project-context.md</a> — vì sao chọn thế này, những gì đã bị loại bỏ có chủ đích</li>
+  <li><a href="claude-md.html">CLAUDE.md</a> — quy tắc &amp; hướng dẫn làm việc với AI trong repo này</li>
+</ul>
+
+</main>
+</div>
+</body>
+</html>

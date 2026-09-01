@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-002: Nền móng kỹ thuật Phase 0</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase 0</h3><a href="phase0-nen-mong.html">Spec Phase 0</a><a href="journal-phase-0.html">Journal Phase 0</a><a href="phase-0-checklist.html">Checklist Phase 0</a></div><div class="nav-group"><h3>Phase 1</h3><a href="phase1-auth.html">Spec Phase 1</a><a href="journal-phase-1.html">Journal Phase 1</a></div><div class="nav-group"><h3>Phase 2</h3><a href="phase2-product-inventory.html">Spec Phase 2</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html" class="active">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-002-nền-móng-kỹ-thuật-phase-0">ADR-002: Nền móng kỹ thuật Phase 0</h1>
+<ul><li><strong>Ngày:</strong> 2026-08-07</li><li><strong>Trạng thái:</strong> Đã chốt</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p>Dựng skeleton Phase 0 phát sinh năm quyết định kỹ thuật nhỏ, đều là <strong>hệ quả của việc chọn stack</strong> chứ không độc lập với nhau. Gộp một ADR thay vì tách năm file: tách ra sẽ loãng, và đọc riêng từng cái thì không thấy chúng ràng buộc lẫn nhau.</p>
+<h2 id="quyết-định">Quyết định</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Chọn</th><th>Câu chốt</th></tr></thead><tbody><tr><td>1</td><td><strong>Prisma 7 + driver adapter <code>pg</code></strong></td><td>Không pin Prisma 6 để né breaking change</td></tr><tr><td>2</td><td><strong>TypeScript 6</strong>, không TS 7</td><td><code>ts-jest</code> chỉ hỗ trợ <code>&lt;7</code></td></tr><tr><td>3</td><td><strong>Không dùng path alias <code>@/</code></strong></td><td>Import tương đối</td></tr><tr><td>4</td><td><strong>Tự viết ConfigModule</strong> (~10 dòng)</td><td>Không dùng <code>@nestjs/config</code></td></tr><tr><td>5</td><td><strong><code>@Global()</code> cho Config + Prisma</strong></td><td>Ngoại lệ có chủ đích</td></tr></tbody></table></div>
+<h2 id="các-lựa-chọn-đã-cân-nhắc">Các lựa chọn đã cân nhắc</h2>
+<p><strong>1. Prisma 7 vs pin Prisma 6.</strong> Prisma 7 bỏ <code>datasource.url</code> khỏi <code>schema.prisma</code> (chuyển sang <code>prisma.config.ts</code>) và bắt buộc truyền driver adapter — tài liệu Prisma 6 trên mạng đã sai. Pin lại v6 thì né được, nhưng ôm nợ nâng cấp. Chọn v7, và <strong>hoá ra có lợi</strong>: <code>pg.Pool</code> do mình cấu hình nên số connection thành biến nhìn thấy và chỉnh được — đúng thứ cần cho benchmark Phase 3 và Neon pooler Phase 6. Với Prisma 6, pool bị engine Rust giấu.</p>
+<p><strong>2. TypeScript 6 vs 7.</strong> TS 7 đã ra nhưng <code>ts-jest</code> khai <code>peerDependency: typescript &lt;7</code>. Phương án khác là đổi sang <code>@swc/jest</code> để dùng được TS 7 — nhưng đó là thêm một công cụ mới vào chuỗi build để đổi lấy một con số version. Chọn TS 6, xem lại khi <code>ts-jest</code> hỗ trợ TS 7.</p>
+<p><strong>3. Path alias <code>@/</code> vs import tương đối.</strong> Alias đọc đẹp hơn, nhưng <code>nest build</code> chạy <code>tsc</code> thuần và <strong>không rewrite alias</strong> — code sẽ dịch trót lọt rồi chết lúc runtime với <code>Cannot find module '@/config'</code>. Sửa được bằng <code>tsconfig-paths</code> hoặc <code>tsc-alias</code>, tức thêm một mắt xích nữa. Cây thư mục dự án nông (sâu nhất <code>../../</code>) nên alias không mua được gì.</p>
+<p><strong>4. <code>@nestjs/config</code> vs tự viết.</strong> Thư viện có sẵn nhưng phải học typing generic của <code>ConfigService</code> và nó không ép validate. Tự viết: một schema Zod + <code>validateEnv()</code>, app <strong>chết ngay lúc boot</strong> nếu thiếu biến, và <code>Env</code> là object đã <code>Object.freeze</code> có type suy ra từ schema. Xem lại nếu về sau cần nhiều nguồn cấu hình (file + env + secret manager).</p>
+<p><strong>5. <code>@Global()</code>.</strong> Mâu thuẫn với nguyên tắc khai báo phụ thuộc tường minh. Chấp nhận đúng hai chỗ: <code>ConfigModule</code> (mọi module đều cần, khai báo lại 20 lần là nhiễu) và <code>PrismaModule</code> (<code>pg.Pool</code> <strong>bắt buộc</strong> là một instance duy nhất cho cả app — nhiều pool nghĩa là số connection thật khác số mình nghĩ, và điều đó phá luôn benchmark Phase 3). <strong>Module nghiệp vụ không bao giờ được <code>@Global</code>.</strong></p>
+<h2 id="hệ-quả--trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
+<ul><li>Prisma Client được generate vào <code>src/generated/prisma</code> (gitignore) → <strong>CI bắt buộc phải chạy <code>db:generate</code></strong> trước typecheck. Đã trả giá một lần: CI đỏ vì Prisma 7 sinh import kèm đuôi <code>.js</code> trong khi file thật là <code>.ts</code>, phải thêm <code>moduleNameMapper</code> cho jest.</li><li>Đi trước tài liệu phổ biến trên mạng: mọi hướng dẫn Prisma tìm được đều là v6. Đổi lại, cách đọc <code>node_modules/@prisma/config/dist/index.d.ts</code> để tìm API thật là kỹ năng dùng lại được.</li><li>Bị khoá ở TS 6 cho tới khi <code>ts-jest</code> theo kịp.</li></ul>
+<p><strong>Xem lại khi:</strong> <code>ts-jest</code> hỗ trợ TS 7 (quyết định 2), hoặc khi cần nhiều nguồn cấu hình (quyết định 4).</p>
+</main>
+</div>
+</body>
+</html>
