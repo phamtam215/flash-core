@@ -33,7 +33,7 @@
 
 | # | Quyết định | Vì sao | Đã loại bỏ điều gì |
 |---|---|---|---|
-| 1 | **Làm dự án này, tạm gác chứng chỉ GCP ACE** | Chứng chỉ chứng minh "biết service" — loại kiến thức AI tra cứu hộ được, và động lực đang cạn vì học flashcard không có phản hồi ngắn. Dự án cho vòng lặp làm→thấy kết quả mỗi tuần. Phase 6 deploy GCP thật sẽ khiến ôn ACE sau này dễ hơn | Không bỏ ACE, chỉ đổi thứ tự: dự án trước, ACE sau như "phần thưởng phụ" |
+| 1 | **Làm dự án này, tạm gác chứng chỉ GCP ACE** | Chứng chỉ chứng minh "biết service" — loại kiến thức AI tra cứu hộ được, và động lực đang cạn vì học flashcard không có phản hồi ngắn. Dự án cho vòng lặp làm→thấy kết quả mỗi tuần. Phase 7 deploy GCP thật sẽ khiến ôn ACE sau này dễ hơn | Không bỏ ACE, chỉ đổi thứ tự: dự án trước, ACE sau như "phần thưởng phụ" |
 | 2 | **Nghiệp vụ: săn flash sale áo thun** | Tồn kho chia nhỏ theo SKU biến thể (size × màu) → tranh chấp gắt và thực tế hơn. Ban đầu từng cân nhắc gắn với brand PATA (hải sản) nhưng chốt áo thun cho phổ quát | Trang bán hàng CRUD đầy đủ tính năng; giao diện lòe loẹt |
 | 3 | **Modular Monolith** | Dự án một người. Microservices sẽ ngốn toàn bộ thời gian vào hạ tầng thay vì học concurrency | Microservices, Kubernetes, service mesh |
 | 4 | **PostgreSQL thay vì MySQL (dù MySQL quen hơn)** | Cố tình mở rộng skill: JSONB, GIN index, `SELECT FOR UPDATE SKIP LOCKED`, isolation levels rõ ràng | MySQL (đã quen ở công ty, học được ít hơn) |
@@ -58,7 +58,7 @@
 - **Bắt buộc:** đặt **budget alert $1** ngay ngày đầu bật billing GCP. Không dùng
   $300 credit trial một cách vô thức.
 
-> Số liệu free tier thay đổi theo thời gian — kiểm tra lại trước khi deploy Phase 6.
+> Số liệu free tier thay đổi theo thời gian — kiểm tra lại trước khi deploy Phase 7.
 
 ## 5. Triết lý học tập của dự án (ảnh hưởng trực tiếp cách AI nên phản hồi)
 

@@ -49,7 +49,7 @@
 | **Normalization vs Denormalization** | Tách bảng cho gọn vs gộp lại cho nhanh | Khi thiết kế bảng biến thể size×màu |
 | **JSONB** | Lưu dữ liệu linh hoạt trong Postgres, đánh index được nhưng không có ràng buộc kiểu | Thuộc tính động của áo |
 | **Migration** | Thay đổi schema có phiên bản, chạy được trên mọi môi trường | Mỗi lần sửa Prisma schema |
-| **Connection pool** | Tái dùng kết nối DB vì mở mới rất đắt | Khi deploy serverless (Phase 6) |
+| **Connection pool** | Tái dùng kết nối DB vì mở mới rất đắt | Khi deploy serverless (Phase 7) |
 
 ---
 
@@ -99,7 +99,7 @@
 
 ---
 
-## Phase 5 — Observability
+## Phase 6 — Observability
 
 | Tên | Vấn đề nó chỉ | Dấu hiệu gặp |
 |---|---|---|
@@ -113,7 +113,7 @@
 
 ---
 
-## Phase 6 — Deploy & FinOps
+## Phase 7 — Deploy & FinOps
 
 | Tên | Vấn đề nó chỉ | Dấu hiệu gặp |
 |---|---|---|

@@ -33,7 +33,7 @@
 | **Concurrency** | Nhiều việc **đan xen** trong cùng khoảng thời gian | **Parallelism** — chạy **đồng thời** trên nhiều CPU. Node.js một luồng vẫn có concurrency, gần như không có parallelism |
 | **Latency** | Một request mất bao lâu | **Throughput** — bao nhiêu request/giây. Tăng throughput thường làm latency xấu đi |
 | **p95** | 95% request nhanh hơn mức này | **Trung bình** — bị vài request 10s kéo lệch, che mất trải nghiệm tệ |
-| **Liveness** | Process còn sống không? | **Readiness** — có nên gửi traffic không? Nhầm hai cái này gây restart loop (xem Phase 5) |
+| **Liveness** | Process còn sống không? | **Readiness** — có nên gửi traffic không? Nhầm hai cái này gây restart loop (xem Phase 6) |
 | **At-least-once** | Message được giao **≥1 lần** (có thể trùng) | **Exactly-once** — không tồn tại ở tầng giao vận (xem Phase 4) |
 | **Optimistic lock** | Không khoá; lúc ghi mới kiểm tra "dữ liệu còn nguyên không", sai thì thua và retry | **Pessimistic lock** — khoá ngay khi đọc, người sau **chờ** |
 | **Race condition** | Kết quả sai tuỳ **thứ tự** thực thi | **Deadlock** — hai bên khoá chéo, cả hai **treo** |
@@ -312,8 +312,8 @@ service và dùng cả kiểu dữ liệu nội bộ, việc tách trở thành 
 
 ## Logging và `correlationId` — đọc kỹ, code đã dùng từ Phase 0
 
-> Phần này để **ở Phase 0** chứ không phải Phase 5, vì `correlationId` đã chạy trong repo
-> ngay từ bây giờ ([`logger.module.ts`](../src/common/logger/logger.module.ts)). Phase 5 chỉ
+> Phần này để **ở Phase 0** chứ không phải Phase 6, vì `correlationId` đã chạy trong repo
+> ngay từ bây giờ ([`logger.module.ts`](../src/common/logger/logger.module.ts)). Phase 6 chỉ
 > mở rộng nó ra queue và thêm metrics.
 
 ### Bước 1 — Log thường vs structured log
@@ -861,11 +861,11 @@ chuyển thì không được để hệ thống im lặng.**
 
 ---
 
-# Phase 5 — Observability
+# Phase 6 — Observability
 
 > Phần **logging và `correlationId`** đã được giải thích đầy đủ ở
 > [Phase 0 §Logging và correlationId](#logging-và-correlationid--đọc-kỹ-code-đã-dùng-từ-phase-0)
-> — có ví dụ log thật và cách dùng khi khách báo lỗi. Phần dưới đây chỉ là những thứ Phase 5
+> — có ví dụ log thật và cách dùng khi khách báo lỗi. Phần dưới đây chỉ là những thứ Phase 6
 > **thêm vào**: đưa id qua queue, metrics, probe, graceful shutdown.
 
 ### Cần rõ
@@ -910,11 +910,11 @@ Khách báo "đặt hàng lỗi lúc 20:15". Không có correlation ID thì ph�
 giữa hàng nghìn request đồng thời. Có rồi thì: lấy id từ response header khách gửi lại →
 một câu query → thấy đủ hành trình từ HTTP tới worker, kể cả job retry ba lần.
 
-Đó là toàn bộ lý do Phase 5 tồn tại: **biến việc điều tra từ vài giờ thành một câu query.**
+Đó là toàn bộ lý do Phase 6 tồn tại: **biến việc điều tra từ vài giờ thành một câu query.**
 
 ---
 
-# Phase 6 — Deploy & FinOps
+# Phase 7 — Deploy & FinOps
 
 ### Cần rõ
 
@@ -948,7 +948,7 @@ một câu query → thấy đủ hành trình từ HTTP tới worker, kể cả
 | Request đầu mỗi sáng chậm 5s | Cold start + DB scale-to-zero | Hâm nóng trước giờ cao điểm |
 | DB treo giữa tháng | Chạm hard cutoff của free tier | Theo dõi quota; không chạy load test lên cloud |
 | Hoá đơn bất ngờ | Không có budget alert; egress bị bỏ quên | Alert $1 từ ngày đầu |
-| Job mất khi deploy | Không graceful shutdown | Xem Phase 5 |
+| Job mất khi deploy | Không graceful shutdown | Xem Phase 6 |
 
 ### Tình huống thực tế
 

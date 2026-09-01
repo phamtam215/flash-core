@@ -27,7 +27,7 @@ Săn flash sale áo thun:
 | Observability | Pino JSON log + correlationId xuyên request→queue, /health & /ready, Prometheus metrics, graceful shutdown |
 | Load Testing | k6 local: 1.000 VU săn 100 chiếc của 1 mẫu hot, so sánh 3 chiến lược, oversell = 0 |
 
-## 4. Lộ trình 7 Phase
+## 4. Lộ trình 8 Phase
 ### Phase 0 — Nền móng & Quy trình AI (1 tuần)
 Repo + Docker Compose (Postgres, Redis) + NestJS skeleton + Prisma + CI GitHub Actions
 (lint, test). Hoàn thiện CLAUDE.md, template spec/ADR, review checklist.
@@ -51,7 +51,6 @@ Khi nào JSONB là lựa chọn tệ?
 ### Phase 3 — Order & Concurrency ⭐ (2–2.5 tuần)
 Implement cả 3 chiến lược A/B/C chống oversell, bật/tắt bằng config.
 Idempotency-Key, Snapshot Price, transaction bọc đúng ranh giới.
-FE 4 màn hình làm trong phase này (xem mục 6).
 **Evidence CV:** báo cáo k6 1.000 VU săn 100 chiếc — throughput, p95, error rate
 của A/B/C, oversell = 0 ở cả ba.
 **Câu hỏi bản chất:** Vì sao read→if→write chắc chắn oversell dưới tải cao?
@@ -68,14 +67,26 @@ không gửi email trùng.
 Outbox giải quyết gì mà "ghi DB rồi push queue" không giải quyết được? Vì sao phải
 verify chữ ký webhook, xử lý sao khi webhook thanh toán đến sau khi đơn đã hủy?
 
-### Phase 5 — Observability & Hardening (1 tuần)
+### Phase 5 — UI demo (2 buổi tối)
+Vite + React + Tailwind, polling 1–2s cho tồn kho. AI làm 100%, không test, không ADR,
+không tính coverage. 4 màn hình: (1) Đăng nhập/Đăng ký; (2) Sự kiện sale — lưới áo, đếm
+ngược, tồn kho realtime theo size/màu; (3) Chọn size/màu + "Săn ngay" → đơn giữ chỗ 15
+phút + thanh toán sandbox; (4) Đơn của tôi. Quá timebox → cắt còn (2)+(3).
+Đặt SAU Phase 4 (không phải ngay sau Phase 3) vì màn (3) cần cả job giữ-chỗ-15-phút lẫn
+thanh toán sandbox — cả hai là deliverable của Phase 4, không phải Phase 3.
+**Deliverable:** demo video/GIF 2 phút — k6 chạy trong khi tồn kho trên FE rơi về 0 và
+dừng đúng 0.
+**Câu hỏi bản chất:** FE ở đây là công cụ trực quan hoá hay sản phẩm — khác nhau ở đâu
+trong cách quyết định làm tới đâu thì dừng?
+
+### Phase 6 — Observability & Hardening (1 tuần)
 Pino structured log, correlationId xuyên suốt, /health & /ready, Prometheus metrics,
 graceful shutdown.
 **Deliverable:** từ 1 request lỗi bất kỳ, truy toàn bộ hành trình bằng 1 correlationId.
 **Câu hỏi bản chất:** /health vs /ready và Cloud Run dùng chúng ra sao?
 Graceful shutdown sai thì mất gì? Log sao để debug được mà không lộ dữ liệu nhạy cảm?
 
-### Phase 6 — Deploy, FinOps & Đóng gói CV (1–1.5 tuần)
+### Phase 7 — Deploy, FinOps & Đóng gói CV (1–1.5 tuần)
 Cloud Run (us-central1, free tier) + Neon + Upstash, GitHub Actions auto deploy,
 Secret Manager, budget alert $1. README chuẩn "đọc 3 phút hiểu toàn hệ thống".
 **Câu hỏi bản chất:** Cold start ảnh hưởng flash sale thế nào, min-instances giải
@@ -88,15 +99,7 @@ quyết ra sao? Connection pooling với serverless (Neon pooler)? Chi phí phá
   (0.5GB, scale-to-zero, hard cutoff) + Upstash Free (256MB, 500k lệnh/tháng).
 - Budget alert $1 ngay ngày đầu. Chấp nhận cold start để giữ 0đ (ghi ADR).
 
-## 6. Frontend (AI làm 100%, timebox 2 buổi tối, tại Phase 3)
-Vite + React + Tailwind, polling 1–2s cho tồn kho. 4 màn hình:
-(1) Đăng nhập/Đăng ký; (2) Sự kiện sale: lưới áo, đếm ngược, tồn kho realtime theo
-size/màu; (3) Chọn size/màu + "Săn ngay" → đơn giữ chỗ 15 phút + thanh toán sandbox;
-(4) Đơn của tôi.
-Miễn trừ: không test, không ADR, không tính coverage. Quá timebox → cắt còn (2)+(3).
-Vai trò: cảnh demo k6 chạy trong khi tồn kho trên FE rơi về 0 và dừng đúng 0.
-
-## 7. Definition of Done
+## 6. Definition of Done
 - [ ] Báo cáo benchmark k6 so sánh 3 chiến lược + kết luận khi nào dùng cái nào
 - [ ] Coverage ≥ 70% module core (Order, Inventory), integration test trên DB thật
 - [ ] ~10 ADR

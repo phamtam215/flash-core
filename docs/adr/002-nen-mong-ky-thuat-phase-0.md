@@ -25,7 +25,7 @@ stack** chứ không độc lập với nhau. Gộp một ADR thay vì tách nă
 `prisma.config.ts`) và bắt buộc truyền driver adapter — tài liệu Prisma 6 trên mạng đã sai.
 Pin lại v6 thì né được, nhưng ôm nợ nâng cấp. Chọn v7, và **hoá ra có lợi**: `pg.Pool` do mình
 cấu hình nên số connection thành biến nhìn thấy và chỉnh được — đúng thứ cần cho benchmark
-Phase 3 và Neon pooler Phase 6. Với Prisma 6, pool bị engine Rust giấu.
+Phase 3 và Neon pooler Phase 7. Với Prisma 6, pool bị engine Rust giấu.
 
 **2. TypeScript 6 vs 7.** TS 7 đã ra nhưng `ts-jest` khai `peerDependency: typescript <7`.
 Phương án khác là đổi sang `@swc/jest` để dùng được TS 7 — nhưng đó là thêm một công cụ mới

@@ -12,7 +12,7 @@ khác chỉ được **trỏ link tới**, không chép lại.
 |---|---|---|
 | Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) | mọi nơi |
 | **Đang ở phase nào, việc tiếp theo là gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại | README, spec |
-| Kế hoạch 7 phase + Definition of Done | [`SPEC.md`](SPEC.md) | README |
+| Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) | README |
 | Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) | README |
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`../project-context.md`](../project-context.md) §3 + [`adr/`](adr/) | mọi nơi |
 | Chi tiết một tính năng (API, edge case, test) | [`specs/<tên>.md`](specs/) | — |
@@ -47,7 +47,7 @@ docs/
 ├── README.md              ← mục lục này
 ├── phase-0-checklist.md   hồ sơ Phase 0 (đã đóng)
 ├── architecture.md        bản đồ code
-├── SPEC.md                kế hoạch 7 phase + Definition of Done
+├── SPEC.md                kế hoạch 8 phase + Definition of Done
 ├── glossary.md            từ điển: TÊN của các bài toán (nhận diện, 1 dòng/mục)
 ├── tech-playbook.md       cơ chế + bug hay gặp + tình huống thật (theo phase, + CI & Testing)
 ├── git-workflow.md        chuẩn commit, quy tắc nhánh, AI không tự push

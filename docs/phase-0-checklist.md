@@ -141,8 +141,8 @@ Ghi ra để anh **không phải lo** khi thấy thiếu — đây là nợ có 
 | Auth, rate limit | Phase 1 |
 | Redis client, BullMQ (Compose đã dựng Redis nhưng app chưa nối) | Phase 3–4 |
 | **Integration test chạy trên CI** | Phase 3 — lý do ghi ở đầu `ci.yml` |
-| Metrics, graceful shutdown cho job đang chạy | Phase 5 |
-| Dockerfile, deploy Cloud Run | Phase 6 |
+| Metrics, graceful shutdown cho job đang chạy | Phase 6 |
+| Dockerfile, deploy Cloud Run | Phase 7 |
 
 ---
 

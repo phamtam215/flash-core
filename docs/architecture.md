@@ -5,7 +5,7 @@
 > Khác với `README.md` (giới thiệu dự án cho người ngoài) và `docs/SPEC.md` (nói sẽ làm gì),
 > file này mô tả **code hiện có**. Cập nhật mỗi khi thêm module mới.
 >
-> Trạng thái: Phase 1. Code hiện tại ~1 400 dòng.
+> Trạng thái: Phase 2. Code hiện tại ~2 600 dòng.
 
 ---
 
@@ -75,7 +75,7 @@ thống nên log ở mức **error**.
 
 **Vì sao đó là vấn đề:** Cloud Run gọi `/ready` liên tục, vài giây một lần. Nếu Postgres
 chớp 2 phút, log sẽ có hàng chục dòng `error` — trong khi đây là sự cố vận hành *bình
-thường*, không phải bug của code. Đến Phase 5 khi gắn cảnh báo theo số dòng `error`, chuông
+thường*, không phải bug của code. Đến Phase 6 khi gắn cảnh báo theo số dòng `error`, chuông
 sẽ kêu inh ỏi vì chuyện không cần ai dậy lúc 3 giờ sáng. Cảnh báo kêu sai vài lần là người
 ta bắt đầu tắt tiếng nó — và lần thứ n, khi có sự cố thật, không ai nghe.
 
@@ -87,7 +87,7 @@ ta bắt đầu tắt tiếng nó — và lần thứ n, khi có sự cố thậ
 | Sửa ở chỗ ném lỗi | Controller ném một `DomainError` riêng có mức log `warn` | Sạch hơn về ranh giới, nhưng phải thêm khái niệm "mức log" vào lớp lỗi |
 
 **Chưa sửa, và đó là chủ đích.** Phase 0 chưa có cảnh báo nên chưa ai đau. Đây là **nợ kỹ
-thuật có ghi chép** — sẽ trả ở Phase 5 cùng lúc với việc dựng metrics, khi đã biết rõ cảnh
+thuật có ghi chép** — sẽ trả ở Phase 6 cùng lúc với việc dựng metrics, khi đã biết rõ cảnh
 báo được cấu hình thế nào. Sửa bây giờ là đoán mò yêu cầu chưa tồn tại.
 
 ---
@@ -251,7 +251,7 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 | Câu hỏi | File |
 |---|---|
 | Dự án này là gì, chạy thế nào | [`README.md`](../README.md) |
-| Sẽ làm gì ở 7 phase, Definition of Done | [`docs/SPEC.md`](SPEC.md) |
+| Sẽ làm gì ở 8 phase, Definition of Done | [`docs/SPEC.md`](SPEC.md) |
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`project-context.md`](../project-context.md) |
 | Tên gọi của các bài toán sẽ gặp | [`docs/glossary.md`](glossary.md) |
 | Chi tiết Phase 0 đã làm gì, test nào pass | [`docs/specs/phase0-nen-mong.md`](specs/phase0-nen-mong.md) |

@@ -13,7 +13,7 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 ## Tài liệu bắt buộc đọc
 - `docs/architecture.md` — bản đồ code: file nào làm gì, định nghĩa ở đâu, ba quy tắc
   cấu trúc. Đọc trước khi thêm/sửa file trong `src/`.
-- `docs/SPEC.md` — spec gốc: 7 phase, deliverable, Definition of Done
+- `docs/SPEC.md` — spec gốc: 8 phase, deliverable, Definition of Done
 - `docs/specs/` — spec chi tiết từng tính năng (viết trước khi code)
 - `docs/adr/` — các quyết định kiến trúc đã chốt
 - `docs/review-checklist.md` — checklist Tâm dùng để review code của bạn
