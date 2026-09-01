@@ -287,7 +287,8 @@ nhưng là điều kiện đóng phase: kết quả `EXPLAIN` dán vào phần c
       `products.attributes` — xem §Trạng thái thật (kết luận: Seq Scan thắng ở quy mô 10k dòng)
 - [x] `npm run check` xanh (lint + typecheck + test)
 - [x] `docs/architecture.md` cập nhật mục module `product/`
-- [ ] Tâm tự trả lời 3 câu hỏi bản chất của phase (mục ngay dưới) — cổng cuối trước khi đóng phase
+- [x] 3 câu hỏi bản chất của phase — **Claude trả lời theo yêu cầu trực tiếp của Tâm**, không
+      phải Tâm tự suy ra (xem ghi chú nguồn ở mục câu hỏi bản chất bên dưới)
 
 ## Ngoài phạm vi (Non-goals)
 
@@ -338,11 +339,41 @@ nested object/array) — đủ để tránh rác hoàn toàn tự do, nhưng v�
 
 ## Câu hỏi bản chất của phase
 
-(copy từ `docs/SPEC.md`, Tâm tự trả lời sau khi implement + đo)
+(copy từ `docs/SPEC.md`. Trả lời dưới đây do Tâm **yêu cầu Claude trả lời trực tiếp**
+2026-09-01, không phải Tâm tự suy ra — ghi rõ để biết nguồn, không tính là "đã tự kiểm tra
+hiểu bài" theo đúng tinh thần `project-context.md` §5.)
 
-- Cursor vs offset pagination khi dữ liệu lớn?
-- GIN vs B-tree?
-- Khi nào JSONB là lựa chọn tệ?
+**1. Cursor vs offset pagination khi dữ liệu lớn?**
+`OFFSET N` bắt Postgres đi qua index/bảng, đếm bỏ qua N dòng rồi mới lấy — chi phí tăng
+**tuyến tính** theo N. Keyset dùng `WHERE (created_at, id) < (mốc)` để index **nhảy thẳng**
+tới vị trí — chi phí gần như hằng số bất kể đang ở trang mấy. Số thật đo được (test #14):
+cùng vị trí dòng 80.000/100.000, offset đọc 78.563 block/88ms, keyset đọc 22 block/1,8ms —
+cùng một index, khác nhau ở **cách dùng** index. Đánh đổi: offset cho nhảy tới trang bất kỳ
+(trang 47) trực tiếp; keyset chỉ đi tiếp/lùi tuần tự từ một mốc, không nhảy được tới "trang
+47" nếu chưa đi qua — hợp với kiểu cuộn vô hạn (infinite scroll), không hợp với UI có số
+trang bấm được.
+
+**2. GIN vs B-tree hợp cho loại truy vấn nào?**
+B-tree: mỗi dòng ứng với **một** giá trị trong cây, hợp `=`, `<`, `>`, `BETWEEN`,
+`ORDER BY` — đúng kiểu cột `size`, `price_vnd`, `created_at`. GIN (Generalized Inverted
+iNdex): hợp giá trị **nhiều phần tử trong một ô** — mỗi phần tử (một key JSONB, một từ
+trong văn bản, một phần tử mảng) trỏ ngược lại danh sách dòng chứa nó, giống mục lục cuối
+sách ("từ X" → trang 12, 45, 90). Hợp cho `@>` (containment), `&&`/`@>` trên mảng, `@@`
+full-text — **không** hợp thay B-tree cho so sánh scalar thường. Có GIN không có nghĩa nó
+luôn thắng: test #15 cho thấy trên 10.000 dòng, Seq Scan (1,65ms) nhỉnh hơn cả truy vấn có
+GIN (1,92ms) — GIN phải tra cấu trúc RỒI đọc lại dòng thật (`Recheck Cond`), chỉ đáng giá
+khi việc đó giúp **bỏ qua** phần lớn dữ liệu.
+
+**3. Khi nào JSONB là lựa chọn tệ?**
+- Cần ràng buộc tập giá trị đóng: JSONB không `CHECK` được nội dung bên trong (gõ nhầm
+  `"coton"` DB vẫn nhận) — đây là lý do `size`/`color` là cột `enum`/`string` thật, không
+  nhét vào `attributes`.
+- Cần join/filter cao tần trên đúng field đó: so sánh containment JSONB luôn tốn hơn so
+  sánh bằng trên cột index thẳng, và JSONB không làm khoá ngoại được.
+- Bảng nhỏ hoặc field ít khi bị lọc: GIN có phí ghi (mỗi `INSERT`/`UPDATE` phải cập nhật
+  cấu trúc index) — trả phí đó mỗi lần ghi mà ít khi query theo field ấy là lỗ.
+- Cần đổi cấu trúc dữ liệu về sau: JSONB "linh hoạt" đổi lại là im lặng — không có migration
+  tự động kiểu đổi kiểu cột; đổi shape JSON đang dùng thật thì phải tự viết script backfill.
 
 ## Kiến thức cần có trước khi code
 

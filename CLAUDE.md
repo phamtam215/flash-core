@@ -147,7 +147,9 @@ Muốn xem lại thì `git log -- .claude/`.
   phải index luôn thắng) đã dán vào §Trạng thái thật cuối spec. Hai bug thật tìm thấy khi
   chạy trên môi trường thật: guard dùng chéo module thiếu dependency (2 phần, xem
   `docs/architecture.md` §Những chỗ dễ vấp), và seed thiếu `updated_at` khi insert thẳng.
-  **Còn lại: Tâm đọc + tự trả lời 3 câu hỏi bản chất của phase**, rồi review/push.
+  **Definition of Done đủ 6/6** — 3 câu hỏi bản chất đã có trả lời (Claude trả lời theo yêu
+  cầu trực tiếp, ghi rõ nguồn trong spec, không tính là Tâm tự kiểm tra hiểu bài). Còn lại:
+  Tâm review diff + push.
 - **Biến môi trường mới** (Phase 1) phải thêm vào `.env` và `.env.example`: `JWT_ACCESS_SECRET`,
   `JWT_REFRESH_SECRET` (mỗi cái ≥32 ký tự). Thiếu là app chết lúc khởi động.
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2** (§Ngân
