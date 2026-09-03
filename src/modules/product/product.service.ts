@@ -1,30 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import { decodeCursor, encodeCursor } from './product.cursor';
+import { decodeCursor, paginate } from '../../common';
 import { ProductNotFoundError, SkuAlreadyExistsError, SkuNotFoundError, SlugAlreadyExistsError } from './product.errors';
 import type { CreateProductDto, ListQueryDto, SkuInput, UpdateProductDto, UpdateSkuDto } from './product.dto';
 import { ProductRepository } from './product.repository';
 import { slugify } from './product.slug';
-
-interface Page<T> {
-  items: T[];
-  nextCursor: string | null;
-}
-
-/**
- * Cắt đúng `limit` dòng từ kết quả `limit + 1` mà repository trả về, và tính `nextCursor` từ
- * dòng CUỐI CÙNG được giữ lại (không phải dòng dư ra) — xem
- * docs/specs/phase2-product-inventory.md §Cursor pagination.
- */
-function paginate<T extends { createdAt: Date; id: string }>(rows: T[], limit: number): Page<T> {
-  const hasMore = rows.length > limit;
-  const items = hasMore ? rows.slice(0, limit) : rows;
-  const last = items.at(-1);
-  return {
-    items,
-    nextCursor: hasMore && last ? encodeCursor(last) : null,
-  };
-}
 
 @Injectable()
 export class ProductService {

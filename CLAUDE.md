@@ -128,7 +128,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
-- Phase hiện tại: **Phase 2 — Product & Inventory** (bắt đầu 2026-08-29)
+- Phase hiện tại: **Phase 3 — Order & Concurrency** ⭐ (bắt đầu 2026-09-03)
 - **Phase 0 ĐÃ ĐÓNG** 2026-08-08 — hồ sơ ở `docs/phase-0-checklist.md`. Kết quả: skeleton
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
@@ -152,5 +152,14 @@ Muốn xem lại thì `git log -- .claude/`.
   Tâm review diff + push.
 - **Biến môi trường mới** (Phase 1) phải thêm vào `.env` và `.env.example`: `JWT_ACCESS_SECRET`,
   `JWT_REFRESH_SECRET` (mỗi cái ≥32 ký tự). Thiếu là app chết lúc khởi động.
-- Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2** (§Ngân
+- **Phase 3 — code xong, CHƯA chạy integration test** theo
+  `docs/specs/phase3-order-concurrency.md`: module `order` (đặt hàng, Idempotency-Key,
+  snapshot price, cursor pagination đơn), **3 chiến lược chống oversell** đổi bằng
+  `INVENTORY_STRATEGY` (optimistic / pessimistic `SELECT FOR UPDATE` / Redis Lua), migration
+  `Order`/`OrderItem` + cột `ProductSku.version`, ADR-003 chốt module nào sở hữu logic trừ kho.
+  **52/52 unit test pass**, lint/typecheck/build sạch. Cursor pagination chuyển từ
+  `modules/product/` ra `common/pagination/` vì đã có 2 module dùng.
+  **Còn lại:** `npm run test:int` (test #8 — 200 request song song × 3 chiến lược — chưa chạy
+  lần nào) và benchmark k6 (test #16).
+- Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân
   sách tài liệu) — spec đã là danh sách việc.

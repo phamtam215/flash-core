@@ -8,4 +8,12 @@
 export { DomainError } from './errors/domain.error';
 export { AllExceptionsFilter } from './filters/all-exceptions.filter';
 export { ZodValidationPipe } from './pipes/zod-validation.pipe';
+export {
+  decodeCursor,
+  encodeCursor,
+  paginate,
+  InvalidCursorError,
+  type Cursor,
+  type Page,
+} from './pagination/cursor';
 export { LoggerModule, CORRELATION_ID_HEADER } from './logger/logger.module';

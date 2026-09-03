@@ -1,7 +1,6 @@
-import { decodeCursor, encodeCursor } from './product.cursor';
-import { InvalidCursorError } from './product.errors';
+import { decodeCursor, encodeCursor, InvalidCursorError } from './cursor';
 
-describe('product.cursor', () => {
+describe('common/pagination/cursor', () => {
   it('round-trip: decode(encode(x)) === x', () => {
     const original = {
       createdAt: new Date('2026-08-29T12:34:56.789Z'),
@@ -21,7 +20,7 @@ describe('product.cursor', () => {
     expect(cursor).not.toContain('_');
   });
 
-  it('cursor rác (test case #9 trong spec) → ném InvalidCursorError, không phải 500', () => {
+  it('cursor rác (test case #9 trong spec Phase 2) → ném InvalidCursorError, không phải 500', () => {
     expect(() => decodeCursor('abc-khong-decode-duoc')).toThrow(InvalidCursorError);
   });
 

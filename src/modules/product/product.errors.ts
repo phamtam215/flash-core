@@ -47,12 +47,3 @@ export class SkuAlreadyExistsError extends DomainError {
     super('Biến thể (size + màu) này đã tồn tại cho sản phẩm');
   }
 }
-
-export class InvalidCursorError extends DomainError {
-  readonly httpStatus = HttpStatus.BAD_REQUEST;
-  readonly code = 'INVALID_CURSOR';
-
-  constructor() {
-    super('Cursor không hợp lệ');
-  }
-}

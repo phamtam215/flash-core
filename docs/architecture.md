@@ -5,7 +5,7 @@
 > Khác với `README.md` (giới thiệu dự án cho người ngoài) và `docs/SPEC.md` (nói sẽ làm gì),
 > file này mô tả **code hiện có**. Cập nhật mỗi khi thêm module mới.
 >
-> Trạng thái: Phase 2. Code hiện tại ~2 600 dòng.
+> Trạng thái: Phase 3. Code hiện tại ~3 500 dòng.
 
 ---
 
@@ -24,6 +24,7 @@
 | 7 | [`src/common/filters/all-exceptions.filter.ts`](../src/common/filters/all-exceptions.filter.ts) (99) | Lỗi đi đâu về đâu |
 | 8 | [`src/modules/auth/auth.service.ts`](../src/modules/auth/auth.service.ts) (Phase 1) | Argon2, xoay token, **reuse detection** |
 | 9 | [`src/modules/product/product.repository.ts`](../src/modules/product/product.repository.ts) (Phase 2) | Cursor pagination, tồn kho theo SKU |
+| 10 | [`src/modules/order/strategies/`](../src/modules/order/strategies/) (Phase 3) ⭐ | **Ba cách chống oversell** — đọc cả 3 file, mỗi file có mục "thắng khi / thua khi" |
 
 Sau đó đọc [`test/health.e2e-spec.ts`](../test/health.e2e-spec.ts) — nó cho thấy toàn bộ
 chuỗi trên chạy thật với Postgres thật.
@@ -110,6 +111,7 @@ flash-core/
 │   │   ├── errors/domain.error.ts  lớp cha cho lỗi nghiệp vụ (không biết gì về HTTP)
 │   │   ├── filters/…filter.ts      1 hình dạng response lỗi + phân loại 4xx vs 5xx
 │   │   ├── pipes/…pipe.ts          ZodValidationPipe — validate input ở biên
+│   │   ├── pagination/cursor.ts    keyset cursor (Phase 3 chuyển từ product/ ra vì ≥2 module dùng)
 │   │   ├── logger/logger.module.ts Pino + genReqId(correlationId) + redact dữ liệu nhạy cảm
 │   │   └── index.ts                public interface
 │   │
@@ -142,6 +144,15 @@ flash-core/
 │   │   │   ├── product.cursor.ts     encode/decode cursor base64url (createdAt, id)
 │   │   │   ├── product.slug.ts       slugify + sinh sku_code (bỏ dấu tiếng Việt)
 │   │   │   └── index.ts              chỉ export ProductModule (chưa module nào khác cần)
+│   │   ├── order/                   (Phase 3) ⭐ đặt hàng + chống oversell
+│   │   │   ├── order.controller.ts   HTTP: 201 khi tạo mới, 200 khi Idempotency-Key trùng
+│   │   │   ├── order.service.ts      reserve → tạo đơn; hoàn kho khi key trùng
+│   │   │   ├── order.repository.ts   MỌI câu SQL chạm tồn kho nằm ở đây (ADR-003)
+│   │   │   ├── inventory-reserver.ts hợp đồng chung của 3 chiến lược + token DI
+│   │   │   ├── strategies/           optimistic | pessimistic | redis (Lua)
+│   │   │   ├── order.dto.ts          Zod: KHÔNG có field price (snapshot price)
+│   │   │   ├── order.errors.ts       hết hàng = 409, KHÔNG phải 500
+│   │   │   └── index.ts              chỉ export OrderModule
 │   │   └── health/                 module mẫu — copy cấu trúc này khi tạo module mới
 │   │       ├── health.controller.ts  HTTP: nhận request → gọi service → map response
 │   │       ├── health.service.ts     logic: liveness vs readiness
@@ -155,6 +166,7 @@ flash-core/
 │   ├── health.e2e-spec.ts
 │   ├── auth.e2e-spec.ts
 │   ├── product.e2e-spec.ts
+│   ├── order.e2e-spec.ts
 │   └── jest-integration.json       config jest riêng cho integration (chậm, cần Docker)
 │
 ├── prisma/schema.prisma          ← định nghĩa bảng DB
@@ -187,6 +199,7 @@ Cách CI hoạt động và cách bộ test được chia tầng: [`tech-playboo
 | Thêm **loại lỗi nghiệp vụ** | class kế thừa `DomainError` trong module | Filter tự map sang HTTP, không cần sửa filter |
 | Đổi **hình dạng response lỗi** | `src/common/filters/all-exceptions.filter.ts` | Đổi 1 chỗ, áp dụng toàn app |
 | Thêm **field bị che trong log** | `redact.paths` trong `logger.module.ts` | Che ở tầng logger, đừng dựa vào "nhớ đừng log" |
+| Đổi **chiến lược chống oversell** | `INVENTORY_STRATEGY` trong `.env` (`optimistic`/`pessimistic`/`redis`) | Không sửa code. Factory ở `order.module.ts` là chỗ duy nhất biết biến này |
 | Đổi **pool size DB** | `DATABASE_POOL_MAX` trong `.env` | Biến này quan trọng ở Phase 3 — xem ghi chú trong `prisma.service.ts` |
 | Thêm **unit test** | file `*.spec.ts` cạnh code | Chạy `npm test` |
 | Thêm **integration test** | `test/*.e2e-spec.ts` | Chạy `npm run test:int`, cần Docker |

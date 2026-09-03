@@ -13,7 +13,8 @@
 //
 // Phase 1 thêm `User` và `RefreshToken` (spec: docs/specs/phase1-auth.md).
 // Phase 2 thêm `Product` và `ProductSku` (spec: docs/specs/phase2-product-inventory.md).
-// Đơn hàng thuộc Phase 3.
+// Phase 3 thêm `Order` và `OrderItem` (spec: docs/specs/phase3-order-concurrency.md), và cột
+// `ProductSku.version` cho chiến lược optimistic.
 //
 // Ghi chú cho phase sau:
 // - Tồn kho theo SKU biến thể (size × màu) — quyết định #2 trong project-context.md. Nằm ở
@@ -36,7 +37,7 @@ datasource db {
 
 /// Bảng kỹ thuật duy nhất của Phase 0: để `prisma generate` có model mà sinh client, và
 /// để integration test có thứ thật để ghi/đọc khi kiểm chứng kết nối DB.
-/// Phase 5 sẽ dùng lại nó để lưu mốc kiểm tra readiness.
+/// Phase 6 sẽ dùng lại nó để lưu mốc kiểm tra readiness.
 model HealthProbe {
   id        String   @id @default(uuid()) @db.Uuid
   checkedAt DateTime @default(now()) @map("checked_at")
@@ -56,6 +57,7 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
 
   refreshTokens RefreshToken[]
+  orders        Order[]
 
   @@map("users")
 }
@@ -130,18 +132,27 @@ model Product {
 /// Biến thể bán được thật sự: một tổ hợp size × màu của một Product. Tồn kho gắn Ở ĐÂY,
 /// không phải ở Product — "sản phẩm còn hàng" là suy ra từ "còn SKU nào của nó stock > 0".
 model ProductSku {
-  id        String   @id @default(uuid()) @db.Uuid
-  productId String   @map("product_id") @db.Uuid
+  id        String  @id @default(uuid()) @db.Uuid
+  productId String  @map("product_id") @db.Uuid
   size      SkuSize
   color     String
-  skuCode   String   @unique @map("sku_code") // mã đọc được cho vận hành, vd AOTHUN-DEN-M
-  priceVnd  Int      @map("price_vnd") // VND, Int — không Float cho tiền
+  skuCode   String  @unique @map("sku_code") // mã đọc được cho vận hành, vd AOTHUN-DEN-M
+  priceVnd  Int     @map("price_vnd") // VND, Int — không Float cho tiền
   stock     Int
-  isActive  Boolean  @default(true) @map("is_active")
+  isActive  Boolean @default(true) @map("is_active")
+
+  /// Tăng 1 mỗi lần tồn kho đổi — dùng cho chiến lược optimistic (Phase 3).
+  ///
+  /// Cột này KHÔNG cần thiết để chống oversell: `UPDATE ... WHERE stock >= ?` đã an toàn ngay
+  /// ở Read Committed, vì Postgres đánh giá lại `WHERE` trên phiên bản mới nhất sau khi chờ
+  /// khoá. Nó có mặt để (a) so sánh đúng nghĩa "optimistic locking" trong benchmark, (b) sẵn
+  /// sàng cho trường hợp phải update nhiều field phụ thuộc nhau.
+  version   Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
 
   // Một product không có 2 SKU trùng size+màu — lưới chặn double-submit ở tầng DB.
   @@unique([productId, size, color])
@@ -149,4 +160,64 @@ model ProductSku {
   @@index([createdAt, id])
   @@index([productId])
   @@map("product_skus")
+}
+
+enum OrderStatus {
+  PENDING /// đã giữ chỗ, chờ thanh toán
+  PAID /// Phase 4 chuyển sang khi webhook thanh toán xác nhận
+  CANCELLED /// Phase 4: hết 15 phút tự hủy, hoặc user tự hủy
+}
+
+/// Đơn hàng.
+///
+/// `idempotencyKey` + `UNIQUE(userId, idempotencyKey)` LÀ cơ chế chống double-submit: DB là
+/// trọng tài duy nhất. Cách sai là `SELECT` xem key tồn tại chưa rồi mới `INSERT` — giữa hai
+/// bước đó có request khác chen vào được, đúng kiểu lost update mà cả phase này đang chống.
+/// UNIQUE theo `userId` (không phải toàn cục) để hai user tình cờ gửi cùng một chuỗi không
+/// chặn nhau.
+model Order {
+  id     String      @id @default(uuid()) @db.Uuid
+  userId String      @map("user_id") @db.Uuid
+  status OrderStatus @default(PENDING)
+
+  /// Tổng tiền chốt tại thời điểm đặt = Σ(unitPriceVnd × quantity). Int, VND.
+  totalVnd       Int    @map("total_vnd")
+  idempotencyKey String @map("idempotency_key")
+
+  /// Mốc hết hạn giữ chỗ (createdAt + 15 phút). Phase 3 chỉ GHI cột này — job tự hủy khi quá
+  /// hạn là deliverable của Phase 4 (BullMQ delayed job).
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+
+  @@unique([userId, idempotencyKey])
+  // Tra đơn của một user, mới nhất trước — phục vụ keyset pagination của GET /orders.
+  @@index([userId, createdAt, id])
+  // Phase 4 quét đơn PENDING đã quá hạn.
+  @@index([status, expiresAt])
+  @@map("orders")
+}
+
+/// Một dòng trong đơn.
+///
+/// `unitPriceVnd` là SNAPSHOT PRICE — copy giá SKU tại thời điểm đặt, KHÔNG join lấy giá hiện
+/// tại khi đọc đơn. Lý do: sale kết thúc, giá SKU về giá gốc, mà đơn đã chốt thì số tiền không
+/// được đổi theo. Đây cũng là lý do client KHÔNG được gửi giá lên trong body.
+model OrderItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  orderId      String   @map("order_id") @db.Uuid
+  skuId        String   @map("sku_id") @db.Uuid
+  quantity     Int
+  unitPriceVnd Int      @map("unit_price_vnd")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  order Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku   ProductSku @relation(fields: [skuId], references: [id])
+
+  @@index([orderId])
+  @@index([skuId])
+  @@map("order_items")
 }

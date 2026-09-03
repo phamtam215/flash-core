@@ -358,3 +358,31 @@ giới hạn tự nhiên. Thêm rate limit lúc này sẽ làm nhiễu số đo 
 - Vì sao read→if→write **chắc chắn** oversell dưới tải cao?
 - Isolation level mặc định của Postgres là gì, và nó cho phép anomaly nào?
 - Redis chết sau khi trừ kho nhưng trước khi ghi DB thì sao?
+
+## Trạng thái thật (2026-09-03)
+
+**Đã xong, tự kiểm chứng được (không cần Docker):**
+- Module `order` đủ 11 file: controller/service/repository/dto/errors + `inventory-reserver.ts`
+  (hợp đồng + token) + 3 strategy + module/index
+- Schema + migration `20260901120000_add_order_concurrency` (viết tay — Docker tắt lúc code):
+  `Order`, `OrderItem`, enum `OrderStatus`, cột `ProductSku.version`, 3 `CHECK` constraint
+- **ADR-003** đã chốt: `order` sở hữu logic trừ kho, kèm giới hạn tự đặt (chỉ ghi 2 cột
+  `stock`/`version`, và chỉ trong `order.repository.ts`) để nợ không lan
+- Cả 6 câu hỏi mở đã quyết theo khuyến nghị trong spec (Tâm chốt câu #1 trực tiếp)
+- **52/52 unit test pass** (43 cũ + 9 mới cho `order.dto`), lint/typecheck/build sạch
+- Cursor pagination chuyển từ `modules/product/product.cursor.ts` ra
+  `common/pagination/cursor.ts` — đúng luật `architecture.md`: `common/` chỉ chứa thứ **≥2
+  module** dùng, và Phase 3 là lúc điều kiện đó thành đúng
+
+**CHƯA xác nhận — cần chạy `npm run test:int`:**
+- [ ] Test #1–15 (`test/order.e2e-spec.ts`) **chưa chạy lần nào**. Testcontainers không khởi
+      động được trong sandbox của Claude (chạy được ngoài Jest, không chạy trong Jest — vấn đề
+      môi trường, không phải code), nên phần này Tâm chạy
+- [ ] Test #8 là cổng chính: 200 request song song × 3 chiến lược
+- [ ] Migration viết tay chưa chạy trên Postgres thật — nếu SQL sai, `prisma migrate deploy`
+      trong `beforeAll` sẽ báo lỗi rõ ràng ngay, không âm thầm (Phase 2 làm cách này, đúng
+      ngay lần đầu)
+- [ ] Test #16: benchmark k6 — chưa có script `k6/`, sẽ làm sau khi #1–15 xanh
+
+**Việc kế tiếp:** `npm run up` → `npm run test:int` → sửa nếu đỏ → viết script k6 → chạy
+benchmark 3 chiến lược → dán số vào đây.

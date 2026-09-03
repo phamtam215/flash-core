@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import type { Cursor } from '../../common';
 import { PrismaService } from '../../infra/prisma';
-import type { Cursor } from './product.cursor';
 import type { CreateProductDto, SkuInput, UpdateProductDto, UpdateSkuDto } from './product.dto';
 import { generateSkuCode } from './product.slug';
 
