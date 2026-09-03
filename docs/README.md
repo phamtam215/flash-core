@@ -19,6 +19,7 @@ khác chỉ được **trỏ link tới**, không chép lại.
 | Tên gọi của các bài toán | [`glossary.md`](glossary.md) | — |
 | **Cơ chế / bug / tình huống thật của từng phase**, và **CI + Testing** (xuyên suốt) | [`tech-playbook.md`](tech-playbook.md) | glossary |
 | Chuẩn commit, quy tắc nhánh | [`git-workflow.md`](git-workflow.md) | — |
+| **Bản HTML đọc offline** (`docs/html/index.html`) | sinh từ chính các file `.md` ở đây bằng `npm run docs:html` | — |
 | Checklist review code | [`review-checklist.md`](review-checklist.md) | — |
 
 Bộ công cụ Claude Code (2 lệnh + 3 hook) được mô tả gọn ngay trong `CLAUDE.md` §Bộ công cụ,

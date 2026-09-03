@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ADR-001: Modular Monolith thay vì Microservices</title>
+<title>ADR-001: Modular Monolith</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -20,7 +20,7 @@
 <p><strong>Modular Monolith</strong>: một process, một lần deploy, nhưng module có ranh giới rõ và chỉ nói chuyện với nhau qua public interface (<code>index.ts</code> + injection token).</p>
 <h2 id="các-lựa-chọn-đã-cân-nhắc">Các lựa chọn đã cân nhắc</h2>
 <ul><li><strong>Microservices</strong> — <em>ưu</em>: nghe kêu trên CV; tách scale được từng phần. <em>nhược</em>: với một người, toàn bộ thời gian sẽ chảy vào hạ tầng (service discovery, distributed tracing, saga, deploy nhiều service) thay vì vào concurrency. Tệ hơn: <strong>oversell trong hệ phân tán là bài toán khác</strong> — mất đi khả năng dùng transaction và lock của một database duy nhất, tức là mất đúng thứ muốn học.</li><li><strong>Monolith thường</strong> (chia thư mục, không có ranh giới) — <em>ưu</em>: nhanh nhất. <em>nhược</em>: sau 6 tháng thành mớ phụ thuộc chằng chịt, và không kể được câu chuyện kiến trúc nào.</li><li><strong>Modular Monolith</strong> ✅ — giữ được transaction/lock của một DB, vẫn có ranh giới để nói chuyện, và tách ra service riêng sau này là việc đổi phần implement chứ không phải viết lại.</li></ul>
-<h2 id="hệ-quả--trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
+<h2 id="hệ-quả-trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
 <p><strong>Được:</strong> giữ nguyên vũ khí cần cho Phase 3 — <code>SELECT FOR UPDATE</code>, isolation level, một connection pool đo được. Deploy một container lên Cloud Run, hợp mục tiêu 0đ/tháng.</p>
 <p><strong>Mất:</strong> không scale riêng từng phần được. Chấp nhận vì tải thật của dự án là <strong>local k6</strong>, không phải production.</p>
 <p><strong>Ranh giới được enforce bằng hai tầng — cả hai đều là máy, không phải người:</strong></p>

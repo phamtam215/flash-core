@@ -169,6 +169,9 @@ flash-core/
 │   ├── order.e2e-spec.ts
 │   └── jest-integration.json       config jest riêng cho integration (chậm, cần Docker)
 │
+├── scripts/build-docs-html.mjs   ← sinh docs/html/ từ Markdown (`npm run docs:html`)
+├── docs/html/                    ← bản HTML đọc offline; mở `index.html`
+│
 ├── k6/                           ← benchmark 1.000 VU cho 3 chiến lược (CHỈ chạy local)
 │   ├── flash-sale.js               đếm RIÊNG 201/409/4xx/5xx — xem vì sao trong file
 │   └── seed-target.js              tạo user + SKU stock=100, in ra lệnh k6 kèm token
@@ -203,6 +206,7 @@ Cách CI hoạt động và cách bộ test được chia tầng: [`tech-playboo
 | Thêm **loại lỗi nghiệp vụ** | class kế thừa `DomainError` trong module | Filter tự map sang HTTP, không cần sửa filter |
 | Đổi **hình dạng response lỗi** | `src/common/filters/all-exceptions.filter.ts` | Đổi 1 chỗ, áp dụng toàn app |
 | Thêm **field bị che trong log** | `redact.paths` trong `logger.module.ts` | Che ở tầng logger, đừng dựa vào "nhớ đừng log" |
+| Sửa **tài liệu** rồi muốn bản HTML khớp lại | `npm run docs:html` | Sinh lại 5 trang tham khảo + 3 ADR trong `docs/html/`. `index.html` và `phase-*.html` là trang viết tay, script KHÔNG ghi đè |
 | Đổi **chiến lược chống oversell** | `INVENTORY_STRATEGY` trong `.env` (`optimistic`/`pessimistic`/`redis`) | Không sửa code. Factory ở `order.module.ts` là chỗ duy nhất biết biến này |
 | Đổi **pool size DB** | `DATABASE_POOL_MAX` trong `.env` | Biến này quan trọng ở Phase 3 — xem ghi chú trong `prisma.service.ts` |
 | Thêm **unit test** | file `*.spec.ts` cạnh code | Chạy `npm test` |
