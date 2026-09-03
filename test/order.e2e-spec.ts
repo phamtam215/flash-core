@@ -72,7 +72,55 @@ describe('Order (e2e)', () => {
     const app = moduleRef.createNestApplication();
     app.use(cookieParser());
     await app.init();
+
+    // `listen(0)` = xin HĐH một cổng trống. Bắt buộc cho các test bắn song song: supertest tự
+    // `listen()` rồi ĐÓNG server sau mỗi request, nên khi 200 request chạy cùng lúc, request
+    // này bị cắt socket vì request khác vừa kết thúc → `read ECONNRESET`. Có server thật đứng
+    // sẵn thì không còn vòng mở-đóng đó, và cũng giống cách k6 sẽ bắn ở test #16 hơn.
+    await app.listen(0);
     return app;
+  }
+
+  /** `http://127.0.0.1:<cổng thật>` của app đang listen. */
+  function baseUrlOf(app: INestApplication): string {
+    const address = app.getHttpServer().address() as { port: number };
+    return `http://127.0.0.1:${String(address.port)}`;
+  }
+
+  /**
+   * Đăng nhập và lấy CHUỖI access token, để bắn request song song bằng `fetch` với header
+   * `Cookie` tự gắn — không đi qua supertest agent nữa.
+   */
+  async function accessTokenOf(app: INestApplication): Promise<string> {
+    const email = `order-${randomUUID()}@example.com`;
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email, password: 'matkhau123' }).expect(201);
+    const login = await agent.post('/auth/login').send({ email, password: 'matkhau123' }).expect(200);
+
+    const cookies = login.headers['set-cookie'] as string[] | string | undefined;
+    const list = Array.isArray(cookies) ? cookies : cookies ? [cookies] : [];
+    const token = list.find((c) => c.startsWith('access_token='))?.split(';')[0]?.split('=')[1];
+    if (!token) throw new Error('không lấy được access_token từ cookie');
+    return token;
+  }
+
+  /** Bắn `POST /orders` bằng fetch — dùng cho mọi test song song. Trả về status code. */
+  async function placeViaFetch(
+    baseUrl: string,
+    token: string,
+    skuId: string,
+    quantity = 1,
+  ): Promise<number> {
+    const res = await fetch(`${baseUrl}/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
+        Cookie: `access_token=${token}`,
+      },
+      body: JSON.stringify({ skuId, quantity }),
+    });
+    return res.status;
   }
 
   /** Đăng ký + đăng nhập một user mới, trả về agent đã giữ cookie phiên. */
@@ -305,24 +353,18 @@ describe('Order (e2e)', () => {
 
     it('200 request song song vào SKU stock = 100 → đúng 100 đơn, 100 lần 409, stock = 0', async () => {
       const skuId = await seedSku(app, { stock: 100, priceVnd: 100_000 });
-      const agent = await loginAsNewUser(app);
+      const token = await accessTokenOf(app);
+      const baseUrl = baseUrlOf(app);
 
-      // MỘT user, 200 `Idempotency-Key` KHÁC NHAU. Key khác nhau là đủ để idempotency không
-      // phải yếu tố quyết định — thứ đang đo là tranh chấp tồn kho.
+      // MỘT user, 200 `Idempotency-Key` khác nhau, bắn bằng `fetch` vào server thật.
       //
-      // Lần đầu viết test này dùng 200 user riêng và nó ĐỎ với `read ECONNRESET` ở cả ba
-      // chiến lược: 200 lần register + 200 lần login = 400 lần hash Argon2 (mỗi lần 19 MiB,
-      // chạy qua threadpool 4 luồng của libuv) làm Node tắc trước khi kịp tranh chấp tồn kho.
-      // Bài học: khi test concurrency đỏ, kiểm tra xem thứ vỡ có đúng là thứ mình muốn đo
-      // không — ở đó là bộ tạo tải, không phải hệ thống được đo.
+      // Hai lần đầu viết test này đều ĐỎ vì BỘ TẠO TẢI, không vì code: lần 1 dùng 200 user
+      // riêng (400 lần hash Argon2 làm Node tắc), lần 2 dùng supertest agent bắn song song
+      // (supertest tự mở/đóng server mỗi request nên socket bị cắt giữa dòng). Bài học đáng
+      // giá hơn cả kết quả: khi test concurrency đỏ, hỏi trước "thứ vừa vỡ có đúng là thứ
+      // mình muốn đo không".
       const results = await Promise.all(
-        Array.from({ length: 200 }, () =>
-          agent
-            .post('/orders')
-            .set('Idempotency-Key', randomUUID())
-            .send({ skuId, quantity: 1 })
-            .then((res) => res.status),
-        ),
+        Array.from({ length: 200 }, () => placeViaFetch(baseUrl, token, skuId)),
       );
 
       const created = results.filter((s) => s === 201).length;
@@ -344,14 +386,16 @@ describe('Order (e2e)', () => {
 
     it('13. stock = 1, hai request song song → đúng 1 thắng', async () => {
       const skuId = await seedSku(app, { stock: 1 });
-      const agent = await loginAsNewUser(app);
+      const token = await accessTokenOf(app);
+      const baseUrl = baseUrlOf(app);
 
-      const results = await Promise.all([
-        agent.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
-        agent.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
-      ]);
+      const statuses = (
+        await Promise.all([
+          placeViaFetch(baseUrl, token, skuId),
+          placeViaFetch(baseUrl, token, skuId),
+        ])
+      ).sort((x, y) => x - y);
 
-      const statuses = results.map((r) => r.status).sort((x, y) => x - y);
       expect(statuses).toEqual([201, 409]);
     }, 60_000);
   });
@@ -371,12 +415,11 @@ describe('Order (e2e)', () => {
 
     it('14. sau 50 reserve song song, tồn kho Redis khớp tồn kho DB', async () => {
       const skuId = await seedSku(app, { stock: 60 });
-      const agent = await loginAsNewUser(app);
+      const token = await accessTokenOf(app);
+      const baseUrl = baseUrlOf(app);
 
       await Promise.all(
-        Array.from({ length: 50 }, () =>
-          agent.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
-        ),
+        Array.from({ length: 50 }, () => placeViaFetch(baseUrl, token, skuId)),
       );
 
       const prisma = app.get(PrismaService);
