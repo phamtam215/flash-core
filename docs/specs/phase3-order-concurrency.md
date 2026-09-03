@@ -382,7 +382,12 @@ giới hạn tự nhiên. Thêm rate limit lúc này sẽ làm nhiễu số đo 
 - [ ] Migration viết tay chưa chạy trên Postgres thật — nếu SQL sai, `prisma migrate deploy`
       trong `beforeAll` sẽ báo lỗi rõ ràng ngay, không âm thầm (Phase 2 làm cách này, đúng
       ngay lần đầu)
-- [ ] Test #16: benchmark k6 — chưa có script `k6/`, sẽ làm sau khi #1–15 xanh
+- [ ] Test #16: benchmark k6 — **script đã có** (`k6/flash-sale.js` + `k6/seed-target.js`),
+      nhưng `k6` chưa được cài trên máy (`brew install k6`) và chưa chạy lần nào.
+      Script cố tình đếm RIÊNG 201 / 409 / 4xx khác / 5xx, vì nhìn `http_req_failed` chung sẽ
+      thấy "error rate 90%" trong khi 409 (hết hàng) là kết quả ĐÚNG kỳ vọng.
+      Không thêm npm script kiểu `npm run bench`: hook `guard_cloud_cost.py` nhận diện chuỗi
+      `k6 run`, gói nó vào npm script sẽ làm hook mất tác dụng.
 
 **Việc kế tiếp:** `npm run up` → `npm run test:int` → sửa nếu đỏ → viết script k6 → chạy
 benchmark 3 chiến lược → dán số vào đây.
