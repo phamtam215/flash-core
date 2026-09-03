@@ -374,14 +374,27 @@ giới hạn tự nhiên. Thêm rate limit lúc này sẽ làm nhiễu số đo 
   `common/pagination/cursor.ts` — đúng luật `architecture.md`: `common/` chỉ chứa thứ **≥2
   module** dùng, và Phase 3 là lúc điều kiện đó thành đúng
 
-**CHƯA xác nhận — cần chạy `npm run test:int`:**
-- [ ] Test #1–15 (`test/order.e2e-spec.ts`) **chưa chạy lần nào**. Testcontainers không khởi
-      động được trong sandbox của Claude (chạy được ngoài Jest, không chạy trong Jest — vấn đề
-      môi trường, không phải code), nên phần này Tâm chạy
-- [ ] Test #8 là cổng chính: 200 request song song × 3 chiến lược
-- [ ] Migration viết tay chưa chạy trên Postgres thật — nếu SQL sai, `prisma migrate deploy`
-      trong `beforeAll` sẽ báo lỗi rõ ràng ngay, không âm thầm (Phase 2 làm cách này, đúng
-      ngay lần đầu)
+**Đã xác nhận trên Postgres/Redis thật — `npm run test:int` 49/49 XANH:**
+- [x] Test #1–15 tất cả pass, xác nhận 5 lần chạy liên tiếp (1 lần trên máy Tâm + 4 lần sau
+      khi dọn container rác)
+- [x] **Test #8 — cổng chính của phase: 200 request song song → đúng 100 đơn, 100 lần 409,
+      `stock` = 0, không lỗi 5xx nào. Đúng ở CẢ BA chiến lược.** Oversell = 0.
+- [x] Test #13 (stock=1, 2 request → đúng 1 thắng), #14 (Redis khớp DB sau 50 reserve),
+      #15 (Redis lệch DB → 409 + hoàn lại Redis, có log error)
+- [x] Migration viết tay chạy đúng ngay lần đầu qua `prisma migrate deploy`
+
+**Ba lần đỏ trên đường tới đó — đều là lỗi của TEST, không phải của code:**
+1. 200 user riêng ⇒ 400 lần hash Argon2 (19 MiB/lần, threadpool 4 luồng) làm Node tắc trước
+   khi kịp tranh chấp tồn kho → `ECONNRESET`.
+2. Sau khi bỏ Argon2 vẫn đỏ: **supertest tự `listen()` rồi đóng server mỗi request**, request
+   này bị cắt socket vì request khác vừa xong. Bằng chứng chốt: test #14 (trước đó XANH với 50
+   agent) lại đỏ với 1 agent ⇒ số agent mới là biến quyết định. Sửa bằng `app.listen(0)` +
+   `fetch`.
+3. `Could not find a working container runtime strategy` chập chờn: container rác dồn tới 14
+   cái làm Docker daemon trả lời chậm hơn timeout dò của Testcontainers. `docker container
+   prune -f` xong thì 4/4 lần xanh.
+
+Cả ba đã ghi vào `docs/tech-playbook.md` §Xuyên suốt → Testing → Bug hay gặp.
 - [ ] Test #16: benchmark k6 — **script đã có** (`k6/flash-sale.js` + `k6/seed-target.js`),
       nhưng `k6` chưa được cài trên máy (`brew install k6`) và chưa chạy lần nào.
       Script cố tình đếm RIÊNG 201 / 409 / 4xx khác / 5xx, vì nhìn `http_req_failed` chung sẽ

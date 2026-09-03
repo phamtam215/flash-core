@@ -152,14 +152,15 @@ Muốn xem lại thì `git log -- .claude/`.
   Tâm review diff + push.
 - **Biến môi trường mới** (Phase 1) phải thêm vào `.env` và `.env.example`: `JWT_ACCESS_SECRET`,
   `JWT_REFRESH_SECRET` (mỗi cái ≥32 ký tự). Thiếu là app chết lúc khởi động.
-- **Phase 3 — code xong, CHƯA chạy integration test** theo
+- **Phase 3 — code + integration test xong (49/49 xanh), còn benchmark k6** theo
   `docs/specs/phase3-order-concurrency.md`: module `order` (đặt hàng, Idempotency-Key,
   snapshot price, cursor pagination đơn), **3 chiến lược chống oversell** đổi bằng
   `INVENTORY_STRATEGY` (optimistic / pessimistic `SELECT FOR UPDATE` / Redis Lua), migration
   `Order`/`OrderItem` + cột `ProductSku.version`, ADR-003 chốt module nào sở hữu logic trừ kho.
   **52/52 unit test pass**, lint/typecheck/build sạch. Cursor pagination chuyển từ
   `modules/product/` ra `common/pagination/` vì đã có 2 module dùng.
-  **Còn lại:** `npm run test:int` (test #8 — 200 request song song × 3 chiến lược — chưa chạy
-  lần nào) và benchmark k6 (test #16).
+  **Test #8 (cổng chính) xanh ở cả ba chiến lược**: 200 request song song → đúng 100 đơn,
+  100 lần 409, `stock` = 0, không 5xx. Oversell = 0.
+  **Còn lại:** benchmark k6 (test #16) — script đã có ở `k6/`, cần `brew install k6`.
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân
   sách tài liệu) — spec đã là danh sách việc.
