@@ -32,17 +32,35 @@ function toAsciiCode(input: string, maxLength: number): string {
 }
 
 /**
+ * Băm chuỗi thành 4 ký tự base36 (FNV-1a 32-bit). Không phải hash mật mã — chỉ cần phân biệt
+ * được các slug có 16 ký tự đầu giống nhau, và cần **xác định** (cùng input ra cùng output).
+ */
+function shortHash(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36).toUpperCase().padStart(4, '0').slice(-4);
+}
+
+/**
  * Sinh `sku_code` đọc được cho vận hành, vd `productSlug="ao-thun-basic"`, `color="Đen"`,
- * `size="M"` → `"AOTHUNBASIC-DEN-M"`.
+ * `size="M"` → `"AOTHUNBASIC-DEN-M-3K7Q"`.
  *
- * Trần độ dài (16/12 ký tự) để `sku_code` không phình vô hạn theo `name` sản phẩm dài. Đây là
- * mã ĐỌC ĐƯỢC cho vận hành, không phải khoá kỹ thuật — trùng mã cực hiếm (hai sản phẩm có
- * slug trùng 16 ký tự đầu VÀ trùng màu VÀ trùng size) rơi vào lỗi `UNIQUE` thật của cột
- * `sku_code`, filter lỗi chung sẽ trả 500 kèm `correlationId` — biết ngay để xử lý, không
- * nuốt lỗi. Chưa map riêng thành lỗi nghiệp vụ vì đây là edge case chưa có trong spec.
+ * Trần độ dài (12/8 ký tự) để mã không phình vô hạn theo `name` sản phẩm dài, cộng 4 ký tự
+ * băm ở cuối để phần bị CẮT vẫn còn ảnh hưởng tới mã.
+ *
+ * **Vì sao có phần băm** (Phase 3 mới phát hiện, trước đó chỉ là edge case ghi trong comment):
+ * bản đầu chỉ lấy 16 ký tự đầu của slug, nên hai slug dài dùng chung tiền tố sẽ ra CÙNG một
+ * `sku_code` và vỡ `UNIQUE` → 500. Comment cũ ghi "cực hiếm", nhưng script seed benchmark
+ * (`k6/seed-target.js`) dùng slug `ao-benchmark-<timestamp>` đã làm nó xảy ra ở **mọi** lần
+ * chạy thứ hai trở đi — 16 ký tự đầu cắt đúng chỗ timestamp. Bài học: "cực hiếm" là phỏng
+ * đoán, và phỏng đoán về tần suất thì phải kiểm bằng cách dùng thật.
  */
 export function generateSkuCode(productSlug: string, color: string, size: string): string {
-  const productCode = toAsciiCode(productSlug, 16);
-  const colorCode = toAsciiCode(color, 12);
-  return `${productCode}-${colorCode}-${size}`;
+  const productCode = toAsciiCode(productSlug, 12);
+  const colorCode = toAsciiCode(color, 8);
+  const suffix = shortHash(`${productSlug}|${color}|${size}`);
+  return `${productCode}-${colorCode}-${size}-${suffix}`;
 }

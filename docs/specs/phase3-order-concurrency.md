@@ -395,8 +395,7 @@ giới hạn tự nhiên. Thêm rate limit lúc này sẽ làm nhiễu số đo 
    prune -f` xong thì 4/4 lần xanh.
 
 Cả ba đã ghi vào `docs/tech-playbook.md` §Xuyên suốt → Testing → Bug hay gặp.
-- [ ] Test #16: benchmark k6 — **script đã có** (`k6/flash-sale.js` + `k6/seed-target.js`),
-      nhưng `k6` chưa được cài trên máy (`brew install k6`) và chưa chạy lần nào.
+- [x] Test #16: benchmark k6 — **đã chạy**, xem §Bằng chứng test #16 bên dưới.
       Script cố tình đếm RIÊNG 201 / 409 / 4xx khác / 5xx, vì nhìn `http_req_failed` chung sẽ
       thấy "error rate 90%" trong khi 409 (hết hàng) là kết quả ĐÚNG kỳ vọng.
       Không thêm npm script kiểu `npm run bench`: hook `guard_cloud_cost.py` nhận diện chuỗi
@@ -404,3 +403,53 @@ Cả ba đã ghi vào `docs/tech-playbook.md` §Xuyên suốt → Testing → Bu
 
 **Việc kế tiếp:** `npm run up` → `npm run test:int` → sửa nếu đỏ → viết script k6 → chạy
 benchmark 3 chiến lược → dán số vào đây.
+
+## Bằng chứng test #16 — benchmark 3 chiến lược (2026-09-03)
+
+**Cấu hình đo:** 1.000 VU, mỗi VU 1 request, SKU `stock = 100`, k6 v2.2.0 bắn vào app chạy từ
+`dist/` (không qua ts-node). Postgres 16 + Redis 7 trong Docker trên **cùng máy** với app và
+k6 — số tuyệt đối vì thế không phải số production, nhưng so sánh GIỮA ba chiến lược thì vẫn
+công bằng vì mọi thứ khác giữ nguyên.
+
+| Chiến lược | Pool | 201 | 409 | 4xx khác | 5xx | p95 (ms) | Throughput (rps) |
+|---|---|---|---|---|---|---|---|
+| optimistic | 10 | **100** | 900 | 0 | 0 | 2 063 | 476 |
+| pessimistic | 10 | **100** | 900 | 0 | 0 | **492** | **1 580** |
+| pessimistic | 50 | **100** | 900 | 0 | 0 | 969 | 993 |
+| redis | 10 | **100** | 900 | 0 | 0 | 1 393 | 481 |
+
+**Kết luận cứng, đúng ở cả bốn lần chạy: bán ra đúng 100 chiếc, không lần nào 101. Oversell =
+0. Không có 5xx nào** — toàn bộ 900 lần từ chối là 409, tức trạng thái nghiệp vụ, không phải
+lỗi hệ thống.
+
+### Ba điều số đo nói ra mà lý thuyết sách không nói
+
+**1. Pessimistic NHANH NHẤT ở đây — ngược hẳn kỳ vọng thông thường.** Lý do nằm ở *hình dạng
+tải* của flash sale: 900/1.000 request rơi vào SKU đã hết hàng. Pessimistic xử lý ca đó bằng
+**một** round-trip (`SELECT … FOR UPDATE` thấy `stock = 0` → trả 409 ngay). Optimistic cần
+**hai**: câu `UPDATE` ghi 0 dòng, rồi phải hỏi thêm `isSkuOnSale` để biết là "hết hàng" (409)
+hay "không tồn tại" (404). Đường đi phổ biến nhất lại là đường tốn gấp đôi.
+→ **Việc cần làm tiếp:** gộp hai câu đó thành một (CTE hoặc `UPDATE … RETURNING` kèm nhánh
+kiểm tra tồn tại) rồi đo lại. Chưa làm trong Phase 3 vì nó đổi hành vi và phải benchmark lại.
+
+**2. Pool 50 CHẬM HƠN pool 10 (993 vs 1 580 rps).** Nới pool không phải nới thông lượng: 50
+transaction cùng lúc tranh một dòng thì phần chờ khoá chuyển từ *hàng đợi trong app* (rẻ) vào
+*bên trong Postgres* (đắt — mỗi transaction chờ vẫn giữ một connection, thêm context switch,
+thêm việc cho DB). Bài học: **xếp hàng bên ngoài DB, đừng dồn vào trong DB.** Đây cũng là lý
+do `DATABASE_POOL_MAX` phải được coi là một phần của kết quả benchmark, không phải hằng số.
+
+**3. Redis atomic không nhanh hơn optimistic (481 vs 476 rps) — và điều đó ĐÚNG như dự
+đoán.** Phase 3 cố tình ghi DB **đồng bộ** ngay trong request, nên mỗi request vẫn trả đủ tiền
+cho một round-trip Postgres, cộng thêm một round-trip Redis. Ưu thế của cách này chỉ xuất hiện
+khi phần ghi DB thành **bất đồng bộ** (outbox + async persist, Phase 4). Số đo hôm nay là mốc
+để so sánh sau khi Phase 4 xong.
+
+### Bug thật tìm thấy khi chạy benchmark
+
+`POST /products` trả 500 ở mọi lần seed thứ hai trở đi: `generateSkuCode` cắt slug còn 16 ký
+tự đầu, mà slug của script seed là `ao-benchmark-<timestamp>` — 16 ký tự đầu cắt đúng chỗ
+timestamp nên hai product khác nhau ra **cùng một** `sku_code`, vỡ `UNIQUE`. Comment trong
+`product.slug.ts` từng ghi ca này là "cực hiếm"; thực tế nó xảy ra ở **mọi** lần chạy. Đã sửa
+bằng cách thêm 4 ký tự băm (FNV-1a) của slug đầy đủ vào cuối mã, và thêm test cho đúng ca đó.
+**Bài học: "cực hiếm" là phỏng đoán về tần suất, mà phỏng đoán thì phải kiểm bằng cách dùng
+thật.**

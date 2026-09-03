@@ -143,3 +143,6 @@ vite.config.ts.timestamp-*
 
 # Prisma Client được generate vào src/, không commit — chạy `npm run db:generate`
 src/generated/
+
+# Binary công cụ tải về (k6...) — không commit, tải lại khi cần
+.tools/
