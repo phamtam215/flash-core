@@ -305,14 +305,19 @@ describe('Order (e2e)', () => {
 
     it('200 request song song vào SKU stock = 100 → đúng 100 đơn, 100 lần 409, stock = 0', async () => {
       const skuId = await seedSku(app, { stock: 100, priceVnd: 100_000 });
+      const agent = await loginAsNewUser(app);
 
-      // Mỗi request một user riêng để `Idempotency-Key` không phải yếu tố quyết định — thứ
-      // đang đo là tranh chấp tồn kho, không phải chống double-submit.
-      const agents = await Promise.all(Array.from({ length: 200 }, () => loginAsNewUser(app)));
-
+      // MỘT user, 200 `Idempotency-Key` KHÁC NHAU. Key khác nhau là đủ để idempotency không
+      // phải yếu tố quyết định — thứ đang đo là tranh chấp tồn kho.
+      //
+      // Lần đầu viết test này dùng 200 user riêng và nó ĐỎ với `read ECONNRESET` ở cả ba
+      // chiến lược: 200 lần register + 200 lần login = 400 lần hash Argon2 (mỗi lần 19 MiB,
+      // chạy qua threadpool 4 luồng của libuv) làm Node tắc trước khi kịp tranh chấp tồn kho.
+      // Bài học: khi test concurrency đỏ, kiểm tra xem thứ vỡ có đúng là thứ mình muốn đo
+      // không — ở đó là bộ tạo tải, không phải hệ thống được đo.
       const results = await Promise.all(
-        agents.map((a) =>
-          a
+        Array.from({ length: 200 }, () =>
+          agent
             .post('/orders')
             .set('Idempotency-Key', randomUUID())
             .send({ skuId, quantity: 1 })
@@ -339,11 +344,11 @@ describe('Order (e2e)', () => {
 
     it('13. stock = 1, hai request song song → đúng 1 thắng', async () => {
       const skuId = await seedSku(app, { stock: 1 });
-      const [a, b] = await Promise.all([loginAsNewUser(app), loginAsNewUser(app)]);
+      const agent = await loginAsNewUser(app);
 
       const results = await Promise.all([
-        a.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
-        b.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
+        agent.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
+        agent.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
       ]);
 
       const statuses = results.map((r) => r.status).sort((x, y) => x - y);
@@ -366,11 +371,11 @@ describe('Order (e2e)', () => {
 
     it('14. sau 50 reserve song song, tồn kho Redis khớp tồn kho DB', async () => {
       const skuId = await seedSku(app, { stock: 60 });
-      const agents = await Promise.all(Array.from({ length: 50 }, () => loginAsNewUser(app)));
+      const agent = await loginAsNewUser(app);
 
       await Promise.all(
-        agents.map((a) =>
-          a.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
+        Array.from({ length: 50 }, () =>
+          agent.post('/orders').set('Idempotency-Key', randomUUID()).send({ skuId, quantity: 1 }),
         ),
       );
 
