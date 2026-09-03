@@ -795,6 +795,26 @@ trong khi 200 transaction đang xếp hàng chờ khoá.
 Hai bài học: **luôn tách 4xx khỏi 5xx trước khi kết luận**, và **pool size là một phần của
 kết quả benchmark, không phải hằng số**.
 
+### Số thật đo được trong Flash-Core (Phase 3, 1.000 VU săn 100 chiếc)
+
+| Chiến lược | Pool | p95 (ms) | rps | Oversell |
+|---|---|---|---|---|
+| optimistic | 10 | 2 063 | 476 | 0 |
+| pessimistic | 10 | **492** | **1 580** | 0 |
+| pessimistic | 50 | 969 | 993 | 0 |
+| redis | 10 | 1 393 | 481 | 0 |
+
+Ba kết quả ngược trực giác, giải thích đầy đủ ở `docs/specs/phase3-order-concurrency.md`
+§Bằng chứng test #16:
+
+1. **Pessimistic nhanh nhất** — vì 900/1.000 request rơi vào "hết hàng", ca đó pessimistic chỉ
+   tốn 1 round-trip còn optimistic tốn 2 (`UPDATE` ghi 0 dòng rồi phải hỏi thêm để tách 404
+   khỏi 409). Đường đi phổ biến nhất lại là đường tốn gấp đôi.
+2. **Pool 50 chậm hơn pool 10** — nới pool chỉ chuyển phần chờ khoá từ hàng đợi trong app
+   (rẻ) vào bên trong Postgres (đắt). Xếp hàng bên ngoài DB, đừng dồn vào trong DB.
+3. **Redis chưa nhanh hơn** — vì Phase 3 vẫn ghi DB đồng bộ. Ưu thế của nó chỉ hiện ra khi có
+   outbox + async persist ở Phase 4. Số hôm nay là mốc để so sánh sau.
+
 ---
 
 # Phase 4 — Async, Queue & Payment
