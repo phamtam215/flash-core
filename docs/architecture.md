@@ -169,6 +169,10 @@ flash-core/
 │   ├── order.e2e-spec.ts
 │   └── jest-integration.json       config jest riêng cho integration (chậm, cần Docker)
 │
+├── k6/                           ← benchmark 1.000 VU cho 3 chiến lược (CHỈ chạy local)
+│   ├── flash-sale.js               đếm RIÊNG 201/409/4xx/5xx — xem vì sao trong file
+│   └── seed-target.js              tạo user + SKU stock=100, in ra lệnh k6 kèm token
+│
 ├── prisma/schema.prisma          ← định nghĩa bảng DB
 ├── prisma/seed/seed-skus.ts      ← seed 100k SKU (Phase 2), chạy bằng `npm run seed`
 ├── prisma.config.ts              ← cấu hình Prisma CLI (Prisma 7: url KHÔNG nằm trong schema)
@@ -255,6 +259,7 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 | Test xanh ở máy, **đỏ trên CI**: `Cannot find module './internal/class.js'` | Prisma 7 sinh import kèm đuôi `.js` nhưng file thật là `.ts`. Máy vẫn xanh vì đang giữ bản generate **cũ** (sinh trước khi đổi `moduleResolution` sang `node16`). Đã sửa bằng `moduleNameMapper` trong hai file config jest |
 | `TS5011: rootDir must be explicitly set` khi chạy jest | `isolatedModules: true` khiến ts-jest dịch từng file riêng, TS6 không tự suy ra được thư mục gốc. Cần `rootDir` tường minh trong `tsconfig.json` |
 | Import `@/config` chạy được lúc dev nhưng vỡ sau `npm run build` | Dự án **không dùng path alias** — `nest build` là tsc thuần, không rewrite alias. Dùng import tương đối |
+| (Phase 3) `POST /products` trả 500 khi tạo nhiều product có slug dài dùng chung tiền tố | `generateSkuCode` cắt slug còn 16 ký tự đầu ⇒ hai slug khác nhau ra CÙNG một `sku_code`, vỡ `UNIQUE`. Comment cũ ghi ca này "cực hiếm" nhưng script seed benchmark làm nó xảy ra 100% các lần. Đã sửa bằng 4 ký tự băm FNV-1a của slug đầy đủ — **bài học: "cực hiếm" là phỏng đoán, phải kiểm bằng cách dùng thật** |
 | (Phase 2) `@UseGuards(GuardTừModuleKhác)` báo thiếu dependency của GUARD (không phải của controller) | `@UseGuards(Class)` **không** tái dùng singleton của module gốc như constructor injection — `GuardsContextCreator` tra thẳng `injectables` của module chứa **controller** (không đi qua `imports`/`exports`) rồi tự dựng lại guard ở đó, nên mọi dependency của guard (ở đây `JwtService`) phải resolve được **ngay tại module đang dùng guard**. Sửa **2 phần**: (1) khai guard trong `providers` của CHÍNH module đang dùng nó (`src/modules/product/product.module.ts`), không chỉ import module gốc; (2) export cả module cung cấp dependency của guard (`JwtModule`) từ module gốc (`src/modules/auth/auth.module.ts`) — thiếu phần nào cũng lỗi |
 
 ---

@@ -6,8 +6,14 @@ thể (size × màu), và **oversell phải bằng 0**.
 
 Kiến trúc: **Modular Monolith** (NestJS + TypeScript, PostgreSQL 16 + Prisma, Redis + BullMQ).
 
-> **Trạng thái:** Phase 1/6 — Auth & Security. README này được cập nhật dần theo từng phase, chỉ
-> mô tả những gì **đã thật sự chạy được**. Phần chưa làm nằm ở [Lộ trình](#lộ-trình).
+> **Trạng thái:** Phase 3/7 — Order & Concurrency ⭐ **đã xong Definition of Done**: ba chiến
+> lược chống oversell (optimistic / pessimistic / Redis atomic) đổi bằng một biến môi trường,
+> 49/49 integration test xanh, benchmark k6 1.000 VU cho **oversell = 0 ở cả ba**. Số đo và
+> cách đọc số: [`docs/specs/phase3-order-concurrency.md`](docs/specs/phase3-order-concurrency.md)
+> §Bằng chứng test #16.
+>
+> README này chỉ mô tả những gì **đã thật sự chạy được**. Phần chưa làm nằm ở
+> [Lộ trình](#lộ-trình).
 
 ---
 
@@ -64,13 +70,22 @@ src/
 │   ├── filters/             #   exception filter thống nhất, phân loại 4xx vs 5xx
 │   ├── pipes/               #   ZodValidationPipe — validate ở biên
 │   └── logger/              #   Pino + correlationId + redact dữ liệu nhạy cảm
-├── infra/prisma/            # pg.Pool → Prisma adapter → PrismaClient
+│   └── pagination/          #   keyset cursor — dùng chung product + order
+├── infra/
+│   ├── prisma/              # pg.Pool → Prisma adapter → PrismaClient
+│   └── redis/               # ioredis, một kết nối cho cả app
 ├── modules/                 # module nghiệp vụ
+│   ├── auth/                #   Argon2, JWT cookie, refresh rotation + reuse detection
+│   ├── product/             #   Product + SKU size×màu, JSONB + GIN, cursor pagination
+│   ├── order/               # ⭐ đặt hàng + 3 chiến lược chống oversell
+│   │   └── strategies/      #     optimistic | pessimistic | redis (Lua)
 │   └── health/              #   module mẫu: controller + service + index (public interface)
 └── generated/prisma/        # Prisma Client (generate, không commit)
 
-test/                        # integration test (Testcontainers)
+test/                        # integration test (Testcontainers) — 49 test
+k6/                          # benchmark 1.000 VU cho 3 chiến lược (chạy LOCAL)
 prisma/schema.prisma         # schema DB
+prisma/migrations/           # 3 migration: auth · product+sku · order+concurrency
 prisma.config.ts             # cấu hình Prisma CLI (Prisma 7: url không nằm trong schema)
 docker-compose.yml           # Postgres 16 + Redis 7
 ```
@@ -89,7 +104,9 @@ với một monolith thường.
 | **Modular Monolith**, không microservices | Dự án một người. Microservices sẽ ngốn toàn bộ thời gian vào hạ tầng thay vì vào concurrency |
 | **PostgreSQL** dù MySQL quen hơn | Cố tình mở rộng skill: JSONB + GIN, `SELECT FOR UPDATE SKIP LOCKED`, isolation level rõ ràng |
 | **Zod**, không class-validator | Một schema dùng cho cả validate runtime và suy ra type compile-time |
-| **Prisma 7 + driver adapter `pg`** | Prisma 7 bỏ engine Rust; `pg.Pool` do mình cấu hình → số connection thành biến điều khiển được, cần cho benchmark Phase 3 và Neon pooler Phase 6 |
+| **Prisma 7 + driver adapter `pg`** | Prisma 7 bỏ engine Rust; `pg.Pool` do mình cấu hình → số connection thành biến điều khiển được, cần cho benchmark Phase 3 và Neon pooler Phase 7 |
+| **Làm CẢ BA chiến lược chống oversell**, đổi bằng config | Làm một cách chỉ là "đã làm"; so sánh ba cách kèm số đo mới là "đã hiểu". Số đo ra kết quả ngược trực giác — xem Lộ trình bên dưới |
+| Module **`order` sở hữu logic trừ tồn kho** (không phải `product`) | "Trừ kho + tạo đơn" phải atomic là ràng buộc CỨNG; "mỗi bảng một chủ" là nguyên tắc MỀM. Xung đột thì giữ cái cứng — [ADR-003](docs/adr/003-so-huu-logic-tru-ton-kho.md) ghi rõ nợ và giới hạn để nợ không lan |
 | **Không path alias `@/`** | `nest build` dùng tsc thuần, không rewrite alias → alias vỡ ở runtime. Import tương đối luôn đúng, không cần loader |
 | Tiền lưu **số nguyên VND** | Không dùng float cho tiền |
 
@@ -101,14 +118,31 @@ và [`docs/adr/`](docs/adr/).
 | Phase | Nội dung | Trạng thái |
 |---|---|---|
 | 0 | Docker Compose · NestJS skeleton · Prisma · CI · convention | ✅ **Xong** — 16/16 test, CI xanh, 2 ADR |
-| 1 | Auth: Argon2, Access + Refresh Token, rotation, rate limit | 🟡 Đang làm — [spec](docs/specs/phase1-auth.md) chờ duyệt |
-| 2 | Product & Inventory: SKU size×màu, JSONB + GIN, cursor pagination, seed 100k | ⬜ |
-| 3 | ⭐ Order & Concurrency: 3 chiến lược chống oversell + benchmark k6 1.000 VU | ⬜ |
+| 1 | Auth: Argon2, Access + Refresh Token, rotation, rate limit | ✅ **Xong** — 14/14 test case, kể cả reuse detection |
+| 2 | Product & Inventory: SKU size×màu, JSONB + GIN, cursor pagination, seed 100k | ✅ **Xong** — bằng chứng `EXPLAIN`: keyset ~50× nhanh hơn offset ở trang sâu |
+| 3 | ⭐ Order & Concurrency: 3 chiến lược chống oversell + benchmark k6 1.000 VU | ✅ **Xong** — oversell = 0 ở cả ba, ADR-003 |
 | 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ⬜ |
-| 5 | Observability: Pino + correlationId xuyên suốt, /health & /ready, metrics | ⬜ |
-| 6 | Deploy Cloud Run + Neon + Upstash, FinOps mục tiêu 0đ/tháng | ⬜ |
+| 5 | UI demo: Vite + React, 4 màn hình, timebox 2 buổi tối | ⬜ |
+| 6 | Observability: Pino + correlationId xuyên suốt, /health & /ready, metrics | ⬜ |
+| 7 | Deploy Cloud Run + Neon + Upstash, FinOps mục tiêu 0đ/tháng | ⬜ |
 
 Chi tiết deliverable từng phase: [`docs/SPEC.md`](docs/SPEC.md).
+
+### Kết quả benchmark Phase 3 (1.000 VU săn 100 chiếc)
+
+| Chiến lược | Pool | p95 | Throughput | Oversell |
+|---|---|---|---|---|
+| optimistic | 10 | 2 063 ms | 476 rps | **0** |
+| pessimistic | 10 | **492 ms** | **1 580 rps** | **0** |
+| pessimistic | 50 | 969 ms | 993 rps | **0** |
+| redis | 10 | 1 393 ms | 481 rps | **0** |
+
+Ba điều số đo nói ra mà lý thuyết không nói: **pessimistic nhanh nhất** (vì 900/1.000 request
+rơi vào "hết hàng" — ca đó nó tốn 1 round-trip, optimistic tốn 2), **pool 50 chậm hơn pool
+10** (nới pool chỉ chuyển phần chờ khoá từ app vào trong Postgres), và **Redis chưa nhanh hơn**
+vì Phase 3 còn ghi DB đồng bộ — ưu thế của nó chỉ hiện ra sau khi có Outbox ở Phase 4.
+Giải thích đầy đủ: [`docs/specs/phase3-order-concurrency.md`](docs/specs/phase3-order-concurrency.md)
+§Bằng chứng test #16.
 
 ### Trạng thái chi tiết & việc còn nợ
 

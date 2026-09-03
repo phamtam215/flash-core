@@ -11,6 +11,20 @@
 - [ ] Race condition: chuyện gì xảy ra nếu 2 request chạy song song qua đoạn này?
 - [ ] Idempotency-Key được check đúng chỗ (trước khi tạo side effect)?
 
+Bổ sung sau Phase 3 — mỗi dòng là một bug đã gặp thật hoặc đã phải nghĩ kỹ để tránh:
+- [ ] Điều kiện tồn kho nằm **trong câu ghi** (`UPDATE … WHERE stock >= ?`), không phải `if`
+      trong RAM rồi mới ghi?
+- [ ] `UPDATE` ghi **0 dòng** thì có tách được "không tồn tại" (404) khỏi "hết hàng" (409)? Gộp
+      hai ca này lại là gốc của bug "retry 3 lần cho SKU đã hết hàng".
+- [ ] Hết hàng trả **409**, không phải 500? (trộn 4xx với 5xx làm error rate benchmark vô nghĩa)
+- [ ] Chỉ retry lỗi **serialization failure / deadlock**, KHÔNG retry trạng thái nghiệp vụ?
+- [ ] `SELECT … FOR UPDATE` có nằm trong `$transaction` interactive? (ngoài transaction thì khoá
+      nhả ngay khi câu lệnh xong → vô tác dụng, và bug này im lặng)
+- [ ] Trừ kho xong mà bước sau thất bại (trùng Idempotency-Key, ghi DB lỗi) thì có **hoàn kho**?
+- [ ] Nhánh hai kho dữ liệu lệch nhau (Redis vs DB) có **log rõ**, không im lặng sửa số?
+- [ ] Test song song đo đúng thứ cần đo, hay đang đo chính bộ tạo tải? (xem
+      `docs/tech-playbook.md` §Xuyên suốt → Testing)
+
 ## Lỗi & độ bền
 - [ ] Không có catch nuốt lỗi? Lỗi được phân loại (4xx vs 5xx) hợp lý?
 - [ ] Job queue: retry được cấu hình? Job fail hết retry đi về đâu (DLQ)?

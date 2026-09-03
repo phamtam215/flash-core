@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-003: Ai sở hữu logic trừ tồn kho</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html" class="active">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+
+<h1>ADR-003: Module <code>order</code> sở hữu logic trừ tồn kho</h1>
+<p class="status">2026-09-01 · Đã chốt</p>
+
+<h2>Bối cảnh</h2>
+<p>Phase 3 phải trừ tồn kho và tạo đơn <strong>atomic</strong> (oversell = 0 là ràng buộc cứng
+của dự án). Nhưng <code>stock</code> nằm trên bảng <code>product_skus</code> do module
+<code>product</code> sở hữu, còn đơn hàng thuộc module <code>order</code> — hai ràng buộc kéo về
+hai hướng: "một bảng một chủ" (<a href="architecture.html">architecture.md</a> quy tắc 2) và
+"trừ kho + tạo đơn phải cùng một transaction".</p>
+
+<h2>Quyết định</h2>
+<p>Module <code>order</code> sở hữu <strong>cả ba chiến lược reserve</strong>
+(<code>order/strategies/*</code>) và đọc/ghi <code>product_skus.stock</code> trực tiếp qua
+repository của chính nó.</p>
+
+<h2>Các lựa chọn đã cân nhắc</h2>
+<ul>
+<li><strong><code>order</code> sở hữu logic trừ kho</strong> ✅ — <em>ưu</em>: transaction nằm
+gọn trong một module, không có object transaction của Prisma nào đi qua ranh giới module;
+benchmark ba chiến lược chạy trên cùng một luồng nên so sánh công bằng. <em>nhược</em>:
+<code>order</code> chạm bảng do <code>product</code> sở hữu.</li>
+<li><strong><code>product</code> sở hữu, export <code>INVENTORY_RESERVER</code></strong> —
+<em>ưu</em>: đúng chủ sở hữu dữ liệu. <em>nhược</em>: để atomic thì <code>order</code> phải
+truyền <code>tx</code> (kiểu Prisma) qua ranh giới module — rò rỉ đúng thứ mà quy tắc 2 muốn
+tránh, và biến ranh giới module thành hình thức.</li>
+<li><strong>Tách module <code>inventory</code> riêng</strong> — <em>ưu</em>: sạch về lý thuyết.
+<em>nhược</em>: hai module cùng ghi <code>product_skus</code>, hoặc phải tách bảng
+<code>stock</code> riêng và tự quản lý nhất quán giữa hai bảng — phức tạp hơn giá trị mang lại
+khi cả hệ thống vẫn là một process, một DB.</li>
+</ul>
+
+<h2>Hệ quả &amp; trade-off chấp nhận</h2>
+<p><strong>Được:</strong> transaction hẹp và nhìn thấy được ở một chỗ
+(<code>order.repository.ts</code>); ba chiến lược đổi bằng config mà không đổi ranh giới module;
+không có Prisma <code>tx</code> nào rò rỉ ra ngoài module.</p>
+<p><strong>Mất:</strong> <code>product_skus</code> giờ có hai module ghi vào — <code>product</code>
+ghi <code>price_vnd</code>/<code>is_active</code>, <code>order</code> ghi
+<code>stock</code>/<code>version</code>. Đây là <strong>nợ có ghi chép</strong>, không phải
+chuyện vô tình.</p>
+<p><strong>Giới hạn tự đặt để nợ không lan:</strong> module <code>order</code> <strong>chỉ</strong>
+được ghi hai cột <code>stock</code> và <code>version</code>, không cột nào khác; mọi câu SQL
+chạm bảng đó phải nằm trong <code>order.repository.ts</code> (không rải ra service/strategy).</p>
+<p><strong>Xem lại khi:</strong> tách <code>inventory</code> thành service/deploy riêng (lúc đó
+mất transaction chung là bắt buộc, phải chuyển sang saga/reservation-token — bài toán khác
+hẳn), hoặc khi xuất hiện module thứ ba cần ghi <code>stock</code>.</p>
+
+</main>
+</div>
+</body>
+</html>

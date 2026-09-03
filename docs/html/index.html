@@ -9,7 +9,7 @@
 <body>
 <div class="layout">
 <nav class="sidebar">
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
 </nav>
 <main class="content">
 
@@ -23,20 +23,20 @@ bản đọc tĩnh (offline) của toàn bộ tài liệu Markdown trong repo, �
 duyệt — bấm vào thẻ hoặc sidebar bên trái để đi tới từng trang.</p>
 
 <blockquote class="note">
-<p><strong>Bắt đầu từ đâu.</strong> Sidebar có 11 trang — đừng đọc hết một lượt, dễ ngợp. Theo
+<p><strong>Bắt đầu từ đâu.</strong> Sidebar có 13 trang — đừng đọc hết một lượt, dễ ngợp. Theo
 đúng thứ tự này:</p>
 <ol>
 <li>Đọc 2 đoạn ngay trên đây (30 giây) — biết dự án làm gì.</li>
-<li>Đọc <strong>Phase 0 → 1 → 2, đúng thứ tự</strong>, đừng nhảy cóc. Mỗi phase xây trên
+<li>Đọc <strong>Phase 0 → 1 → 2 → 3, đúng thứ tự</strong>, đừng nhảy cóc. Mỗi phase xây trên
 phase trước — nhảy cóc sẽ thấy code "tự nhiên xuất hiện" mà không hiểu vì sao cần nó.</li>
 <li>Mỗi trang Phase đã có sẵn <strong>API</strong> + <strong>code thật</strong> ngay trong bài —
 không cần mở source để hiểu ý tưởng.</li>
-<li>Xong cả 3 phase mới đọc "Tham khảo" ở sidebar — đó là chỗ để <em>tra cứu</em> khi cần
+<li>Xong cả 4 phase mới đọc "Tham khảo" ở sidebar — đó là chỗ để <em>tra cứu</em> khi cần
 (gặp từ lạ → glossary; muốn biết "vì sao" → ADR; vướng bug → tech-playbook), không phải đọc
 tuần tự từ đầu.</li>
 </ol>
-<p>Chỉ có 5 phút? Đọc riêng <a href="phase-2.html">Phase 2</a> — có số đo thật
-(<code>EXPLAIN</code>), thấy giá trị nhanh nhất.</p>
+<p>Chỉ có 5 phút? Đọc riêng <a href="phase-3.html">Phase 3</a> ⭐ — đó là phần cốt lõi của cả
+dự án (1.000 người bấm, 100 chiếc áo, bán ra đúng 100), và có số đo thật của ba chiến lược.</p>
 </blockquote>
 
 <h2>Các phase — business, technical, kiến thức học được</h2>
@@ -59,12 +59,19 @@ không có bảng test case — muốn xem chi tiết đó thì mở file spec g
     <p class="status">Hoàn tất theo Definition of Done, xác nhận trên Postgres/Redis thật.</p>
     <a href="phase-2.html">Đọc</a>
   </div>
+  <div class="card">
+    <h3>Phase 3 — Order &amp; Concurrency ⭐</h3>
+    <p class="status">Hoàn tất — 3 chiến lược chống oversell, 49/49 test, benchmark 1.000 VU:
+    <strong>oversell = 0</strong> ở cả ba. Phần cốt lõi của cả dự án.</p>
+    <a href="phase-3.html">Đọc</a>
+  </div>
 </div>
 
 <h2>ADR — Quyết định kiến trúc</h2>
 <ul>
   <li><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith thay vì Microservices</a></li>
   <li><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật Phase 0</a></li>
+  <li><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Module nào sở hữu logic trừ tồn kho</a></li>
 </ul>
 
 <h2>Tham khảo xuyên phase</h2>
