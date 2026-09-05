@@ -280,17 +280,17 @@ Test #16 là **Evidence CV** theo `docs/SPEC.md`.
 
 ## Definition of Done
 
-- [ ] Test #1–15 xanh (unit + integration qua Testcontainers), test #8 xanh với **cả ba**
+- [x] Test #1–15 xanh (unit + integration qua Testcontainers), test #8 xanh với **cả ba**
       `INVENTORY_STRATEGY`
-- [ ] Test #16: báo cáo k6 cho 3 chiến lược — bảng throughput / p95 / error rate (tách 4xx vs
+- [x] Test #16: báo cáo k6 cho 3 chiến lược — bảng throughput / p95 / error rate (tách 4xx vs
       5xx) + kết luận **khi nào dùng cái nào**, dán vào §Trạng thái thật của spec này
-- [ ] `DATABASE_POOL_MAX` được thử ở ≥2 giá trị khi benchmark pessimistic, ghi lại ảnh hưởng
+- [x] `DATABASE_POOL_MAX` được thử ở ≥2 giá trị khi benchmark pessimistic, ghi lại ảnh hưởng
       (chứng minh hiểu "pool exhaustion khác lock contention")
-- [ ] `npm run check` xanh
-- [ ] **ADR-003**: chốt module nào sở hữu logic trừ kho (xem Câu hỏi mở #1) — quyết định này
+- [x] `npm run check` xanh
+- [x] **ADR-003**: chốt module nào sở hữu logic trừ kho (xem Câu hỏi mở #1) — quyết định này
       ảnh hưởng ranh giới module nên bắt buộc có ADR
-- [ ] `docs/architecture.md` cập nhật module `order/`
-- [ ] Tâm tự trả lời 3 câu hỏi bản chất của phase
+- [x] `docs/architecture.md` cập nhật module `order/`
+- [ ] Tâm tự trả lời 3 câu hỏi bản chất của phase — **mục duy nhất còn lại của Phase 3**
 
 ## Ngoài phạm vi (Non-goals)
 
