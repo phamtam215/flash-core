@@ -20,6 +20,11 @@ cây DI song song — `AppModule` và `WorkerModule`. Chạy bằng `npm run dev
 `WorkerModule` không nạp controller nào và dùng `NestFactory.createApplicationContext` (không
 mở cổng HTTP).
 
+`npm run worker` = `nest start --entryFile worker`, **không** phải `ts-node src/worker.ts`:
+Prisma Client sinh import kèm đuôi `.js` trong khi file thật là `.ts`, và `ts-node` không có
+gì ánh xạ lại nên vỡ ngay khi nạp client. `nest start` biên dịch bằng đúng tsc như API rồi
+chạy `dist/worker.js` — worker dùng chung một đường build đã biết là đúng.
+
 ## Các lựa chọn đã cân nhắc
 
 - **Hai process** ✅ — *ưu*: demo được deliverable; scale worker độc lập với API; job nặng

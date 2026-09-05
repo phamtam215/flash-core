@@ -54,7 +54,8 @@ request, dùng để truy lại toàn bộ hành trình khi debug.
 | Lệnh | Việc |
 |---|---|
 | `npm run dev` | Chạy app, watch mode |
-| `npm run worker` | Chạy worker xử lý job nền (BullMQ) — process riêng |
+| `npm run worker` | Chạy worker xử lý job nền (BullMQ) — process riêng. Dùng `nest start` chứ không `ts-node`: Prisma Client sinh import `.js` mà ts-node không ánh xạ được |
+| `npm run worker:dev` | Như trên, watch mode |
 | `npm test` | Unit test (nhanh, không cần Docker) |
 | `npm run test:int` | Integration test trên Postgres thật (Testcontainers, cần Docker). Không nối được docker socket thì đặt `TEST_DATABASE_URL`/`TEST_REDIS_URL` — xem `test/infra-fixture.ts` |
 | `npm run test:cov` | Unit test + coverage |

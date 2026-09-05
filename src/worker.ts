@@ -8,6 +8,14 @@
  *
  * Đổi lại: local phải chạy hai lệnh (`npm run dev` và `npm run worker`). Cách chạy trên
  * Cloud Run — nơi free tier khó nuôi một process nền luôn thức — để Phase 7 quyết bằng ADR.
+ *
+ * **Vì sao `npm run worker` là `nest start --entryFile worker` chứ không phải `ts-node`:**
+ * Prisma Client được generate thành TypeScript với import kèm đuôi `.js` (đúng chuẩn Prisma 7
+ * + `moduleResolution: node16`) nhưng file thật trên đĩa là `.ts`. Jest xử lý bằng
+ * `moduleNameMapper`, còn `ts-node` thì không có gì làm việc đó và `require` vỡ ngay ở bước
+ * nạp client. `nest start` biên dịch bằng đúng tsc như API rồi chạy `dist/worker.js`, nên
+ * worker đi chung một đường build đã biết là đúng. (`prisma/seed/seed-skus.ts` né vấn đề này
+ * bằng cách dùng `pg` thẳng — nhưng worker thì cần cả Prisma Client.)
  */
 import 'dotenv/config';
 
