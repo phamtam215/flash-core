@@ -44,6 +44,7 @@ Ba ranh giới hay bị vi phạm nhất, ghi ra để tự kiểm khi sửa tà
 | Khi phải chọn giữa hai cách làm | nói "viết ADR cho X" → tạo file trong [`adr/`](adr/) |
 | Sau khi Claude viết code | [`review-checklist.md`](review-checklist.md) |
 | Khi tạo commit / khi đóng phase | gõ `/commit` — chuẩn ở [`git-workflow.md`](git-workflow.md) §5 |
+| Integration test báo không tìm thấy Docker | đặt `TEST_DATABASE_URL`/`TEST_REDIS_URL` — xem `test/infra-fixture.ts` |
 | **Trước khi đi phỏng vấn** | [`tech-playbook.md` §Ôn phỏng vấn — 12 câu chốt](tech-playbook.md) → mục *Câu hỏi bản chất* của từng phase → [`adr/`](adr/) |
 
 ## Thư mục

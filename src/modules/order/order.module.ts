@@ -2,8 +2,14 @@ import { Module } from '@nestjs/common';
 
 import { ENV, type Env } from '../../config';
 import { AccessTokenGuard, AuthModule } from '../auth';
+import { MailModule } from '../mail';
+import { OutboxModule } from '../outbox';
 import { INVENTORY_RESERVER, type InventoryReserver } from './inventory-reserver';
+import { ORDER_PAYMENTS } from './order-payments';
+import { OrderPaymentService } from './order-payment.service';
 import { OrderController } from './order.controller';
+import { OrderExpiryService } from './order.expiry.service';
+import { OrderNotifier } from './order.notifier';
 import { OrderRepository } from './order.repository';
 import { OrderService } from './order.service';
 import { OptimisticReserver } from './strategies/optimistic.reserver';
@@ -22,11 +28,15 @@ import { RedisAtomicReserver } from './strategies/redis.reserver';
  * không sửa code, và benchmark ba cách chạy trên cùng một luồng nghiệp vụ.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, MailModule, OutboxModule],
   controllers: [OrderController],
   providers: [
     OrderService,
     OrderRepository,
+    OrderExpiryService,
+    OrderNotifier,
+    OrderPaymentService,
+    { provide: ORDER_PAYMENTS, useExisting: OrderPaymentService },
     AccessTokenGuard,
     OptimisticReserver,
     PessimisticReserver,
@@ -51,5 +61,8 @@ import { RedisAtomicReserver } from './strategies/redis.reserver';
       },
     },
   ],
+  // Worker (`src/worker/`) cần hai thứ này để chạy job. Không export `OrderService` —
+  // đặt đơn vẫn chỉ đi qua HTTP.
+  exports: [OrderExpiryService, OrderNotifier, OrderRepository, ORDER_PAYMENTS],
 })
 export class OrderModule {}

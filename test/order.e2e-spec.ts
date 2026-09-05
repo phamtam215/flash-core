@@ -3,14 +3,13 @@ import { randomUUID } from 'node:crypto';
 
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infra/prisma';
 import { RedisService } from '../src/infra/redis';
+import { startInfra } from './infra-fixture';
 
 /**
  * Integration test Phase 3 — test case trong docs/specs/phase3-order-concurrency.md.
@@ -26,25 +25,15 @@ import { RedisService } from '../src/infra/redis';
 const STRATEGIES = ['optimistic', 'pessimistic', 'redis'] as const;
 
 describe('Order (e2e)', () => {
-  let postgres: StartedPostgreSqlContainer;
-  let redis: StartedTestContainer;
+  let stopInfra: () => Promise<void>;
 
   beforeAll(async () => {
-    [postgres, redis] = await Promise.all([
-      new PostgreSqlContainer('postgres:16-alpine')
-        .withDatabase('flashcore')
-        .withUsername('flashcore')
-        .withPassword('flashcore')
-        .start(),
-      new GenericContainer('redis:7-alpine').withExposedPorts(6379).start(),
-    ]);
-
-    process.env.DATABASE_URL = postgres.getConnectionUri();
-    process.env.REDIS_URL = `redis://${redis.getHost()}:${String(redis.getMappedPort(6379))}`;
+    stopInfra = await startInfra();
     process.env.NODE_ENV = 'test';
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
     // Pool phải đủ rộng cho 200 request song song ở test #8, nếu không cái vỡ trước sẽ là pool
     // chứ không phải khoá — và test sẽ đo sai thứ. Chính hiện tượng này là bài học ghi ở
     // tech-playbook §Phase 3 ("pessimistic chậm quá" thật ra là hết connection).
@@ -54,7 +43,7 @@ describe('Order (e2e)', () => {
   }, 300_000);
 
   afterAll(async () => {
-    await Promise.all([postgres?.stop(), redis?.stop()]);
+    await stopInfra?.();
   });
 
   /**

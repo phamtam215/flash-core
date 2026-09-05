@@ -141,7 +141,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
-- Phase hiện tại: **Phase 3 — Order & Concurrency** ⭐ (bắt đầu 2026-09-03)
+- Phase hiện tại: **Phase 4 — Async, Queue & Payment Webhook** (bắt đầu 2026-09-05)
 - **Phase 0 ĐÃ ĐÓNG** 2026-08-08 — hồ sơ ở `docs/phase-0-checklist.md`. Kết quả: skeleton
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
@@ -181,5 +181,23 @@ Muốn xem lại thì `git log -- .claude/`.
   cắt slug 16 ký tự làm trùng `sku_code` → 500; đã sửa bằng 4 ký tự băm.
   **Còn lại:** Tâm tự trả lời 3 câu hỏi bản chất, review + push. k6 nằm ở `.tools/k6`
   (gitignore) — Homebrew không cài được vì sandbox chặn đọc `/etc/ssl/cert.pem`.
+- **Phase 4 — code + test xong**, chờ Tâm review + push, theo
+  `docs/specs/phase4-async-queue-payment.md`: `infra/queue` (BullMQ, kết nối riêng vì worker
+  cần `maxRetriesPerRequest: null`), module `outbox` (hộp thư đi + dấu idempotent), `mail`,
+  `payment` (verify HMAC trên raw body, cổng giả lập), `OrderExpiryService` (huỷ đơn quá hạn
+  bằng **cả** delayed job **lẫn** sweeper), `OrderNotifier`, worker tách process
+  (`npm run worker`), migration `20260905090000_add_async_queue_payment` (3 bảng + 3 cột).
+  **18/18 integration test mới xanh, tổng 67/67**; unit **70/70**; lint/typecheck sạch.
+  Hai cổng chính đều xanh: **#8 hai đường huỷ đơn → tồn kho chỉ trả một lần**, **#18 "rút dây
+  mạng" → đúng 20 email, không hơn**. 2 ADR mới (`004` ghi dấu trước khi gửi mail, `005`
+  worker chạy process riêng).
+  **Biến môi trường mới bắt buộc:** `PAYMENT_WEBHOOK_SECRET` (≥32 ký tự) — thiếu là app chết
+  lúc khởi động. Thêm 5 biến có mặc định: `ORDER_HOLD_MINUTES`, `PAYMENT_WEBHOOK_TOLERANCE`,
+  `QUEUE_CONCURRENCY`, `OUTBOX_POLL_INTERVAL_MS`, `OUTBOX_BATCH_SIZE`.
+  **Còn lại:** Tâm tự trả lời 4 câu hỏi bản chất, chạy demo "rút dây mạng" bằng tay, review + push.
+- **Lưu ý môi trường:** sandbox chặn Jest nối `docker.sock` (`connect EPERM`) dù `docker` CLI
+  chạy được ⇒ Testcontainers báo "Could not find a working container runtime strategy". Lối
+  thoát đã có sẵn: `TEST_DATABASE_URL`/`TEST_REDIS_URL` trỏ vào Postgres/Redis của
+  `npm run up` (xem `test/infra-fixture.ts`). CI vẫn dùng Testcontainers như cũ.
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân
   sách tài liệu) — spec đã là danh sách việc.

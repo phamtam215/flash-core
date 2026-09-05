@@ -5,7 +5,7 @@
 > Khác với `README.md` (giới thiệu dự án cho người ngoài) và `docs/SPEC.md` (nói sẽ làm gì),
 > file này mô tả **code hiện có**. Cập nhật mỗi khi thêm module mới.
 >
-> Trạng thái: Phase 3. Code hiện tại ~3 500 dòng.
+> Trạng thái: Phase 4. Code hiện tại ~4 700 dòng.
 
 ---
 
@@ -25,6 +25,8 @@
 | 8 | [`src/modules/auth/auth.service.ts`](../src/modules/auth/auth.service.ts) (Phase 1) | Argon2, xoay token, **reuse detection** |
 | 9 | [`src/modules/product/product.repository.ts`](../src/modules/product/product.repository.ts) (Phase 2) | Cursor pagination, tồn kho theo SKU |
 | 10 | [`src/modules/order/strategies/`](../src/modules/order/strategies/) (Phase 3) ⭐ | **Ba cách chống oversell** — đọc cả 3 file, mỗi file có mục "thắng khi / thua khi" |
+| 11 | [`src/modules/outbox/`](../src/modules/outbox/) (Phase 4) | **Outbox + dấu idempotent** — hai nửa của một cơ chế: không mất / không trùng |
+| 12 | [`src/worker.ts`](../src/worker.ts) (Phase 4) | Tiến trình xử lý job nền, và vì sao nó tách khỏi API |
 
 Sau đó đọc [`test/health.e2e-spec.ts`](../test/health.e2e-spec.ts) — nó cho thấy toàn bộ
 chuỗi trên chạy thật với Postgres thật.
@@ -120,9 +122,14 @@ flash-core/
 │   │   │   ├── prisma.service.ts   pg.Pool → PrismaPg adapter → PrismaClient, đóng khi SIGTERM
 │   │   │   ├── prisma.module.ts    @Global — pool phải là MỘT instance cho cả app
 │   │   │   └── index.ts            public interface
-│   │   └── redis/                  (Phase 1) cấu trúc copy y hệt prisma/
-│   │       ├── redis.service.ts    ioredis + incrementWithExpiry() cho rate limit
-│   │       ├── redis.module.ts     @Global — một kết nối cho cả app
+│   │   ├── redis/                  (Phase 1) cấu trúc copy y hệt prisma/
+│   │   │   ├── redis.service.ts    ioredis + incrementWithExpiry() cho rate limit
+│   │   │   ├── redis.module.ts     @Global — một kết nối cho cả app
+│   │   │   └── index.ts            public interface
+│   │   └── queue/                  (Phase 4) BullMQ
+│   │       ├── queue.constants.ts  tên queue + 5 tên job + payload — nguồn sự thật duy nhất
+│   │       ├── queue.service.ts    Queue + kết nối RIÊNG (maxRetriesPerRequest: null), retry/backoff/jitter
+│   │       ├── queue.module.ts     @Global
 │   │       └── index.ts            public interface
 │   │
 │   ├── modules/                  ← NGHIỆP VỤ. Mỗi thư mục = một module có ranh giới
@@ -210,7 +217,10 @@ Cách CI hoạt động và cách bộ test được chia tầng: [`tech-playboo
 | Đổi **chiến lược chống oversell** | `INVENTORY_STRATEGY` trong `.env` (`optimistic`/`pessimistic`/`redis`) | Không sửa code. Factory ở `order.module.ts` là chỗ duy nhất biết biến này |
 | Đổi **pool size DB** | `DATABASE_POOL_MAX` trong `.env` | Biến này quan trọng ở Phase 3 — xem ghi chú trong `prisma.service.ts` |
 | Thêm **unit test** | file `*.spec.ts` cạnh code | Chạy `npm test` |
-| Thêm **integration test** | `test/*.e2e-spec.ts` | Chạy `npm run test:int`, cần Docker |
+| Thêm **integration test** | `test/*.e2e-spec.ts` | Chạy `npm run test:int`, cần Docker. Không nối được docker socket thì đặt `TEST_DATABASE_URL`/`TEST_REDIS_URL` (xem `test/infra-fixture.ts`) |
+| Thêm **loại job nền** | `src/infra/queue/queue.constants.ts` (tên + payload) → service nghiệp vụ → `src/worker/job.processor.ts` | Job mới phải idempotent. Hệ quả trong DB thì dùng `runOnceInTransaction`; ngoài DB thì `claim`/`release` |
+| Thêm **sự kiện Outbox** | ghi `tx.outboxEvent.create` trong **cùng transaction** với dữ liệu → thêm nhánh ở `OutboxRelay.dispatch` | Không bao giờ `queue.add` ngay trong request nếu sự kiện phải đi cùng một lệnh ghi DB |
+| Đổi **thời gian giữ chỗ đơn** | `ORDER_HOLD_MINUTES` trong `.env` | Test đặt xuống vài giây; đừng hardcode lại thành hằng số |
 | Đổi **luật lint** | `eslint.config.mjs` | |
 | Đổi **CI** (thêm bước, đổi Node version) | `.github/workflows/ci.yml` | Node version lấy từ `.nvmrc` — đổi ở đó, không sửa trong yml |
 | Đổi **hành vi của Claude** | `CLAUDE.md`, hoặc `.claude/commands/` | |
@@ -265,6 +275,8 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 | Import `@/config` chạy được lúc dev nhưng vỡ sau `npm run build` | Dự án **không dùng path alias** — `nest build` là tsc thuần, không rewrite alias. Dùng import tương đối |
 | (Phase 3) `POST /products` trả 500 khi tạo nhiều product có slug dài dùng chung tiền tố | `generateSkuCode` cắt slug còn 16 ký tự đầu ⇒ hai slug khác nhau ra CÙNG một `sku_code`, vỡ `UNIQUE`. Comment cũ ghi ca này "cực hiếm" nhưng script seed benchmark làm nó xảy ra 100% các lần. Đã sửa bằng 4 ký tự băm FNV-1a của slug đầy đủ — **bài học: "cực hiếm" là phỏng đoán, phải kiểm bằng cách dùng thật** |
 | (Phase 2) `@UseGuards(GuardTừModuleKhác)` báo thiếu dependency của GUARD (không phải của controller) | `@UseGuards(Class)` **không** tái dùng singleton của module gốc như constructor injection — `GuardsContextCreator` tra thẳng `injectables` của module chứa **controller** (không đi qua `imports`/`exports`) rồi tự dựng lại guard ở đó, nên mọi dependency của guard (ở đây `JwtService`) phải resolve được **ngay tại module đang dùng guard**. Sửa **2 phần**: (1) khai guard trong `providers` của CHÍNH module đang dùng nó (`src/modules/product/product.module.ts`), không chỉ import module gốc; (2) export cả module cung cấp dependency của guard (`JwtModule`) từ module gốc (`src/modules/auth/auth.module.ts`) — thiếu phần nào cũng lỗi |
+| (Phase 4) BullMQ ném `MaxRetriesPerRequestError` khi queue **rảnh việc** | Worker chạy lệnh blocking (`BZPOPMIN`) để chờ job, ioredis bắt buộc `maxRetriesPerRequest: null` cho kiểu kết nối đó. `RedisService` cố tình đặt `1` (rate limit phải hỏng nhanh) ⇒ hai nhu cầu ngược nhau, **phải là hai kết nối**. Dùng chung thì chạy được lúc đầu rồi mới nổ — bug im lặng |
+| (Phase 4) `Could not find a working container runtime strategy` dù `docker ps` chạy được | Jest không `connect` được `docker.sock` (`EPERM`) trong khi shell thì được. Lối thoát: `TEST_DATABASE_URL`/`TEST_REDIS_URL` trỏ vào `npm run up` — xem `test/infra-fixture.ts` |
 
 ---
 
@@ -279,3 +291,4 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`project-context.md`](../project-context.md) |
 | Tên gọi của các bài toán sẽ gặp | [`docs/glossary.md`](glossary.md) |
 | Chi tiết Phase 0 đã làm gì, test nào pass | [`docs/specs/phase0-nen-mong.md`](specs/phase0-nen-mong.md) |
+| Quyết định kiến trúc đã chốt (5 ADR) | [`docs/adr/`](adr/) |

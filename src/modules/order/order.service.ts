@@ -1,13 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { decodeCursor, paginate } from '../../common';
+import { ENV, type Env } from '../../config';
+import { JOB, QueueService, type OrderExpirePayload } from '../../infra/queue';
 import { INVENTORY_RESERVER, type InventoryReserver } from './inventory-reserver';
 import type { CreateOrderDto, ListOrderQueryDto } from './order.dto';
 import { OrderNotFoundError, OutOfStockError, SkuNotFoundError } from './order.errors';
 import { OrderRepository } from './order.repository';
-
-/** Đơn giữ chỗ 15 phút. Phase 3 chỉ GHI mốc này; job tự hủy khi quá hạn là Phase 4. */
-const HOLD_MINUTES = 15;
 
 @Injectable()
 export class OrderService {
@@ -15,7 +14,9 @@ export class OrderService {
 
   constructor(
     private readonly repo: OrderRepository,
+    private readonly queue: QueueService,
     @Inject(INVENTORY_RESERVER) private readonly reserver: InventoryReserver,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   /**
@@ -37,7 +38,7 @@ export class OrderService {
       throw new OutOfStockError();
     }
 
-    const expiresAt = new Date(Date.now() + HOLD_MINUTES * 60 * 1000);
+    const expiresAt = new Date(Date.now() + this.env.ORDER_HOLD_MINUTES * 60 * 1000);
     const order = await this.repo.createOrder({
       userId,
       idempotencyKey,
@@ -63,6 +64,26 @@ export class OrderService {
 
       this.logger.log({ orderId: existing.id, userId }, 'Idempotency-Key trùng — trả lại đơn cũ');
       return { order: existing, created: false };
+    }
+
+    // Hẹn giờ tự huỷ. **Sau** khi transaction đã commit, và cố tình KHÔNG nằm trong đó: gọi
+    // Redis bên trong transaction là vi phạm luật "transaction boundary hẹp nhất" (CLAUDE.md)
+    // và giữ khoá DB suốt thời gian chờ mạng.
+    //
+    // Redis hỏng ở đây thì đơn vẫn tạo xong — chỉ mất lịch hẹn, và sweeper 60 giây một lần sẽ
+    // dọn. Vì vậy chỉ log `warn` chứ không ném lỗi làm hỏng một request đã thành công.
+    try {
+      await this.queue.add<OrderExpirePayload>(
+        JOB.ORDER_EXPIRE,
+        { orderId: order.id },
+        {
+          delay: this.env.ORDER_HOLD_MINUTES * 60 * 1000,
+          // `jobId` theo đơn: đẩy lại cùng đơn không sinh ra hai lịch hẹn.
+          jobId: `expire:${order.id}`,
+        },
+      );
+    } catch (error) {
+      this.logger.warn({ orderId: order.id, err: error }, 'Không hẹn được lịch huỷ đơn — sweeper sẽ dọn');
     }
 
     this.logger.log(

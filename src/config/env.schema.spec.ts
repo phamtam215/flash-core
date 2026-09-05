@@ -14,6 +14,7 @@ describe('validateEnv', () => {
     REDIS_URL: 'redis://localhost:6379',
     JWT_ACCESS_SECRET: 'a'.repeat(32),
     JWT_REFRESH_SECRET: 'b'.repeat(32),
+    PAYMENT_WEBHOOK_SECRET: 'c'.repeat(32),
   };
 
   it('điền giá trị mặc định cho các biến không bắt buộc', () => {
@@ -28,6 +29,26 @@ describe('validateEnv', () => {
     expect(env.REFRESH_TOKEN_TTL).toBe(604800); // 7 ngày
     expect(env.LOGIN_RATE_LIMIT_MAX).toBe(5);
     expect(env.COOKIE_SECURE).toBe(false); // local dùng http
+
+    // Phase 4
+    expect(env.ORDER_HOLD_MINUTES).toBe(15);
+    expect(env.PAYMENT_WEBHOOK_TOLERANCE).toBe(300);
+    expect(env.QUEUE_CONCURRENCY).toBe(5);
+    expect(env.OUTBOX_POLL_INTERVAL_MS).toBe(1000);
+    expect(env.OUTBOX_BATCH_SIZE).toBe(50);
+  });
+
+  it('bắt buộc PAYMENT_WEBHOOK_SECRET — endpoint webhook không có auth nào khác', () => {
+    const withoutSecret: Record<string, string> = { ...valid };
+    delete withoutSecret.PAYMENT_WEBHOOK_SECRET;
+
+    // Thiếu hẳn: app phải chết lúc khởi động, không được chạy với khoá rỗng — ai cũng ký
+    // được webhook và đánh dấu đơn của người khác là "đã trả tiền".
+    expect(() => validateEnv(withoutSecret)).toThrow(/PAYMENT_WEBHOOK_SECRET/);
+    // Có nhưng quá ngắn cũng không được.
+    expect(() => validateEnv({ ...valid, PAYMENT_WEBHOOK_SECRET: 'ngan' })).toThrow(
+      /PAYMENT_WEBHOOK_SECRET/,
+    );
   });
 
   it('ép COOKIE_SECURE từ chuỗi sang boolean', () => {

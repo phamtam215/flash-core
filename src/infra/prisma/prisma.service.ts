@@ -24,6 +24,18 @@ import { PrismaClient } from '../../generated/prisma/client';
  * `prisma.order.findMany()` và `prisma.$transaction()` như tài liệu Prisma, không phải học
  * thêm một lớp API riêng của dự án.
  */
+/**
+ * `PrismaClient` thu hẹp còn phần dùng được **bên trong** một transaction interactive.
+ *
+ * Có kiểu này thì repository viết được method nhận `tx` từ ngoài, nhờ vậy nhiều lệnh ghi ở
+ * nhiều repository khác nhau vẫn nằm chung MỘT transaction — điều kiện để Outbox và dấu
+ * idempotent của Phase 4 hoạt động.
+ */
+export type PrismaTx = Omit<
+  PrismaClient,
+  '$transaction' | '$connect' | '$disconnect' | '$extends' | '$on' | '$use'
+>;
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);

@@ -15,6 +15,8 @@
 // Phase 2 thêm `Product` và `ProductSku` (spec: docs/specs/phase2-product-inventory.md).
 // Phase 3 thêm `Order` và `OrderItem` (spec: docs/specs/phase3-order-concurrency.md), và cột
 // `ProductSku.version` cho chiến lược optimistic.
+// Phase 4 thêm `OutboxEvent`, `ProcessedEvent`, `RefundRequest` và ba cột thanh toán trên
+// `Order` (spec: docs/specs/phase4-async-queue-payment.md).
 //
 // Ghi chú cho phase sau:
 // - Tồn kho theo SKU biến thể (size × màu) — quyết định #2 trong project-context.md. Nằm ở
@@ -187,11 +189,21 @@ model Order {
   /// Mốc hết hạn giữ chỗ (createdAt + 15 phút). Phase 3 chỉ GHI cột này — job tự hủy khi quá
   /// hạn là deliverable của Phase 4 (BullMQ delayed job).
   expiresAt DateTime @map("expires_at")
+
+  /// Phase 4. Mốc thời gian của hai đường ra khỏi `PENDING`, để trả lời được "đơn này chốt
+  /// lúc nào" mà không phải suy từ `updatedAt` (cột đó đổi vì bất cứ lý do gì).
+  paidAt      DateTime? @map("paid_at")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  /// Mã phiên thanh toán từ cổng. UNIQUE để một phiên không gắn được vào hai đơn.
+  paymentIntentId String? @unique @map("payment_intent_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user  User        @relation(fields: [userId], references: [id])
-  items OrderItem[]
+  user    User            @relation(fields: [userId], references: [id])
+  items   OrderItem[]
+  refunds RefundRequest[]
 
   @@unique([userId, idempotencyKey])
   // Tra đơn của một user, mới nhất trước — phục vụ keyset pagination của GET /orders.
@@ -220,4 +232,84 @@ model OrderItem {
   @@index([orderId])
   @@index([skuId])
   @@map("order_items")
+}
+
+// ── Phase 4: Async, Queue & Payment ─────────────────────────────────────────────────────
+
+enum OutboxStatus {
+  PENDING /// chưa đẩy vào queue
+  DISPATCHED /// đã đẩy, không xử lý lại
+  FAILED /// cạn số lần thử ở khâu đẩy — cần người xem
+}
+
+/// Hộp thư đi (Outbox pattern).
+///
+/// Vấn đề nó giải: `await db.save()` rồi `await queue.add()` là **dual write** — hai hệ thống
+/// khác nhau, không transaction nào bao được cả hai. Chết ở giữa thì DB có đơn mà queue không
+/// có việc, và `try/catch` không cứu được (lệnh đầu đã commit rồi). Cách duy nhất đúng: ghi ý
+/// định vào **cùng transaction** với dữ liệu, rồi để một tiến trình riêng đọc ra và đẩy đi.
+///
+/// Nó KHÔNG cho exactly-once: đẩy queue xong mà chết trước khi `UPDATE status='DISPATCHED'`
+/// thì lần sau đẩy lại. Nó đổi bài toán từ "có thể **mất**" sang "có thể **trùng**" — và trùng
+/// thì consumer idempotent xử lý được, còn mất thì không có cách nào cứu.
+model OutboxEvent {
+  id          String @id @default(uuid()) @db.Uuid
+  aggregate   String /// 'order'
+  aggregateId String @map("aggregate_id") @db.Uuid
+  type        String /// 'order.placed', 'order.paid', ...
+
+  payload Json @db.JsonB
+
+  status       OutboxStatus @default(PENDING)
+  attempts     Int          @default(0)
+  lastError    String?      @map("last_error")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  dispatchedAt DateTime?    @map("dispatched_at")
+
+  /// Relay quét đúng dòng cần đẩy, cũ trước. Index này LÀ điều kiện để `FOR UPDATE SKIP
+  /// LOCKED` rẻ — thiếu nó thì mỗi vòng quét là một Seq Scan trên bảng chỉ có tăng.
+  @@index([status, createdAt])
+  @@map("outbox_events")
+}
+
+/// Dấu "đã xử lý rồi" của consumer — thứ biến at-least-once thành *exactly-once processing*.
+///
+/// Idempotency ở đây do UNIQUE của DB quyết định, y hệt cách `Idempotency-Key` làm ở Phase 3:
+/// cứ `INSERT`, va UNIQUE thì biết là bản trùng và thoát êm. Cách sai vẫn là cách cũ —
+/// `SELECT` xem đã xử lý chưa rồi mới xử lý — vì hai worker chạy song song lọt qua khe giữa
+/// hai bước đó.
+///
+/// Khoá gồm cả `consumer`: cùng một sự kiện có thể có nhiều người tiêu thụ (gửi email, cộng
+/// điểm thưởng...), mỗi người phải được xử lý đúng một lần của riêng mình.
+model ProcessedEvent {
+  eventId     String   @map("event_id")
+  consumer    String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@id([eventId, consumer])
+  @@map("processed_events")
+}
+
+/// Tiền đã vào nhưng đơn không còn nhận được (đã huỷ, hoặc số tiền lệch).
+///
+/// KHÔNG tự hoàn tiền và KHÔNG im lặng: ghi lại đầy đủ + log mức `error`. Ba cách xử lý sai đã
+/// ghi ở tech-playbook §Phase 4 — bỏ qua webhook (khách mất tiền), hồi sinh đơn `CANCELLED`
+/// thành `PAID` (tạo oversell ở đường sau), hoặc tự hoàn tiền mà không để lại dấu vết.
+model RefundRequest {
+  id              String @id @default(uuid()) @db.Uuid
+  orderId         String @map("order_id") @db.Uuid
+  paymentIntentId String @map("payment_intent_id")
+  amountVnd       Int    @map("amount_vnd")
+
+  /// 'ORDER_ALREADY_CANCELLED' | 'AMOUNT_MISMATCH'
+  reason        String
+  correlationId String?  @map("correlation_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  /// Webhook lặp lại không được tạo hai yêu cầu hoàn tiền cho cùng một phiên thanh toán.
+  @@unique([paymentIntentId])
+  @@index([orderId])
+  @@map("refund_requests")
 }

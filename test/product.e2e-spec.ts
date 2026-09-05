@@ -2,13 +2,12 @@ import { execFileSync } from 'node:child_process';
 
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infra/prisma';
+import { startInfra } from './infra-fixture';
 
 /**
  * Integration test cho module product — test case trong docs/specs/phase2-product-inventory.md
@@ -20,27 +19,17 @@ import { PrismaService } from '../src/infra/prisma';
  * Chạy: `npm run test:int` (cần Docker).
  */
 describe('Product (e2e)', () => {
-  let postgres: StartedPostgreSqlContainer;
-  let redis: StartedTestContainer;
+  let stopInfra: () => Promise<void>;
   let app: INestApplication;
   let agent: ReturnType<typeof request.agent>;
 
   beforeAll(async () => {
-    [postgres, redis] = await Promise.all([
-      new PostgreSqlContainer('postgres:16-alpine')
-        .withDatabase('flashcore')
-        .withUsername('flashcore')
-        .withPassword('flashcore')
-        .start(),
-      new GenericContainer('redis:7-alpine').withExposedPorts(6379).start(),
-    ]);
-
-    process.env.DATABASE_URL = postgres.getConnectionUri();
-    process.env.REDIS_URL = `redis://${redis.getHost()}:${String(redis.getMappedPort(6379))}`;
+    stopInfra = await startInfra();
     process.env.NODE_ENV = 'test';
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
 
     execFileSync('npx', ['prisma', 'migrate', 'deploy'], { env: { ...process.env }, stdio: 'pipe' });
 
@@ -68,7 +57,7 @@ describe('Product (e2e)', () => {
 
   afterAll(async () => {
     await app?.close();
-    await Promise.all([postgres?.stop(), redis?.stop()]);
+    await stopInfra?.();
   });
 
   const oneSku = (size: 'S' | 'M' | 'L' | 'XL' | 'XXL', color: string) => ({

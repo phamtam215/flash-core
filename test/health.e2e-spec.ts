@@ -1,10 +1,9 @@
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 import { Test, type TestingModule } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { startInfra } from './infra-fixture';
 
 /**
  * Integration test đầu tiên của dự án: bật app thật, nối vào **Postgres thật** trong
@@ -20,29 +19,20 @@ import { AppModule } from '../src/app.module';
  * Chạy: `npm run test:int` (cần Docker đang bật; lần đầu sẽ pull image nên chậm).
  */
 describe('Health (e2e)', () => {
-  let container: StartedPostgreSqlContainer;
-  let redis: StartedTestContainer;
+  let stopInfra: () => Promise<void>;
   let app: INestApplication;
 
   beforeAll(async () => {
-    container = await new PostgreSqlContainer('postgres:16-alpine')
-      .withDatabase('flashcore')
-      .withUsername('flashcore')
-      .withPassword('flashcore')
-      .start();
+    // App đọc cấu hình từ process.env qua Zod, nên trỏ nó vào Postgres/Redis vừa dựng.
+    // Không cần migration ở đây: readiness chỉ chạy `SELECT 1`, chưa cần bảng nào.
+    stopInfra = await startInfra();
 
-    // App đọc cấu hình từ process.env qua Zod, nên trỏ nó vào container vừa dựng.
-    // Không cần migration: readiness chỉ chạy `SELECT 1`, chưa cần bảng nào. Migration sẽ
-    // xuất hiện ở Phase 2 cùng với model nghiệp vụ đầu tiên.
-    redis = await new GenericContainer('redis:7-alpine').withExposedPorts(6379).start();
-
-    process.env.DATABASE_URL = container.getConnectionUri();
-    process.env.REDIS_URL = `redis://${redis.getHost()}:${String(redis.getMappedPort(6379))}`;
     process.env.NODE_ENV = 'test';
     process.env.LOG_LEVEL = 'error';
     // Phase 1 thêm hai biến bắt buộc. Giá trị test, không phải secret thật.
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -54,7 +44,7 @@ describe('Health (e2e)', () => {
 
   afterAll(async () => {
     await app?.close();
-    await Promise.all([container?.stop(), redis?.stop()]);
+    await stopInfra?.();
   });
 
   describe('GET /health (liveness)', () => {

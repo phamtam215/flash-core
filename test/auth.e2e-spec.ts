@@ -2,12 +2,11 @@ import { execFileSync } from 'node:child_process';
 
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { startInfra } from './infra-fixture';
 
 /**
  * Integration test cho toàn bộ luồng auth — 12 case trong docs/specs/phase1-auth.md.
@@ -42,8 +41,7 @@ function cookieAttributes(res: request.Response, name: string): string {
 }
 
 describe('Auth (e2e)', () => {
-  let postgres: StartedPostgreSqlContainer;
-  let redis: StartedTestContainer;
+  let stopInfra: () => Promise<void>;
   let app: INestApplication;
 
   // Email khác nhau cho mỗi test để chúng độc lập với thứ tự chạy — test dùng chung dữ liệu
@@ -53,21 +51,12 @@ describe('Auth (e2e)', () => {
   const PASSWORD = 'matkhau123';
 
   beforeAll(async () => {
-    [postgres, redis] = await Promise.all([
-      new PostgreSqlContainer('postgres:16-alpine')
-        .withDatabase('flashcore')
-        .withUsername('flashcore')
-        .withPassword('flashcore')
-        .start(),
-      new GenericContainer('redis:7-alpine').withExposedPorts(6379).start(),
-    ]);
-
-    process.env.DATABASE_URL = postgres.getConnectionUri();
-    process.env.REDIS_URL = `redis://${redis.getHost()}:${String(redis.getMappedPort(6379))}`;
+    stopInfra = await startInfra();
     process.env.NODE_ENV = 'test';
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
     // Access token 1 giây để test được case "hết hạn" mà không phải chờ 15 phút.
     process.env.ACCESS_TOKEN_TTL = '1';
     process.env.LOGIN_RATE_LIMIT_MAX = '3';
@@ -93,7 +82,7 @@ describe('Auth (e2e)', () => {
 
   afterAll(async () => {
     await app?.close();
-    await Promise.all([postgres?.stop(), redis?.stop()]);
+    await stopInfra?.();
   });
 
   // ── 1–2: đăng ký ────────────────────────────────────────────────────────────────────────

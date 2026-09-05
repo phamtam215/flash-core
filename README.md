@@ -6,11 +6,15 @@ thể (size × màu), và **oversell phải bằng 0**.
 
 Kiến trúc: **Modular Monolith** (NestJS + TypeScript, PostgreSQL 16 + Prisma, Redis + BullMQ).
 
-> **Trạng thái:** Phase 3/7 — Order & Concurrency ⭐ **đã xong Definition of Done**: ba chiến
-> lược chống oversell (optimistic / pessimistic / Redis atomic) đổi bằng một biến môi trường,
-> 49/49 integration test xanh, benchmark k6 1.000 VU cho **oversell = 0 ở cả ba**. Số đo và
-> cách đọc số: [`docs/specs/phase3-order-concurrency.md`](docs/specs/phase3-order-concurrency.md)
-> §Bằng chứng test #16.
+> **Trạng thái:** Phase 4/8 — Async, Queue & Payment Webhook **đã xong code + test**: Outbox
+> ghi cùng transaction với đơn, worker BullMQ chạy process riêng, huỷ đơn quá hạn bằng cả
+> delayed job lẫn sweeper, webhook verify HMAC trên raw body. **67/67 integration test xanh**,
+> trong đó hai cổng chính: tồn kho chỉ trả về một lần dù hai đường cùng huỷ đơn, và demo
+> "rút dây mạng" (giết worker giữa chừng) cho **đúng 20 email, không trùng, không mất**.
+>
+> Phase 3 trước đó: ba chiến lược chống oversell đổi bằng một biến môi trường, benchmark k6
+> 1.000 VU cho **oversell = 0 ở cả ba** — số đo ở
+> [`docs/specs/phase3-order-concurrency.md`](docs/specs/phase3-order-concurrency.md).
 >
 > README này chỉ mô tả những gì **đã thật sự chạy được**. Phần chưa làm nằm ở
 > [Lộ trình](#lộ-trình).
@@ -28,8 +32,12 @@ npm install
 cp .env.example .env          # giá trị mặc định đã khớp docker-compose, chạy được ngay
 npm run up                    # dựng Postgres 16 + Redis 7
 npm run db:generate           # sinh Prisma Client vào src/generated/prisma
-npm run dev                   # http://localhost:3000
+npm run dev                   # http://localhost:3000  (terminal 1)
+npm run worker                # xử lý job nền           (terminal 2)
 ```
+
+Worker là **process riêng** để giết được nó mà API vẫn sống — xem
+[ADR-005](docs/adr/005-worker-chay-process-rieng.md).
 
 Kiểm tra:
 
@@ -46,8 +54,9 @@ request, dùng để truy lại toàn bộ hành trình khi debug.
 | Lệnh | Việc |
 |---|---|
 | `npm run dev` | Chạy app, watch mode |
+| `npm run worker` | Chạy worker xử lý job nền (BullMQ) — process riêng |
 | `npm test` | Unit test (nhanh, không cần Docker) |
-| `npm run test:int` | Integration test trên Postgres thật (Testcontainers, cần Docker) |
+| `npm run test:int` | Integration test trên Postgres thật (Testcontainers, cần Docker). Không nối được docker socket thì đặt `TEST_DATABASE_URL`/`TEST_REDIS_URL` — xem `test/infra-fixture.ts` |
 | `npm run test:cov` | Unit test + coverage |
 | `npm run check` | lint + typecheck + test — chạy trước khi commit |
 | `npm run lint` / `lint:fix` | ESLint (có rule type-aware) |
@@ -106,6 +115,8 @@ với một monolith thường.
 | **Zod**, không class-validator | Một schema dùng cho cả validate runtime và suy ra type compile-time |
 | **Prisma 7 + driver adapter `pg`** | Prisma 7 bỏ engine Rust; `pg.Pool` do mình cấu hình → số connection thành biến điều khiển được, cần cho benchmark Phase 3 và Neon pooler Phase 7 |
 | **Làm CẢ BA chiến lược chống oversell**, đổi bằng config | Làm một cách chỉ là "đã làm"; so sánh ba cách kèm số đo mới là "đã hiểu". Số đo ra kết quả ngược trực giác — xem Lộ trình bên dưới |
+| **Ghi dấu đã-xử-lý TRƯỚC khi gửi email** | Gửi mail không nằm trong transaction nào, buộc phải chọn: có thể MẤT hay có thể TRÙNG. Với email xác nhận đơn, gửi hai lần mất lòng tin hơn là chậm một nhịp — [ADR-004](docs/adr/004-ghi-dau-truoc-khi-gui-mail.md) |
+| **Huỷ đơn quá hạn bằng CẢ delayed job lẫn sweeper** | Delayed job dạy cách hẹn giờ; sweeper dạy bài học lớn hơn — queue có thể mất job, **DB mới là sự thật**. Hai đường vào một hàm biến "phải idempotent" thành thứ test được |
 | Module **`order` sở hữu logic trừ tồn kho** (không phải `product`) | "Trừ kho + tạo đơn" phải atomic là ràng buộc CỨNG; "mỗi bảng một chủ" là nguyên tắc MỀM. Xung đột thì giữ cái cứng — [ADR-003](docs/adr/003-so-huu-logic-tru-ton-kho.md) ghi rõ nợ và giới hạn để nợ không lan |
 | **Không path alias `@/`** | `nest build` dùng tsc thuần, không rewrite alias → alias vỡ ở runtime. Import tương đối luôn đúng, không cần loader |
 | Tiền lưu **số nguyên VND** | Không dùng float cho tiền |
@@ -121,7 +132,7 @@ và [`docs/adr/`](docs/adr/).
 | 1 | Auth: Argon2, Access + Refresh Token, rotation, rate limit | ✅ **Xong** — 14/14 test case, kể cả reuse detection |
 | 2 | Product & Inventory: SKU size×màu, JSONB + GIN, cursor pagination, seed 100k | ✅ **Xong** — bằng chứng `EXPLAIN`: keyset ~50× nhanh hơn offset ở trang sâu |
 | 3 | ⭐ Order & Concurrency: 3 chiến lược chống oversell + benchmark k6 1.000 VU | ✅ **Xong** — oversell = 0 ở cả ba, ADR-003 |
-| 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ⬜ |
+| 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ✅ **Xong** — 18 test mới, "rút dây mạng" không mất/không trùng, ADR-004 & 005 |
 | 5 | UI demo: Vite + React, 4 màn hình, timebox 2 buổi tối | ⬜ |
 | 6 | Observability: Pino + correlationId xuyên suốt, /health & /ready, metrics | ⬜ |
 | 7 | Deploy Cloud Run + Neon + Upstash, FinOps mục tiêu 0đ/tháng | ⬜ |

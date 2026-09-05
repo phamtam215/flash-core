@@ -1,2 +1,2 @@
 export { PrismaModule } from './prisma.module';
-export { PrismaService } from './prisma.service';
+export { PrismaService, type PrismaTx } from './prisma.service';

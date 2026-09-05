@@ -4,10 +4,14 @@ import { APP_FILTER } from '@nestjs/core';
 import { AllExceptionsFilter, LoggerModule } from './common';
 import { ConfigModule } from './config';
 import { PrismaModule } from './infra/prisma';
+import { QueueModule } from './infra/queue';
 import { RedisModule } from './infra/redis';
 import { AuthModule } from './modules/auth';
 import { HealthModule } from './modules/health';
+import { MailModule } from './modules/mail';
 import { OrderModule } from './modules/order';
+import { OutboxModule } from './modules/outbox';
+import { PaymentModule } from './modules/payment';
 import { ProductModule } from './modules/product';
 
 /**
@@ -24,9 +28,13 @@ import { ProductModule } from './modules/product';
     LoggerModule,
     PrismaModule,
     RedisModule,
+    QueueModule,
     AuthModule,
     ProductModule,
+    MailModule,
+    OutboxModule,
     OrderModule,
+    PaymentModule,
     HealthModule,
   ],
   providers: [

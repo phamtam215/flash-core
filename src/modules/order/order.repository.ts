@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { Cursor } from '../../common';
-import { PrismaService } from '../../infra/prisma';
+import { PrismaService, type PrismaTx } from '../../infra/prisma';
 
 /**
  * Toàn bộ truy cập DB của module order — quy tắc số 2 trong docs/architecture.md.
@@ -112,14 +112,21 @@ export class OrderRepository {
   // ── Đơn hàng ───────────────────────────────────────────────────────────────────────────
 
   /**
-   * Tạo đơn + item trong MỘT transaction. Trả `null` khi `Idempotency-Key` đã tồn tại.
+   * Tạo đơn + item + **sự kiện hộp thư đi** trong MỘT transaction. Trả `null` khi
+   * `Idempotency-Key` đã tồn tại.
    *
    * Chống double-submit bằng cách **để DB làm trọng tài**: cứ `INSERT`, vi phạm
    * `UNIQUE(user_id, idempotency_key)` thì bắt lỗi `P2002`. Cách sai là `SELECT` xem key có
    * chưa rồi mới `INSERT` — giữa hai bước đó request thứ hai chen vào được, và ta lại tạo ra
    * đúng cái lost update mà cả phase này đang chống.
    *
-   * Transaction chỉ bọc hai lệnh ghi, không có lời gọi mạng nào bên trong (luật CLAUDE.md).
+   * **Dòng `outbox_events` nằm trong cùng transaction — đó LÀ Outbox pattern** (Phase 4).
+   * Cách sai là `await tx.order.create(...)` xong rồi `await queue.add(...)` bên ngoài: hai
+   * hệ thống khác nhau, không transaction nào bao được cả hai (*dual write*), và `try/catch`
+   * không cứu được vì lệnh đầu đã commit rồi. Đơn trùng key thì cả ba lệnh cùng bị huỷ, nên
+   * không bao giờ có "đơn không tạo được mà vẫn gửi email".
+   *
+   * Transaction chỉ bọc ba lệnh ghi, không có lời gọi mạng nào bên trong (luật CLAUDE.md).
    */
   async createOrder(input: {
     userId: string;
@@ -149,12 +156,99 @@ export class OrderRepository {
           },
         });
 
+        await tx.outboxEvent.create({
+          data: {
+            aggregate: 'order',
+            aggregateId: order.id,
+            type: 'order.placed',
+            payload: { orderId: order.id, userId: input.userId, totalVnd: order.totalVnd },
+          },
+        });
+
         return order;
       });
     } catch (error) {
       if (isUniqueViolation(error)) return null;
       throw error;
     }
+  }
+
+  /**
+   * Huỷ một đơn đã quá hạn giữ chỗ. Trả về các dòng hàng cần trả lại kho, hoặc `null` nếu
+   * đơn KHÔNG ở trạng thái huỷ được (đã trả tiền, đã huỷ, hoặc chưa tới hạn).
+   *
+   * Điều kiện nằm trong chính câu `UPDATE`, không kiểm tra trong RAM rồi mới ghi — cùng một
+   * bài học với `decrementStockConditional` ở Phase 3. Ở đây nó còn quan trọng hơn vì có
+   * **hai** đường cùng gọi (delayed job và sweeper): 0 dòng bị ảnh hưởng nghĩa là đường kia
+   * đã xử lý xong, và ta phải thoát êm — không throw, và tuyệt đối không trả kho lần hai.
+   *
+   * `RETURNING` lấy luôn danh sách item trong cùng transaction để người gọi biết trả lại bao
+   * nhiêu, không phải query lại (giữa hai lần query đơn có thể đã đổi).
+   */
+  async cancelIfExpired(orderId: string): Promise<{ skuId: string; quantity: number }[] | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.$executeRaw`
+        UPDATE orders
+        SET status = 'CANCELLED', cancelled_at = now(), updated_at = now()
+        WHERE id = ${orderId}::uuid AND status = 'PENDING' AND expires_at <= now()`;
+
+      if (updated === 0) return null;
+
+      return tx.$queryRaw<{ skuId: string; quantity: number }[]>`
+        SELECT sku_id AS "skuId", quantity FROM order_items WHERE order_id = ${orderId}::uuid`;
+    });
+  }
+
+  /** Danh sách đơn `PENDING` đã quá hạn — đầu vào của sweeper. Đi thẳng theo index `[status, expires_at]`. */
+  async findExpiredPendingOrderIds(limit: number): Promise<string[]> {
+    const rows = await this.prisma.order.findMany({
+      where: { status: 'PENDING', expiresAt: { lte: new Date() } },
+      select: { id: true },
+      orderBy: { expiresAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * Đánh dấu đơn đã trả tiền. Trả `false` nếu đơn không còn `PENDING` — người gọi đọc lại
+   * trạng thái thật để quyết định (đã `PAID` thì thôi, `CANCELLED` thì phải ghi yêu cầu hoàn
+   * tiền). Nhận `tx` để dùng chung transaction với dấu idempotent.
+   */
+  async markPaid(tx: PrismaTx, orderId: string, paymentIntentId: string): Promise<boolean> {
+    const updated = await tx.$executeRaw`
+      UPDATE orders
+      SET status = 'PAID', paid_at = now(), payment_intent_id = ${paymentIntentId}, updated_at = now()
+      WHERE id = ${orderId}::uuid AND status = 'PENDING'`;
+    return updated > 0;
+  }
+
+  /** Đọc trạng thái + tổng tiền của đơn, không giới hạn theo user (worker không có user). */
+  async findOrderForPayment(tx: PrismaTx, orderId: string) {
+    return tx.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true, totalVnd: true, userId: true },
+    });
+  }
+
+  /**
+   * Ghi một yêu cầu hoàn tiền. KHÔNG tự hoàn — chỉ để lại hồ sơ đầy đủ để quy trình nghiệp vụ
+   * xử lý, đúng tinh thần "tiền thật đã chuyển thì hệ thống không được im lặng".
+   *
+   * `UNIQUE(payment_intent_id)` chặn webhook lặp tạo hai yêu cầu. Va UNIQUE ở đây là chuyện
+   * bình thường (cổng gửi lại), nên nuốt êm bằng `skipDuplicates`-style try/catch ở người gọi.
+   */
+  async createRefundRequest(
+    tx: PrismaTx,
+    input: {
+      orderId: string;
+      paymentIntentId: string;
+      amountVnd: number;
+      reason: string;
+      correlationId?: string;
+    },
+  ): Promise<void> {
+    await tx.refundRequest.create({ data: input });
   }
 
   async findOrderByIdempotencyKey(userId: string, idempotencyKey: string) {

@@ -21,6 +21,15 @@ export class AuthRepository {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  /** Cửa công khai cho module khác (`UserDirectory`) — chỉ trả đúng địa chỉ email. */
+  async findEmailById(userId: string): Promise<string | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    return user?.email ?? null;
+  }
+
   async createUser(email: string, passwordHash: string) {
     return this.prisma.user.create({ data: { email, passwordHash } });
   }

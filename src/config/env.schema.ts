@@ -77,6 +77,42 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  // ── Phase 4: Async, Queue & Payment (spec: docs/specs/phase4-async-queue-payment.md) ───
+
+  /**
+   * Thời gian giữ chỗ của một đơn `PENDING`, tính bằng PHÚT.
+   *
+   * Phase 3 để hằng số 15 trong `order.service.ts`. Phase 4 kéo ra env vì integration test
+   * cần rút xuống vài giây để kiểm chứng luồng tự huỷ — không có nó thì test phải chờ 15
+   * phút thật, hoặc phải giả lập đồng hồ (phức tạp hơn và che mất bug thời gian thật).
+   */
+  ORDER_HOLD_MINUTES: z.coerce.number().positive().default(15),
+
+  /**
+   * Khoá ký webhook thanh toán. **Không có default** — thiếu là app chết lúc khởi động, cùng
+   * lý do với JWT secret: một endpoint không cần đăng nhập mà khoá đoán được thì ai cũng
+   * đánh dấu đơn của người khác là "đã trả tiền" được.
+   */
+  PAYMENT_WEBHOOK_SECRET: z.string().min(32, 'PAYMENT_WEBHOOK_SECRET cần tối thiểu 32 ký tự'),
+
+  /**
+   * Chữ ký cũ hơn ngần này GIÂY thì từ chối.
+   *
+   * Chống replay: chữ ký hợp lệ bắt được trên đường truyền sẽ hợp lệ mãi mãi nếu không có
+   * mốc thời gian trong phần được ký. Ký `${t}.${rawBody}` rồi kiểm `|now - t|` là cách các
+   * cổng thật (Stripe, GitHub) đang làm.
+   */
+  PAYMENT_WEBHOOK_TOLERANCE: z.coerce.number().int().positive().default(300),
+
+  /** Số job một worker xử lý song song. */
+  QUEUE_CONCURRENCY: z.coerce.number().int().positive().max(100).default(5),
+
+  /** Nhịp quét hộp thư đi, mili-giây. Nhỏ = email tới nhanh hơn, DB bị hỏi nhiều hơn. */
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+
+  /** Số dòng outbox lấy mỗi vòng quét. */
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(1000).default(50),
 });
 
 export type Env = Readonly<z.infer<typeof envSchema>>;

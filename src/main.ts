@@ -83,6 +83,16 @@ async function bootstrap(): Promise<void> {
     // Bật cờ này thì Nest ngậm log lại, chờ tới khi `useLogger()` ở bước 3 chỉ định logger
     // thật, rồi phát lại toàn bộ qua logger đó. Không mất dòng nào.
     bufferLogs: true,
+
+    // `rawBody: true` — GIỮ LẠI CHUỖI BYTE GỐC của request body (Phase 4).
+    //
+    // VÌ SAO: webhook thanh toán được ký trên đúng những byte cổng đã gửi. Nếu chỉ có body
+    // đã parse rồi `JSON.stringify` lại, thứ tự khoá và khoảng trắng có thể khác đi ⇒ chữ ký
+    // KHÔNG BAO GIỜ khớp, và triệu chứng ("chữ ký luôn sai") không hề chỉ về nguyên nhân.
+    //
+    // Cờ này chỉ thêm `req.rawBody`, không đổi `req.body`, nên mọi controller khác không bị
+    // ảnh hưởng. Chi phí: giữ thêm một bản body trong RAM cho mỗi request.
+    rawBody: true,
   });
 
   // -------------------------------------------------------------------------------------

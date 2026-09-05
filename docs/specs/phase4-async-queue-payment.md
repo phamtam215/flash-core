@@ -2,7 +2,7 @@
 
 - **Phase:** 4
 - **Ngày:** 2026-09-05
-- **Trạng thái:** Draft — chờ Tâm duyệt (6 câu hỏi mở ở cuối)
+- **Trạng thái:** Đã implement (2026-09-05) — 6 câu hỏi mở đã chốt theo khuyến nghị
 
 > Đây là **hợp đồng**: xây gì, API ra sao, test nào phải xanh. Phần *vì sao* — dual write,
 > at-least-once, vì sao Outbox không cho exactly-once, backoff + jitter, verify chữ ký trên raw
@@ -271,13 +271,49 @@ Integration (Testcontainers, Postgres + Redis thật) trừ khi ghi rõ:
 
 ## Definition of Done
 
-- [ ] 18/18 test case trên xanh, `npm run check` sạch
-- [ ] Test #8 và #18 xanh — đây là hai cổng chính của phase
-- [ ] Demo "rút dây mạng" chạy được bằng tay và ghi lại số vào §Bằng chứng DoD
-- [ ] Migration viết tay chạy đúng qua `prisma migrate deploy`
-- [ ] ADR cho các quyết định ở §Câu hỏi mở được chốt
-- [ ] Kiến thức mới (nếu có bug thật/số đo mới) ghi vào `tech-playbook.md` §Phase 4
+- [x] 18/18 test case trên xanh, `npm run check` sạch
+- [x] Test #8 và #18 xanh — đây là hai cổng chính của phase
+- [ ] Demo "rút dây mạng" chạy được **bằng tay** và ghi lại số vào §Bằng chứng DoD
+      *(test #18 đã tự động hoá đúng kịch bản đó; còn lại là chạy tay để nhìn tận mắt)*
+- [x] Migration viết tay chạy đúng qua `prisma migrate deploy`
+- [x] ADR cho các quyết định ở §Câu hỏi mở được chốt (ADR-004, ADR-005)
+- [x] Kiến thức mới ghi vào `tech-playbook.md` §Phase 4
 - [ ] Tâm tự trả lời 4 câu hỏi bản chất của Phase 4 trong `docs/SPEC.md`
+
+## Bằng chứng Definition of Done (2026-09-05)
+
+> Trạng thái tổng của dự án do [`CLAUDE.md` §Trạng thái hiện tại](../../CLAUDE.md) sở hữu.
+
+**Test:** 18/18 integration mới xanh; chạy cả bộ **67/67** (49 của Phase 0–3 vẫn xanh sau khi
+`OrderService`/`OrderRepository` đổi để ghi outbox và hẹn giờ huỷ đơn). Unit **70/70**.
+Lint/typecheck sạch. Migration `20260905090000_add_async_queue_payment` chạy đúng ngay lần
+đầu qua `prisma migrate deploy`.
+
+Hai cổng chính:
+- **#8a/#8b — huỷ đơn quá hạn:** hai đường (delayed job + sweeper) cùng chạy trên một đơn →
+  đúng một đường đổi được trạng thái, `stock` trở về **10**, không phải 14.
+- **#18 — "rút dây mạng":** 20 đơn, giết worker #1 bằng `close(true)` (không chờ job đang
+  chạy), bật worker #2 dọn nốt → **đúng 20 email**, 20 tiêu đề khác nhau. Không mất, không trùng.
+
+**Ba việc đổi so với spec khi làm thật:**
+1. `EmailConfirmPayload` **không** mang địa chỉ email (spec ban đầu có). Lý do: đó là dữ liệu
+   cá nhân nằm lại trong Redis + bảng outbox, và tra lúc gửi thì đổi email xong vẫn gửi đúng
+   chỗ. Đường đặt hàng cũng không phải gánh thêm một câu `SELECT`.
+2. BullMQ phải có **kết nối Redis riêng**, không dùng lại `RedisService` như spec viết —
+   worker chạy lệnh blocking nên bắt buộc `maxRetriesPerRequest: null`, ngược với giá trị `1`
+   mà rate limit cần. Ghi ở `tech-playbook.md` §Phase 4 → Bug hay gặp.
+3. Thêm `test/infra-fixture.ts`: mặc định vẫn Testcontainers, nhưng cho phép trỏ vào
+   Postgres/Redis đã chạy sẵn qua `TEST_DATABASE_URL`/`TEST_REDIS_URL` — cần cho môi trường
+   không nối được `docker.sock` từ trong Jest.
+
+**Chạy demo bằng tay:**
+
+```bash
+npm run up && npm run dev          # terminal 1
+npm run worker                     # terminal 2
+# đặt một đơn, rồi:
+node scripts/send-webhook.mjs --order <uuid> --amount <vnd>
+```
 
 ## Ngoài phạm vi (Non-goals)
 

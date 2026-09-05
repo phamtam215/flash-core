@@ -274,6 +274,16 @@ Phép thử thật cho bộ test: **xoá một `if` trong code rồi chạy test
 
 ---
 
+### Bug hay gặp khi chạy integration test (bổ sung Phase 4)
+
+| Triệu chứng | Nguyên nhân thật | Cách chặn |
+|---|---|---|
+| `Could not find a working container runtime strategy` dù `docker ps` chạy được | Jest **không nối được** `docker.sock` (`connect EPERM`) trong khi shell thì được — sandbox cấp quyền theo tiến trình | Đặt `TEST_DATABASE_URL`/`TEST_REDIS_URL` trỏ vào Postgres/Redis của `npm run up` (xem `test/infra-fixture.ts`); vẫn là DB thật nên bảo đảm không đổi |
+| `Jest did not exit one second after the test run` | Kết nối ioredis do BullMQ tự `duplicate()` bên trong không tự đóng | Đóng tường minh những connection mình tạo; phần BullMQ giữ lại chỉ là cảnh báo, exit code vẫn 0 |
+| Test đếm ra nhiều job hơn mình vừa tạo | Test dùng chung DB, relay lấy cả dư âm của test trước | Dọn ở `beforeEach`, và **khẳng định trên đối tượng của test này**, không trên tổng số |
+
+---
+
 # Phase 0 — Kiến trúc & nền móng
 
 ### Cần rõ
@@ -992,7 +1002,9 @@ vào DB trong cùng transaction, rồi mới đẩy ra ngoài.
 | Tồn kho bị trả về kho hai lần | Job huỷ đơn chạy hai lần, không kiểm tra trạng thái trước khi bù | Conditional `UPDATE`, xem số dòng bị ảnh hưởng |
 | Job biến mất không dấu vết | `removeOnFail: true`, không có DLQ | Giữ failed job + metric + log mức error |
 | Service vừa hồi phục lại sập | Thundering herd | Backoff **+ jitter** |
-| Job retry mãi cho lỗi không thể sửa | Không phân biệt lỗi tạm thời với lỗi vĩnh viễn | Email sai định dạng → fail thẳng, đừng retry |
+| Job retry mãi cho lỗi không thể sửa | Không phân biệt lỗi tạm thời với lỗi vĩnh viễn | Email sai định dạng → `UnrecoverableError`, đừng retry |
+| BullMQ ném `MaxRetriesPerRequestError` khi queue rảnh | Dùng chung kết nối ioredis với phần khác của app | Worker chạy lệnh **blocking** để chờ việc ⇒ bắt buộc `maxRetriesPerRequest: null`, phải là kết nối RIÊNG |
+| Test queue lúc xanh lúc đỏ, số job nhiều hơn dự kiến | Relay lấy **mọi** dòng `PENDING`, kể cả dư âm của test trước | Dọn outbox ở `beforeEach`; đừng khẳng định trên con số tổng |
 
 ### Tình huống thực tế
 
@@ -1005,6 +1017,32 @@ oversell ở đường sau; (3) tự động hoàn tiền mà không ghi lại �
 Cách đúng: ghi một bản ghi `refund_required` đầy đủ thông tin, log mức error kèm
 `correlationId`, rồi để quy trình nghiệp vụ (tự động hoặc thủ công) xử lý. **Tiền thật đã
 chuyển thì không được để hệ thống im lặng.**
+
+### Ba điều rút ra khi làm thật (Phase 4, 2026-09-05)
+
+**1. Cùng một cơ chế UNIQUE cho hai loại hệ quả, nhưng bảo đảm nhận được KHÁC nhau.**
+Dự án có đúng hai consumer, đặt cạnh nhau thì thấy ngay ranh giới:
+
+| Consumer | Hệ quả nằm ở đâu | Cách chống trùng | Bảo đảm đạt được |
+|---|---|---|---|
+| Đánh dấu đơn `PAID` | **Trong DB** | Dấu + hệ quả cùng MỘT transaction | *Exactly-once processing* thật sự |
+| Gửi email xác nhận | **Ngoài DB** (SMTP) | Ghi dấu → gửi → hỏng thì trả dấu | Phải **chọn**: không trùng, đổi lại có thể mất |
+
+Câu hỏi phỏng vấn "vì sao consumer phải idempotent" chỉ trả lời được nửa vời nếu chưa thấy
+sự khác nhau này: **idempotency là miễn phí khi hệ quả nằm trong DB, và là một quyết định
+nghiệp vụ khi nó ra ngoài** (dự án chốt ở [ADR-004](adr/004-ghi-dau-truoc-khi-gui-mail.md)).
+
+**2. Outbox và `SKIP LOCKED` là một cặp, thiếu vế nào cũng hỏng.** Outbox lo "không mất";
+`FOR UPDATE SKIP LOCKED` lo "nhiều worker không giẫm nhau". Bỏ `SKIP LOCKED` đi thì 5 worker
+biến thành 1 worker chậm — tất cả xếp hàng chờ đúng dòng đầu tiên. Test #4 kiểm chính điều
+đó: hai vòng quét song song trên 20 dòng phải chia nhau ra đúng 20, không trùng.
+
+**3. Trả kho SAU khi `UPDATE` đã đổi được trạng thái, không phải trước.** Huỷ đơn có **hai**
+đường vào (delayed job + sweeper). Điều kiện nằm trong câu `UPDATE … WHERE status='PENDING'`
+nên chỉ một đường thấy 1 dòng bị ảnh hưởng; đường kia thấy 0 và thoát êm. Đảo thứ tự — trả
+kho trước rồi mới `UPDATE` — thì cả hai cùng trả và tồn kho phồng lên. Đây đúng là bài học
+của Phase 3 lặp lại ở tầng job: **đưa điều kiện vào chính câu ghi, rồi đọc số dòng bị ảnh
+hưởng để biết mình có thắng không.**
 
 ---
 

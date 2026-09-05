@@ -5,6 +5,7 @@ import { AccessTokenGuard } from './access-token.guard';
 import { AuthController } from './auth.controller';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
+import { USER_DIRECTORY } from './user-directory';
 
 /**
  * `JwtModule.register({})` để rỗng là có chủ đích: secret và thời hạn được truyền **ở từng
@@ -27,7 +28,14 @@ import { AuthService } from './auth.service';
 @Module({
   imports: [JwtModule.register({})],
   controllers: [AuthController],
-  providers: [AuthService, AuthRepository, AccessTokenGuard],
-  exports: [AccessTokenGuard, JwtModule],
+  providers: [
+    AuthService,
+    AuthRepository,
+    AccessTokenGuard,
+    // `useExisting` chứ không `useClass`: cùng một instance `AuthRepository`, chỉ nhìn qua
+    // một cửa hẹp hơn. `useClass` sẽ dựng thêm một bản thứ hai.
+    { provide: USER_DIRECTORY, useExisting: AuthRepository },
+  ],
+  exports: [AccessTokenGuard, JwtModule, USER_DIRECTORY],
 })
 export class AuthModule {}
