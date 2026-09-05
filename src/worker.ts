@@ -48,6 +48,7 @@ async function bootstrap(): Promise<void> {
     // phải là `null`).
     connection: queue.connection.duplicate(),
     concurrency: env.QUEUE_CONCURRENCY,
+    prefix: env.QUEUE_PREFIX,
   });
 
   worker.on('failed', (job, err) => {

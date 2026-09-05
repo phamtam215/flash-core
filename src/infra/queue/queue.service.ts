@@ -43,6 +43,9 @@ export class QueueService implements OnModuleDestroy {
 
     this.queue = new Queue(QUEUE_NAME, {
       connection: this.connection,
+      // Worker phải dùng ĐÚNG tiền tố này, nếu không hai bên nhìn vào hai không gian khoá
+      // khác nhau và job nằm im mãi mà không ai báo lỗi.
+      prefix: env.QUEUE_PREFIX,
       defaultJobOptions: {
         // Job xong thì dọn, giữ lại 100 bản gần nhất để còn nhìn được lúc debug.
         removeOnComplete: 100,

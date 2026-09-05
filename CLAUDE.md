@@ -187,17 +187,25 @@ Muốn xem lại thì `git log -- .claude/`.
   `payment` (verify HMAC trên raw body, cổng giả lập), `OrderExpiryService` (huỷ đơn quá hạn
   bằng **cả** delayed job **lẫn** sweeper), `OrderNotifier`, worker tách process
   (`npm run worker`), migration `20260905090000_add_async_queue_payment` (3 bảng + 3 cột).
-  **18/18 integration test mới xanh, tổng 67/67**; unit **70/70**; lint/typecheck sạch.
+  **21/21 integration test mới xanh, tổng 70/70**; unit **74/74**; lint/typecheck sạch.
   Hai cổng chính đều xanh: **#8 hai đường huỷ đơn → tồn kho chỉ trả một lần**, **#18 "rút dây
-  mạng" → đúng 20 email, không hơn**. 2 ADR mới (`004` ghi dấu trước khi gửi mail, `005`
-  worker chạy process riêng).
+  mạng" → đúng 20 email, không hơn**, **#4b đẩy queue hỏng giữa lô → cả lô về `PENDING`,
+  không mất sự kiện**. 3 ADR mới (`004` ghi dấu trước khi gửi mail, `005` worker chạy process
+  riêng, `006` relay giữ transaction khi đẩy queue).
+  **Một lỗi thật đã sửa trong lúc rà lại:** relay bản đầu đánh dấu `DISPATCHED` rồi commit
+  TRƯỚC khi `queue.add` — process chết ở khe giữa là mất sự kiện im lặng, phá đúng lời hứa của
+  phase. Đã đảo thành đẩy-trước-đánh-dấu-sau trong cùng transaction (ADR-006).
   **Biến môi trường mới bắt buộc:** `PAYMENT_WEBHOOK_SECRET` (≥32 ký tự) — thiếu là app chết
   lúc khởi động. Thêm 5 biến có mặc định: `ORDER_HOLD_MINUTES`, `PAYMENT_WEBHOOK_TOLERANCE`,
-  `QUEUE_CONCURRENCY`, `OUTBOX_POLL_INTERVAL_MS`, `OUTBOX_BATCH_SIZE`.
+  `QUEUE_CONCURRENCY`, `QUEUE_PREFIX`, `OUTBOX_POLL_INTERVAL_MS`, `OUTBOX_BATCH_SIZE`.
+  **`QUEUE_PREFIX` đáng nhớ:** BullMQ chia job cho mọi tiến trình cùng Redis + cùng tiền tố,
+  nên worker đang chạy trên máy dev sẽ nuốt job của integration test nếu không tách tiền tố.
   **Còn lại:** Tâm tự trả lời 4 câu hỏi bản chất, chạy demo "rút dây mạng" bằng tay, review + push.
 - **Lưu ý môi trường:** sandbox chặn Jest nối `docker.sock` (`connect EPERM`) dù `docker` CLI
   chạy được ⇒ Testcontainers báo "Could not find a working container runtime strategy". Lối
   thoát đã có sẵn: `TEST_DATABASE_URL`/`TEST_REDIS_URL` trỏ vào Postgres/Redis của
   `npm run up` (xem `test/infra-fixture.ts`). CI vẫn dùng Testcontainers như cũ.
+- **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
+  Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân
   sách tài liệu) — spec đã là danh sách việc.

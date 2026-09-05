@@ -64,6 +64,10 @@ describe('Async, Queue & Payment (e2e)', () => {
     process.env.INVENTORY_STRATEGY = 'optimistic';
     process.env.ORDER_HOLD_MINUTES = String(HOLD_SECONDS / 60);
     process.env.DATABASE_POOL_MAX = '20';
+    // Tiền tố riêng cho mỗi lần chạy: Redis có thể đang dùng chung với worker trên máy dev,
+    // và nếu chung tiền tố thì worker đó nuốt mất job của test — triệu chứng là "không tìm
+    // thấy job" hoặc "0 email", không hề chỉ về nguyên nhân.
+    process.env.QUEUE_PREFIX = `test-${randomUUID().slice(0, 8)}`;
 
     execFileSync('npx', ['prisma', 'migrate', 'deploy'], { env: { ...process.env }, stdio: 'pipe' });
 
@@ -237,6 +241,51 @@ describe('Async, Queue & Payment (e2e)', () => {
     expect(await app.get(OutboxRepository).countByStatus('PENDING')).toBe(0);
   });
 
+  it('4b. ⭐ đẩy queue hỏng giữa lô → CẢ LÔ quay lại PENDING, không mất sự kiện nào', async () => {
+    const { agent } = await loginAsNewUser();
+    const skuId = await seedSku(20);
+    for (let i = 0; i < 5; i += 1) await placeOrder(agent, skuId);
+
+    const repo = app.get(OutboxRepository);
+    expect(await repo.countByStatus('PENDING')).toBe(5);
+
+    // Giả lập cổng ra đứt giữa lúc đẩy: nhận đủ lô rồi mới ném lỗi.
+    let seen = 0;
+    await expect(
+      repo.dispatchBatch(50, async (events) => {
+        seen = events.length;
+        await Promise.resolve();
+        throw new Error('Redis đứt giữa chừng');
+      }),
+    ).rejects.toThrow(/Redis đứt/);
+    expect(seen).toBe(5);
+
+    // Đây là điều kiện sống còn của phase: KHÔNG dòng nào bị bỏ lại ở DISPATCHED.
+    // Nếu đánh dấu trước rồi mới đẩy (bản đầu của code này), 5 dòng sẽ mắc kẹt ở DISPATCHED
+    // và 5 email không bao giờ được gửi — mất im lặng.
+    expect(await repo.countByStatus('PENDING')).toBe(5);
+
+    // Nhịp quét sau đẩy lại đủ 5. Trùng là chấp nhận được (consumer idempotent lo), mất thì không.
+    expect(await app.get(OutboxRelay).relayOnce()).toBe(5);
+    expect(await repo.countByStatus('PENDING')).toBe(0);
+  });
+
+  it('4c. đẩy hỏng liên tiếp 5 lần → dòng chuyển FAILED, không thử lại vô hạn', async () => {
+    const { agent } = await loginAsNewUser();
+    await placeOrder(agent, await seedSku(5));
+
+    const repo = app.get(OutboxRepository);
+    const boom = () => Promise.reject(new Error('cổng ra luôn hỏng'));
+
+    for (let i = 0; i < 5; i += 1) {
+      await repo.dispatchBatch(50, boom).catch(() => undefined);
+      await repo.recordDispatchFailure('cổng ra luôn hỏng', 50);
+    }
+
+    expect(await repo.countByStatus('PENDING')).toBe(0);
+    expect(await repo.countByStatus('FAILED')).toBeGreaterThanOrEqual(1);
+  });
+
   // ── Consumer idempotent ────────────────────────────────────────────────────────────────
 
   it('5. consumer email chạy hai lần cùng eventId → chỉ gửi MỘT lần', async () => {
@@ -274,6 +323,35 @@ describe('Async, Queue & Payment (e2e)', () => {
     await notifier.sendConfirmation(payload);
 
     expect(mailer.sent).toHaveLength(1);
+  });
+
+  it('6b. lỗi mail VĨNH VIỄN → không retry, và dấu KHÔNG được trả lại (không gửi trùng)', async () => {
+    const { agent } = await loginAsNewUser();
+    const order = await placeOrder(agent, await seedSku(5));
+    const event = await prisma.outboxEvent.findFirstOrThrow({ where: { aggregateId: order.id } });
+
+    // `userId` không tồn tại ⇒ không tra ra địa chỉ ⇒ `PermanentMailError`. Retry bao nhiêu
+    // lần cũng vậy, nên JobProcessor phải đổi nó thành `UnrecoverableError` để BullMQ dừng.
+    const payload = {
+      eventId: event.id,
+      orderId: order.id,
+      userId: '00000000-0000-4000-8000-000000000000',
+      totalVnd: order.totalVnd,
+    };
+
+    // `JobProcessor` thuộc `WorkerModule` (tầng trên `modules/`), không có trong `AppModule`
+    // — việc nó đổi `PermanentMailError` thành `UnrecoverableError` được kiểm ở unit test
+    // `src/worker/job.processor.spec.ts`. Ở đây kiểm phần nghiệp vụ.
+    await expect(app.get(OrderNotifier).sendConfirmation(payload)).rejects.toMatchObject({
+      name: 'PermanentMailError',
+    });
+
+    expect(mailer.sent).toHaveLength(0);
+    // Dấu vẫn nằm lại: job có vào DLQ thì cũng không ai chạy lại và gửi trùng.
+    const marks = await prisma.processedEvent.count({
+      where: { eventId: event.id, consumer: 'order.email.confirm' },
+    });
+    expect(marks).toBe(1);
   });
 
   it('7. đơn quá hạn → job huỷ đơn và stock tăng lại đúng số lượng', async () => {
@@ -464,15 +542,16 @@ describe('Async, Queue & Payment (e2e)', () => {
 
       // Worker #1: xử lý được vài job rồi bị GIẾT giữa chừng (`force = true`, không chờ job
       // đang chạy xong) — mô phỏng đúng cảnh rút dây mạng, không phải tắt êm.
+      const prefix = process.env.QUEUE_PREFIX;
       const firstConn = queue.connection.duplicate();
-      const first = new Worker(QUEUE_NAME, processor, { connection: firstConn, concurrency: 2 });
+      const first = new Worker(QUEUE_NAME, processor, { connection: firstConn, concurrency: 2, prefix });
       await sleep(400);
       await first.close(true);
 
       // Worker #2 bật lên và dọn nốt. Job đang dở của worker #1 bị coi là "stalled" và được
       // giao lại — đó là lý do có thể xử lý TRÙNG, và là lý do consumer phải idempotent.
       const secondConn = queue.connection.duplicate();
-      const second = new Worker(QUEUE_NAME, processor, { connection: secondConn, concurrency: 5 });
+      const second = new Worker(QUEUE_NAME, processor, { connection: secondConn, concurrency: 5, prefix });
 
       // Chỉ đếm email của 20 đơn tạo trong CHÍNH test này.
       const mine = () => mailer.sent.filter((m) => [...orderIds].some((id) => m.subject.includes(id)));

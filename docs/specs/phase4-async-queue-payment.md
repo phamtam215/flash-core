@@ -233,18 +233,31 @@ POST /payments/webhook
 
 ## Edge cases bắt buộc xử lý
 
-- [ ] Worker bị giết **sau** khi relay đẩy queue, **trước** khi `UPDATE status='DISPATCHED'` → job được đẩy lần hai → consumer idempotent nuốt bản trùng, email chỉ gửi một lần
-- [ ] Worker bị giết **giữa** lúc xử lý `order.email.confirm` → BullMQ trả job về queue, chạy lại, không mất
-- [ ] Hai worker chạy song song → `FOR UPDATE SKIP LOCKED` chia việc, không cùng đẩy một dòng
-- [ ] Webhook đến **hai lần** cùng `eventId` → lần hai thoát êm, vẫn trả `204`
-- [ ] Webhook đến **sau** khi đơn đã `CANCELLED` → tạo `refund_requests`, log `error`, đơn giữ nguyên `CANCELLED`
-- [ ] Webhook chữ ký sai / thiếu header / `t` quá cũ → `401`, không xử lý
-- [ ] Body webhook bị sửa một byte → chữ ký không khớp → `401`
-- [ ] Delayed job và sweeper cùng huỷ một đơn → chỉ một đường trả tồn kho, `stock` không tăng hai lần
-- [ ] User đã tự huỷ đơn, delayed job vẫn nổ 15 phút sau → conditional `UPDATE` ảnh hưởng 0 dòng → thoát êm
-- [ ] SMTP/mailer lỗi tạm thời → retry có backoff **+ jitter**; lỗi vĩnh viễn (email sai định dạng) → fail thẳng, không retry
-- [ ] `amountVnd` trong webhook khác `total_vnd` của đơn → **không** đánh dấu `PAID`, ghi `refund_requests` với `reason='AMOUNT_MISMATCH'` + log `error`
-- [ ] Redis chết khi controller đang `queue.add` cho webhook → trả `500` để cổng retry (chấp nhận, vì cổng thanh toán nào cũng retry)
+Đánh dấu theo **test thật đang khoá nó lại**, không theo "code có nhánh đó".
+
+- [x] Đẩy queue hỏng giữa lô → **cả lô rollback về `PENDING`**, không dòng nào kẹt ở `DISPATCHED` *(test 4b)*
+- [x] Đẩy hỏng liên tiếp 5 lần → dòng chuyển `FAILED`, không thử lại vô hạn *(test 4c)*
+- [x] Worker bị giết giữa lúc xử lý `order.email.confirm` → job được giao lại, chạy lại, không mất *(test 18)*
+- [x] Job được giao lại sau khi worker chết → consumer idempotent nuốt bản trùng, email chỉ gửi một lần *(test 5, 18)*
+- [x] Hai relay chạy song song → `FOR UPDATE SKIP LOCKED` chia việc, không cùng đẩy một dòng *(test 4)*
+- [x] Webhook đến **hai lần** cùng `eventId` → lần hai thoát êm, vẫn trả `204` *(test 13)*
+- [x] Webhook đến **sau** khi đơn đã `CANCELLED` → tạo `refund_requests`, log `error`, đơn giữ nguyên *(test 14)*
+- [x] Webhook chữ ký sai / thiếu header / `t` quá cũ → `401`, không xử lý *(test 11, 12, unit 16)*
+- [x] Body webhook bị sửa một byte → chữ ký không khớp → `401` *(test 11b)*
+- [x] Delayed job và sweeper cùng huỷ một đơn → chỉ một đường trả tồn kho *(test 8a, 8b)*
+- [x] Delayed job nổ sau khi đơn đã sang trạng thái khác → conditional `UPDATE` ảnh hưởng 0 dòng → thoát êm *(test 8b, 9)*
+- [x] Mailer lỗi **tạm thời** → dấu idempotent được trả lại để retry còn chạy *(test 6)*
+- [x] Mailer lỗi **vĩnh viễn** → không retry (`UnrecoverableError`), dấu KHÔNG trả lại nên không gửi trùng *(test 6b, unit `job.processor.spec.ts`)*
+- [x] `amountVnd` khác `total_vnd` → **không** `PAID`, ghi `refund_requests` `AMOUNT_MISMATCH` *(test 15)*
+
+**Chưa có test, ghi ra để không tự nhận là đã xong:**
+
+- [ ] Redis chết đúng lúc controller `queue.add` cho webhook → trả `500` để cổng gửi lại.
+      Code đi đúng đường đó (lỗi bay lên exception filter), nhưng chưa có test vì phải giết
+      Redis giữa một request — cần công cụ chèn lỗi, chưa đáng dựng ở phase này.
+- [ ] User **tự huỷ đơn** rồi delayed job vẫn nổ. Chưa có endpoint huỷ đơn nào, nên tình
+      huống này chưa tồn tại. Khi thêm endpoint đó thì `cancelIfExpired` phải được xem lại:
+      hiện nó đòi `expires_at <= now()`, tức không dùng lại được cho huỷ chủ động.
 
 ## Test cases phải pass
 
@@ -268,10 +281,13 @@ Integration (Testcontainers, Postgres + Redis thật) trừ khi ghi rõ:
 16. Unit: `verifySignature` — chữ ký đúng/sai/thiếu/hết hạn, và **so sánh bằng `timingSafeEqual`**
 17. Unit: `paymentEventSchema` chặn field lạ, `amountVnd` âm, `orderId` không phải uuid
 18. **"Rút dây mạng"**: đặt 20 đơn → giết worker giữa chừng → bật lại → đúng 20 email, không hơn ⭐
+19. *(4b)* Đẩy queue hỏng giữa lô → cả lô về `PENDING`, nhịp sau đẩy lại đủ ⭐
+20. *(4c)* Đẩy hỏng 5 lần liên tiếp → dòng chuyển `FAILED`
+21. *(6b)* Lỗi mail vĩnh viễn → không retry, dấu giữ nguyên nên không gửi trùng
 
 ## Definition of Done
 
-- [x] 18/18 test case trên xanh, `npm run check` sạch
+- [x] Toàn bộ test case trên xanh (**21 integration**), `npm run check` sạch
 - [x] Test #8 và #18 xanh — đây là hai cổng chính của phase
 - [x] Chạy **bằng tay** trên môi trường dev thật (API + worker + Postgres/Redis compose) — số
       liệu ở §Bằng chứng DoD bên dưới
@@ -286,8 +302,8 @@ Integration (Testcontainers, Postgres + Redis thật) trừ khi ghi rõ:
 
 > Trạng thái tổng của dự án do [`CLAUDE.md` §Trạng thái hiện tại](../../CLAUDE.md) sở hữu.
 
-**Test:** 18/18 integration mới xanh; chạy cả bộ **67/67** (49 của Phase 0–3 vẫn xanh sau khi
-`OrderService`/`OrderRepository` đổi để ghi outbox và hẹn giờ huỷ đơn). Unit **70/70**.
+**Test:** 21/21 integration mới xanh; chạy cả bộ **70/70** (49 của Phase 0–3 vẫn xanh sau khi
+`OrderService`/`OrderRepository` đổi để ghi outbox và hẹn giờ huỷ đơn). Unit **74/74**.
 Lint/typecheck sạch. Migration `20260905090000_add_async_queue_payment` chạy đúng ngay lần
 đầu qua `prisma migrate deploy`.
 
@@ -297,7 +313,7 @@ Hai cổng chính:
 - **#18 — "rút dây mạng":** 20 đơn, giết worker #1 bằng `close(true)` (không chờ job đang
   chạy), bật worker #2 dọn nốt → **đúng 20 email**, 20 tiêu đề khác nhau. Không mất, không trùng.
 
-**Ba việc đổi so với spec khi làm thật:**
+**Năm việc đổi so với spec khi làm thật:**
 1. `EmailConfirmPayload` **không** mang địa chỉ email (spec ban đầu có). Lý do: đó là dữ liệu
    cá nhân nằm lại trong Redis + bảng outbox, và tra lúc gửi thì đổi email xong vẫn gửi đúng
    chỗ. Đường đặt hàng cũng không phải gánh thêm một câu `SELECT`.
@@ -307,6 +323,13 @@ Hai cổng chính:
 3. Thêm `test/infra-fixture.ts`: mặc định vẫn Testcontainers, nhưng cho phép trỏ vào
    Postgres/Redis đã chạy sẵn qua `TEST_DATABASE_URL`/`TEST_REDIS_URL` — cần cho môi trường
    không nối được `docker.sock` từ trong Jest.
+4. **Relay đổi thứ tự: đẩy trước, đánh dấu sau, trong CÙNG transaction.** Bản đầu đánh dấu
+   `DISPATCHED` rồi commit trước khi `queue.add` — chết ở khe giữa là mất sự kiện im lặng,
+   phá đúng lời hứa của phase. [ADR-006](../adr/006-relay-giu-transaction-khi-day-queue.md)
+   ghi lý do chấp nhận gọi ra ngoài bên trong transaction. Test 4b khoá tính chất này lại.
+5. Thêm biến `QUEUE_PREFIX`. BullMQ chia job cho **mọi** tiến trình cùng Redis + cùng tiền tố,
+   nên worker đang chạy trên máy dev nuốt mất job của integration test. Test đặt tiền tố ngẫu
+   nhiên mỗi lần chạy.
 
 **Chạy demo bằng tay:**
 

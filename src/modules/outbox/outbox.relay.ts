@@ -7,11 +7,9 @@ import { OutboxRepository, type ClaimedEvent } from './outbox.repository';
 /**
  * Đọc hộp thư đi rồi đẩy vào queue. Chạy như một job lặp (`outbox.relay`).
  *
- * **Vì sao vẫn có thể trùng, dù đã khoá dòng:** `claimBatch` commit trạng thái `DISPATCHED`
- * TRƯỚC khi gọi `queue.add`. Nếu đổi thứ tự (đẩy trước, đánh dấu sau) thì process chết ở giữa
- * sẽ đẩy lại lần sau — trùng. Giữ nguyên thứ tự này thì process chết ở giữa sẽ **mất** job...
- * nên nhánh `catch` phải trả dòng về `PENDING`. Kết quả: có thể trùng, không mất. Đúng mô
- * hình at-least-once, và consumer idempotent lo phần còn lại.
+ * Bảo đảm của nó là **at-least-once**: không mất, có thể trùng. Xem
+ * `OutboxRepository.dispatchBatch` để biết vì sao thứ tự "đẩy trước, đánh dấu sau" là điều
+ * kiện để có được bảo đảm đó — và vì sao thứ tự ngược lại làm mất sự kiện im lặng.
  */
 @Injectable()
 export class OutboxRelay {
@@ -25,27 +23,23 @@ export class OutboxRelay {
 
   /** Trả về số sự kiện đã đẩy trong vòng quét này. */
   async relayOnce(): Promise<number> {
-    const events = await this.repo.claimBatch(this.env.OUTBOX_BATCH_SIZE);
-    if (events.length === 0) return 0;
+    const batchSize = this.env.OUTBOX_BATCH_SIZE;
 
-    const failed: string[] = [];
-    let lastError = '';
+    try {
+      const sent = await this.repo.dispatchBatch(batchSize, async (events) => {
+        for (const event of events) await this.dispatch(event);
+      });
 
-    for (const event of events) {
-      try {
-        await this.dispatch(event);
-      } catch (error) {
-        failed.push(event.id);
-        lastError = error instanceof Error ? error.message : String(error);
-        this.logger.error({ eventId: event.id, type: event.type, err: error }, 'Đẩy sự kiện thất bại');
-      }
+      if (sent > 0) this.logger.debug({ sent }, 'Đã đẩy sự kiện từ hộp thư đi');
+      return sent;
+    } catch (error) {
+      // Cả lô đã rollback về `PENDING`. Ghi lại số lần hỏng ở một lệnh RIÊNG, ngoài transaction
+      // vừa bị huỷ — nếu ghi bên trong thì nó cũng bị cuốn theo và không bao giờ đếm được.
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error({ err: message }, 'Đẩy hộp thư đi thất bại — lô quay lại PENDING');
+      await this.repo.recordDispatchFailure(message, batchSize);
+      return 0;
     }
-
-    if (failed.length > 0) await this.repo.releaseFailed(failed, lastError);
-
-    const sent = events.length - failed.length;
-    if (sent > 0) this.logger.debug({ sent }, 'Đã đẩy sự kiện từ hộp thư đi');
-    return sent;
   }
 
   private async dispatch(event: ClaimedEvent): Promise<void> {

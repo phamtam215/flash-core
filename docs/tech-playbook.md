@@ -978,6 +978,11 @@ vào DB trong cùng transaction, rồi mới đẩy ra ngoài.
 - **Outbox không cho exactly-once.** Push queue thành công rồi chết trước khi đánh dấu
   `processed_at` → push lần hai. Nó chuyển bài toán từ "có thể **mất**" sang "có thể
   **trùng**" — và trùng thì consumer idempotent xử lý được, còn mất thì không.
+- **Thứ tự trong relay quyết định anh được bảo đảm nào.** *Đánh dấu rồi mới đẩy* → chết ở giữa
+  là **mất im lặng** (dòng kẹt ở `DISPATCHED`, không ai đẩy nữa, không ai biết). *Đẩy rồi mới
+  đánh dấu, cùng một transaction* → chết ở giữa là **rollback**, dòng về `PENDING`, nhịp sau
+  đẩy lại, cùng lắm là trùng. Đây là chỗ dễ viết ngược nhất của cả pattern, và viết ngược thì
+  **không test nào đỏ** trừ khi có test mô phỏng đúng cú chết đó.
 - **Idempotent bằng unique constraint**, giống Idempotency-Key: `INSERT` `event_id` vào bảng
   `processed_event`, va unique là bỏ qua.
 - **Việc không ghi DB được (gửi email) không có transaction.** Phải chọn: ghi dấu *trước*
@@ -1006,6 +1011,8 @@ vào DB trong cùng transaction, rồi mới đẩy ra ngoài.
 | Job retry mãi cho lỗi không thể sửa | Không phân biệt lỗi tạm thời với lỗi vĩnh viễn | Email sai định dạng → `UnrecoverableError`, đừng retry |
 | BullMQ ném `MaxRetriesPerRequestError` khi queue rảnh | Dùng chung kết nối ioredis với phần khác của app | Worker chạy lệnh **blocking** để chờ việc ⇒ bắt buộc `maxRetriesPerRequest: null`, phải là kết nối RIÊNG |
 | Test queue lúc xanh lúc đỏ, số job nhiều hơn dự kiến | Relay lấy **mọi** dòng `PENDING`, kể cả dư âm của test trước | Dọn outbox ở `beforeEach`; đừng khẳng định trên con số tổng |
+| Test báo "không tìm thấy job" / "0 email" dù code đúng | **Worker đang chạy trên máy dev nuốt mất job của test** — cùng Redis, cùng tiền tố khoá | Đặt `QUEUE_PREFIX` ngẫu nhiên cho mỗi lần chạy test. BullMQ chia job cho mọi tiến trình cùng tiền tố, nó không biết đâu là test |
+| Sự kiện nằm mãi ở `DISPATCHED` mà không có email | Relay đánh dấu trước khi đẩy, rồi chết ở giữa | Đẩy trước, đánh dấu sau, cùng một transaction — [ADR-006](adr/006-relay-giu-transaction-khi-day-queue.md) |
 
 ### Tình huống thực tế
 

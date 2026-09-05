@@ -11,6 +11,7 @@ Kiến trúc: **Modular Monolith** (NestJS + TypeScript, PostgreSQL 16 + Prisma,
 > delayed job lẫn sweeper, webhook verify HMAC trên raw body. **67/67 integration test xanh**,
 > trong đó hai cổng chính: tồn kho chỉ trả về một lần dù hai đường cùng huỷ đơn, và demo
 > "rút dây mạng" (giết worker giữa chừng) cho **đúng 20 email, không trùng, không mất**.
+> **70/70 integration + 74/74 unit.**
 >
 > Phase 3 trước đó: ba chiến lược chống oversell đổi bằng một biến môi trường, benchmark k6
 > 1.000 VU cho **oversell = 0 ở cả ba** — số đo ở
@@ -133,7 +134,7 @@ và [`docs/adr/`](docs/adr/).
 | 1 | Auth: Argon2, Access + Refresh Token, rotation, rate limit | ✅ **Xong** — 14/14 test case, kể cả reuse detection |
 | 2 | Product & Inventory: SKU size×màu, JSONB + GIN, cursor pagination, seed 100k | ✅ **Xong** — bằng chứng `EXPLAIN`: keyset ~50× nhanh hơn offset ở trang sâu |
 | 3 | ⭐ Order & Concurrency: 3 chiến lược chống oversell + benchmark k6 1.000 VU | ✅ **Xong** — oversell = 0 ở cả ba, ADR-003 |
-| 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ✅ **Xong** — 18 test mới, "rút dây mạng" không mất/không trùng, ADR-004 & 005 |
+| 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ✅ **Xong** — 21 test mới, "rút dây mạng" không mất/không trùng, ADR-004/005/006 |
 | 5 | UI demo: Vite + React, 4 màn hình, timebox 2 buổi tối | ⬜ |
 | 6 | Observability: Pino + correlationId xuyên suốt, /health & /ready, metrics | ⬜ |
 | 7 | Deploy Cloud Run + Neon + Upstash, FinOps mục tiêu 0đ/tháng | ⬜ |

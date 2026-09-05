@@ -108,6 +108,17 @@ export const envSchema = z.object({
   /** Số job một worker xử lý song song. */
   QUEUE_CONCURRENCY: z.coerce.number().int().positive().max(100).default(5),
 
+  /**
+   * Tiền tố khoá Redis của BullMQ.
+   *
+   * Vì sao phải là biến chứ không hằng số: mọi tiến trình nối cùng một Redis và cùng tiền tố
+   * sẽ **chia nhau job**. Chuyện đó đúng với nhiều worker của cùng một hệ thống, nhưng sai
+   * với integration test — worker đang chạy trên máy dev sẽ nuốt mất job của test, và test đỏ
+   * với thông báo "không tìm thấy job" hoàn toàn không chỉ về nguyên nhân. Test đặt tiền tố
+   * ngẫu nhiên để chạy trên Redis dùng chung mà vẫn cô lập.
+   */
+  QUEUE_PREFIX: z.string().min(1).default('bull'),
+
   /** Nhịp quét hộp thư đi, mili-giây. Nhỏ = email tới nhanh hơn, DB bị hỏi nhiều hơn. */
   OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
 
