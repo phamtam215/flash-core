@@ -273,8 +273,10 @@ Integration (Testcontainers, Postgres + Redis thật) trừ khi ghi rõ:
 
 - [x] 18/18 test case trên xanh, `npm run check` sạch
 - [x] Test #8 và #18 xanh — đây là hai cổng chính của phase
-- [ ] Demo "rút dây mạng" chạy được **bằng tay** và ghi lại số vào §Bằng chứng DoD
-      *(test #18 đã tự động hoá đúng kịch bản đó; còn lại là chạy tay để nhìn tận mắt)*
+- [x] Chạy **bằng tay** trên môi trường dev thật (API + worker + Postgres/Redis compose) — số
+      liệu ở §Bằng chứng DoD bên dưới
+- [ ] Demo "rút dây mạng" (giết worker giữa chừng) chạy bằng tay — test #18 đã tự động hoá
+      đúng kịch bản đó, còn lại là nhìn tận mắt
 - [x] Migration viết tay chạy đúng qua `prisma migrate deploy`
 - [x] ADR cho các quyết định ở §Câu hỏi mở được chốt (ADR-004, ADR-005)
 - [x] Kiến thức mới ghi vào `tech-playbook.md` §Phase 4
@@ -309,11 +311,30 @@ Hai cổng chính:
 **Chạy demo bằng tay:**
 
 ```bash
-npm run up && npm run dev          # terminal 1
+npm run up && npx prisma migrate deploy
+npm run dev                        # terminal 1
 npm run worker                     # terminal 2
-# đặt một đơn, rồi:
 node scripts/send-webhook.mjs --order <uuid> --amount <vnd>
 ```
+
+### Kết quả chạy tay trên dev thật (2026-09-05)
+
+SKU `stock = 5`, giá 250.000đ. Mọi số dưới đây đọc thẳng từ Postgres, không phải từ test.
+
+| Bước | Kết quả quan sát được |
+|---|---|
+| Đặt đơn 2 cái | `PENDING`, `total_vnd = 500000`, `stock` 5 → **3** |
+| Outbox | 1 dòng `order.placed`, relay đổi sang **`DISPATCHED`** trong ~1 giây |
+| Email | 1 dòng `processed_events(consumer='order.email.confirm')` — gửi đúng một lần |
+| `POST /payments/checkout/:id` | trả `paymentIntentId` |
+| Webhook chữ ký **đúng** | `204` → đơn **`PAID`**, `paid_at` có giá trị, `payment_intent_id` khớp |
+| Webhook chữ ký **sai** (đổi khoá ký) | **`401 INVALID_SIGNATURE`**, đơn không đổi |
+| Webhook **trùng** `eventId`, gửi 2 lần | `204` cả hai, `processed_events` vẫn **1** dòng, `payment_intent_id` **không** bị ghi đè |
+| Đơn thứ hai bị đẩy quá hạn (`expires_at` về quá khứ) | **sweeper** huỷ trong vòng 60 giây: `CANCELLED`, `cancelled_at` có giá trị, `stock` 2 → **3** (trả kho đúng một lần) |
+| Webhook "đã trả tiền" tới đơn **đã huỷ** | `204`, đơn **vẫn `CANCELLED`**, `paid_at` rỗng, sinh 1 `refund_requests` `reason='ORDER_ALREADY_CANCELLED'`, `stock` **giữ nguyên 3** |
+
+Hàng cuối là ca đáng giá nhất: hệ thống **không** hồi sinh đơn (sẽ tạo oversell ở đường sau),
+**không** im lặng bỏ qua (khách mất tiền), mà để lại hồ sơ đầy đủ + log mức `error`.
 
 ## Ngoài phạm vi (Non-goals)
 
