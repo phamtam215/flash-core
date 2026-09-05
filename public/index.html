@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash-Core — Săn flash sale</title>
+<link rel="stylesheet" href="/styles.css">
+<!-- Favicon nhúng thẳng bằng data URI: không thêm file nhị phân vào repo, và hết dòng 404 trong console. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f1115'/%3E%3Cpath d='M18 4 8 18h6l-2 10 12-15h-7l1-9z' fill='%23ff5a3c'/%3E%3C/svg%3E">
+<!-- Favicon nhúng thẳng: không thêm file nhị phân vào repo, và hết dòng 404 trong console. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f1115'/%3E%3Cpath d='M18 4 8 18h6l-2 10 12-15h-7l1-9z' fill='%23ff5a3c'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<div id="banner"></div>
+
+<header>
+  <div class="brand">Flash<span>-Core</span></div>
+  <nav>
+    <button data-screen="sale" class="active">Sự kiện sale</button>
+    <button data-screen="orders">Đơn của tôi</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="who" id="who"></div>
+  <button class="ghost" id="logout">Đăng xuất</button>
+</header>
+
+<main>
+
+  <!-- ── Màn 1: Đăng nhập / Đăng ký ──────────────────────────────────────────────────── -->
+  <section id="screen-auth" class="hidden">
+    <h2>Đăng nhập</h2>
+    <p class="sub">Chưa có tài khoản thì bấm Đăng ký — mật khẩu tối thiểu 8 ký tự.</p>
+    <div class="card" style="max-width: 380px">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="username" placeholder="ban@example.com">
+      </div>
+      <div class="field">
+        <label for="password">Mật khẩu</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <div class="row">
+        <button class="primary" id="btn-login">Đăng nhập</button>
+        <button class="ghost" id="btn-register">Đăng ký</button>
+      </div>
+      <p class="muted" id="auth-msg" style="margin: 12px 0 0; font-size: 13px"></p>
+    </div>
+  </section>
+
+  <!-- ── Màn 2 + 3: Sự kiện sale và Săn ngay ─────────────────────────────────────────── -->
+  <section id="screen-sale" class="hidden">
+    <h2>Sự kiện sale</h2>
+    <p class="sub">
+      Tồn kho tự cập nhật mỗi 1,5 giây. Chạy <span class="mono">k6 run k6/flash-sale.js</span>
+      rồi nhìn cột Tồn kho rơi về 0 — và <b>dừng đúng ở 0</b>.
+    </p>
+
+    <div class="grid" id="products"></div>
+    <p class="muted hidden" id="no-products">
+      Chưa có áo nào đang bán. Tạo qua API <span class="mono">POST /products</span>, hoặc chạy
+      <span class="mono">npm run seed</span>.
+    </p>
+
+    <div class="card hidden" id="sku-panel" style="margin-top: 22px">
+      <div class="row" style="justify-content: space-between; margin-bottom: 12px">
+        <h3 style="margin: 0" id="sku-title"></h3>
+        <span class="muted mono" id="poll-tick"></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Size</th><th>Màu</th><th>Giá</th><th>Tồn kho</th><th></th></tr>
+        </thead>
+        <tbody id="sku-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="card hidden" id="order-panel" style="margin-top: 18px">
+      <h3 style="margin: 0 0 10px">Đơn vừa đặt</h3>
+      <div id="order-detail"></div>
+    </div>
+  </section>
+
+  <!-- ── Màn 4: Đơn của tôi ──────────────────────────────────────────────────────────── -->
+  <section id="screen-orders" class="hidden">
+    <h2>Đơn của tôi</h2>
+    <p class="sub">Cập nhật mỗi 3 giây — đủ để thấy đơn tự chuyển PENDING → CANCELLED khi hết 15 phút.</p>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Mã đơn</th><th>Tổng tiền</th><th>Trạng thái</th><th>Còn lại</th></tr>
+        </thead>
+        <tbody id="order-rows"></tbody>
+      </table>
+      <p class="muted hidden" id="no-orders" style="margin: 12px 0 0">Chưa có đơn nào.</p>
+    </div>
+  </section>
+
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

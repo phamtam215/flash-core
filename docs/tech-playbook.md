@@ -1062,16 +1062,21 @@ hưởng để biết mình có thắng không.**
 
 ### Cần rõ
 
-Một trang tĩnh gọi thẳng API là đủ. Thêm framework (React/Next) ở đây là **đổi mục tiêu học**:
-thời gian đổ vào build tool, không đổ vào hệ thống. Nếu sau này thật sự cần thì viết ADR.
+Một trang tĩnh gọi thẳng API là đủ. Thêm framework ở đây là **đổi mục tiêu học**: thời gian đổ
+vào build tool, không đổ vào hệ thống. `SPEC.md` ban đầu chốt Vite + React + Tailwind;
+[ADR-007](adr/007-ui-la-trang-tinh-mot-file.md) đổi lại và ghi rõ cái được, cái mất.
 
 ### Cơ chế phải nắm
 
 **CORS** — browser chặn JS ở origin A gọi API ở origin B trừ khi API tự nói ra là cho phép
 (`Access-Control-Allow-Origin`). Đây là quy tắc của **browser**, không phải của server: cùng
-request đó gọi bằng `curl` vẫn chạy bình thường. Khi cookie tham gia (dự án dùng refresh token
-trong HttpOnly cookie) thì phải bật `credentials` ở cả hai phía, và `Allow-Origin` **không
-được** để `*`.
+request đó gọi bằng `curl` vẫn chạy bình thường. Khi cookie tham gia (dự án dùng token trong
+HttpOnly cookie) thì phải bật `credentials` ở cả hai phía, và `Allow-Origin` **không được**
+để `*`.
+
+> Dự án này **không phải trả giá cho CORS**: trang tĩnh do chính Nest phục vụ nên FE và API
+> cùng origin, cookie tự đi kèm. Ghi lại cơ chế ở đây để nhận ra nó ngay khi tách FE ra
+> domain riêng — lúc đó triệu chứng đầu tiên luôn là "gọi bằng curl thì được, mở web thì lỗi".
 
 ### Bug hay gặp
 

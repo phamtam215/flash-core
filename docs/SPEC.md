@@ -72,8 +72,9 @@ Outbox giải quyết gì mà "ghi DB rồi push queue" không giải quyết đ
 verify chữ ký webhook, xử lý sao khi webhook thanh toán đến sau khi đơn đã hủy?
 
 ### Phase 5 — UI demo (2 buổi tối)
-Vite + React + Tailwind, polling 1–2s cho tồn kho. AI làm 100%, không test, không ADR,
-không tính coverage. 4 màn hình: (1) Đăng nhập/Đăng ký; (2) Sự kiện sale — lưới áo, đếm
+**Một trang tĩnh `public/index.html`, không framework** (đổi từ Vite + React + Tailwind —
+lý do ở [ADR-007](adr/007-ui-la-trang-tinh-mot-file.md)), polling 1–2s cho tồn kho.
+AI làm 100%, không tính coverage. 4 màn hình: (1) Đăng nhập/Đăng ký; (2) Sự kiện sale — lưới áo, đếm
 ngược, tồn kho realtime theo size/màu; (3) Chọn size/màu + "Săn ngay" → đơn giữ chỗ 15
 phút + thanh toán sandbox; (4) Đơn của tôi. Quá timebox → cắt còn (2)+(3).
 Đặt SAU Phase 4 (không phải ngay sau Phase 3) vì màn (3) cần cả job giữ-chỗ-15-phút lẫn

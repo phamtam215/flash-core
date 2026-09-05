@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 
+import { AppController } from './app.controller';
 import { AllExceptionsFilter, LoggerModule } from './common';
 import { ConfigModule } from './config';
 import { PrismaModule } from './infra/prisma';
@@ -37,6 +38,8 @@ import { ProductModule } from './modules/product';
     PaymentModule,
     HealthModule,
   ],
+  // Controller duy nhất ở tầng app: trả trang demo Phase 5. Mọi thứ khác thuộc về module.
+  controllers: [AppController],
   providers: [
     // Đăng ký filter ở tầng app thay vì bọc từng controller: một hình dạng lỗi cho toàn hệ
     // thống, và không thể quên áp dụng cho endpoint mới.

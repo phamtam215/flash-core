@@ -141,7 +141,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
-- Phase hiện tại: **Phase 4 — Async, Queue & Payment Webhook** (bắt đầu 2026-09-05)
+- Phase hiện tại: **Phase 5 — UI demo** (bắt đầu 2026-09-05)
 - **Phase 0 ĐÃ ĐÓNG** 2026-08-08 — hồ sơ ở `docs/phase-0-checklist.md`. Kết quả: skeleton
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
@@ -205,6 +205,16 @@ Muốn xem lại thì `git log -- .claude/`.
   chạy được ⇒ Testcontainers báo "Could not find a working container runtime strategy". Lối
   thoát đã có sẵn: `TEST_DATABASE_URL`/`TEST_REDIS_URL` trỏ vào Postgres/Redis của
   `npm run up` (xem `test/infra-fixture.ts`). CI vẫn dùng Testcontainers như cũ.
+- **Phase 5 — code + test xong**, chờ Tâm review + push, theo `docs/specs/phase5-ui-demo.md`:
+  `public/index.html` + `styles.css` + `app.js` (**không framework, không build step** —
+  ADR-007 đổi lại quyết định Vite+React trong SPEC.md), Nest phục vụ tĩnh bằng
+  `useStaticAssets` + `AppController` cho route `GET /`. 4 màn: Đăng nhập, Sự kiện sale (tồn
+  kho polling 1,5s), Săn ngay + đếm ngược, Đơn của tôi. **4 integration test cho phần server
+  phục vụ trang** (tổng 74/74), unit 74/74. Đã chạy đầu-cuối trên Chrome thật: đăng ký → săn
+  → thanh toán → PAID. Bug thật tìm được: vẽ lại cả `<tbody>` mỗi nhịp polling làm nút bị huỷ
+  giữa lúc bấm — đã đổi sang cập nhật tại chỗ.
+  **Còn lại:** chạy k6 trong lúc mở trang để quay video 2 phút (deliverable của phase), Tâm
+  trả lời câu hỏi bản chất, review + push.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

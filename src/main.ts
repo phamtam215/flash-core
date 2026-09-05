@@ -41,8 +41,10 @@
 import 'dotenv/config';
 
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
+import { join } from 'node:path';
 
 import { AppModule } from './app.module';
 import { ENV, type Env } from './config';
@@ -69,7 +71,7 @@ async function bootstrap(): Promise<void> {
   // LƯU Ý: mọi lỗi cấu hình nổ ra ở ĐÂY, không phải lúc có request. Ví dụ thiếu
   // `DATABASE_URL` thì `ConfigModule` throw ngay trong dòng này. Đó là chủ đích — xem
   // `src/config/env.schema.ts`.
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     // `bufferLogs: true` — GIỮ LOG LẠI TRONG BỘ NHỚ, chưa in ra vội.
     //
     // VÌ SAO: logger Pino của dự án nằm trong `LoggerModule`, mà module đó chỉ tồn tại SAU
@@ -149,6 +151,27 @@ async function bootstrap(): Promise<void> {
   //
   // ĐẶT ĐÚNG CHỖ: phải gọi TRƯỚC `listen()`. Đăng ký sau khi đã mở cổng thì có một khoảng
   // app đã nhận request nhưng chưa biết cách tắt an toàn.
+  // -------------------------------------------------------------------------------------
+  // BƯỚC 3c — Phục vụ trang demo (Phase 5)
+  // -------------------------------------------------------------------------------------
+  //
+  // LÀM GÌ: mọi request không khớp route nào của Nest sẽ được thử tìm trong thư mục `public/`.
+  // Nhờ vậy `GET /` trả về `public/index.html`.
+  //
+  // VÌ SAO PHỤC VỤ TỪ CHÍNH APP NÀY, không dựng server riêng: FE và API cùng origin
+  // (`localhost:3000`) nên **không có CORS**, và cookie `SameSite=Strict` tự đi kèm mọi
+  // `fetch`. Tách ra hai origin thì phải cấu hình `Access-Control-Allow-Origin` +
+  // `Allow-Credentials` ở server và `credentials: 'include'` ở client — thêm ba chỗ có thể
+  // sai cho một demo. Lý do đầy đủ: docs/adr/007-ui-la-trang-tinh-mot-file.md
+  //
+  // `index: false` — KHÔNG cho middleware này tự trả `index.html` cho mọi thư mục. Để mặc
+  // định `true` thì nó chen vào trước cả router của Nest ở một số đường dẫn và làm API trả
+  // về HTML, một kiểu lỗi rất khó đoán. Route `GET /` được khai tường minh ở
+  // `AppController` thay vì dựa vào hành vi ngầm đó.
+  //
+  // ĐẶT SAU `cookieParser` và TRƯỚC `listen`: nó là middleware, thứ tự đăng ký là thứ tự chạy.
+  app.useStaticAssets(join(__dirname, '..', 'public'), { index: false });
+
   app.enableShutdownHooks();
 
   // -------------------------------------------------------------------------------------

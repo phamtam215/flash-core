@@ -37,6 +37,9 @@ npm run dev                   # http://localhost:3000  (terminal 1)
 npm run worker                # xử lý job nền           (terminal 2)
 ```
 
+Mở **http://localhost:3000** là có trang demo (Phase 5): đăng nhập, săn áo, xem tồn kho rơi
+theo thời gian thực.
+
 Worker là **process riêng** để giết được nó mà API vẫn sống — xem
 [ADR-005](docs/adr/005-worker-chay-process-rieng.md).
 
@@ -135,7 +138,7 @@ và [`docs/adr/`](docs/adr/).
 | 2 | Product & Inventory: SKU size×màu, JSONB + GIN, cursor pagination, seed 100k | ✅ **Xong** — bằng chứng `EXPLAIN`: keyset ~50× nhanh hơn offset ở trang sâu |
 | 3 | ⭐ Order & Concurrency: 3 chiến lược chống oversell + benchmark k6 1.000 VU | ✅ **Xong** — oversell = 0 ở cả ba, ADR-003 |
 | 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ✅ **Xong** — 21 test mới, "rút dây mạng" không mất/không trùng, ADR-004/005/006 |
-| 5 | UI demo: Vite + React, 4 màn hình, timebox 2 buổi tối | ⬜ |
+| 5 | UI demo: trang tĩnh 1 file, 4 màn hình, tồn kho realtime | ✅ **Xong** — chạy đầu-cuối trên Chrome thật, ADR-007 |
 | 6 | Observability: Pino + correlationId xuyên suốt, /health & /ready, metrics | ⬜ |
 | 7 | Deploy Cloud Run + Neon + Upstash, FinOps mục tiêu 0đ/tháng | ⬜ |
 
