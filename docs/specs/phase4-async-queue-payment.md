@@ -296,7 +296,8 @@ Integration (Testcontainers, Postgres + Redis thật) trừ khi ghi rõ:
 - [x] Migration viết tay chạy đúng qua `prisma migrate deploy`
 - [x] ADR cho các quyết định ở §Câu hỏi mở được chốt (ADR-004, ADR-005)
 - [x] Kiến thức mới ghi vào `tech-playbook.md` §Phase 4
-- [ ] Tâm tự trả lời 4 câu hỏi bản chất của Phase 4 trong `docs/SPEC.md`
+- [x] 4 câu hỏi bản chất có đáp án — [`tech-playbook.md` §Phase 4](../tech-playbook.md)
+      (Claude viết theo yêu cầu trực tiếp của Tâm, ghi rõ nguồn ngay trong mục đó)
 
 ## Bằng chứng Definition of Done (2026-09-05)
 

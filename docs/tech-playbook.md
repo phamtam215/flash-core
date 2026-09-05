@@ -1054,6 +1054,126 @@ hưởng để biết mình có thắng không.**
 
 ---
 
+### Câu hỏi bản chất của Phase 4 — và đáp án
+
+> Bốn câu `docs/SPEC.md` đặt ra cho Phase 4. Đáp án dưới đây do **Claude viết theo yêu cầu
+> trực tiếp của Tâm** (2026-09-05), không phải Tâm tự suy ra — ghi rõ để biết nguồn, đúng
+> tinh thần `project-context.md` §5 (ảo giác thông thạo).
+>
+> Đọc **sau khi** đã chạy demo "rút dây mạng": ba con số `20 / 0 / 20` là bằng chứng cho câu
+> 1 và 2 ở dạng số.
+
+#### 1. At-least-once vs exactly-once? Vì sao consumer phải idempotent?
+Ba mức bảo đảm của tầng **giao vận**: *at-most-once* (có thể mất, không bao giờ trùng),
+*at-least-once* (không bao giờ mất, có thể trùng), *exactly-once* (không mất không trùng).
+Mức thứ ba **không tồn tại ở tầng giao vận**, và lý do rất đơn giản: người gửi không phân biệt
+được "chưa gửi tới" với "gửi tới rồi nhưng phản hồi bị mất". Đứng trước hai khả năng đó, chỉ
+có hai lựa chọn — gửi lại (có thể trùng) hoặc bỏ qua (có thể mất). Không có lựa chọn thứ ba.
+
+Vì vậy hệ thống thực tế chọn **at-least-once + consumer idempotent**, và kết quả gọi là
+*exactly-once **processing***: message có thể tới hai lần, nhưng **hiệu ứng** chỉ xảy ra một
+lần. Chữ "processing" là chỗ khác nhau, không phải chữ trang trí.
+
+Consumer phải idempotent vì nó là **nơi duy nhất còn có thể chặn**. Queue đã cố hết sức và vẫn
+giao trùng được; đến lượt consumer, nó có DB trong tay nên nó chặn được — bằng một dấu
+`INSERT` vào `processed_events` với khoá `(event_id, consumer)`, để **UNIQUE của DB làm trọng
+tài**. Đúng cùng một cơ chế `Idempotency-Key` ở Phase 3, và cách sai cũng y hệt: `SELECT` xem
+đã xử lý chưa rồi mới xử lý — hai worker song song lọt qua khe giữa hai bước đó.
+
+Điều ít tài liệu nói ra, mà dự án này thấy rõ vì có **hai** consumer đặt cạnh nhau:
+
+| Consumer | Hệ quả nằm ở đâu | Bảo đảm đạt được |
+|---|---|---|
+| Đánh dấu đơn `PAID` | **trong DB** — dấu và hệ quả cùng một transaction | *exactly-once processing* **thật sự** |
+| Gửi email xác nhận | **ngoài DB** (SMTP) | phải **chọn**: không trùng thì có thể mất, hoặc ngược lại |
+
+**Idempotency là miễn phí khi hệ quả nằm trong DB, và là một quyết định nghiệp vụ khi nó ra
+ngoài.** Dự án chọn ghi dấu trước khi gửi mail — [ADR-004](adr/004-ghi-dau-truoc-khi-gui-mail.md).
+
+#### 2. Outbox giải quyết gì mà "ghi DB rồi push queue" không giải quyết được?
+Nó giải quyết **dual write**: hai hệ thống lưu trữ khác nhau, không transaction nào bao được
+cả hai.
+
+```ts
+await db.save(order);      // ①
+await queue.add(job);      // ②  ← chết ở giữa: đơn có, việc không
+```
+
+Chết giữa ① và ② thì đơn tồn tại mà email không bao giờ được gửi, và **`try/catch` không cứu
+được** — lệnh ① đã commit rồi, không rollback lại được. Đảo thứ tự cũng hỏng, chỉ đổi kiểu:
+job chạy cho một đơn chưa từng tồn tại. Không có thứ tự nào đúng, vì bài toán không nằm ở thứ
+tự.
+
+Outbox đổi câu hỏi: thay vì cố ghi hai nơi cùng lúc, **ghi ý định vào cùng nơi với dữ liệu**:
+
+```ts
+await tx.order.create(...)        // cùng MỘT transaction
+await tx.outboxEvent.create(...)  // ⇒ hoặc cả hai cùng có, hoặc cả hai cùng không
+```
+
+Rồi một tiến trình riêng (relay) đọc bảng đó và đẩy ra queue. Việc "đẩy ra ngoài" vẫn có thể
+hỏng, nhưng giờ nó hỏng **an toàn**: dòng vẫn nằm ở `PENDING`, nhịp sau đẩy lại.
+
+Outbox **không** cho exactly-once — nó chuyển bài toán từ "có thể **mất**" sang "có thể
+**trùng**", và trùng thì câu 1 xử lý được.
+
+**Nhưng chỉ khi thứ tự trong relay viết đúng.** Bản đầu của dự án này viết ngược: đánh dấu
+`DISPATCHED` rồi commit, *sau đó* mới `queue.add`. Process bị giết đúng khe giữa hai bước thì
+dòng nằm lại `DISPATCHED` vĩnh viễn — không ai đẩy nữa, **không ai biết**, email không bao giờ
+gửi. Tức là vẫn **mất**, đúng thứ Outbox sinh ra để chống, mà không một test nào đỏ. Đã sửa
+thành *đẩy trước, đánh dấu sau, trong cùng một transaction* — hỏng ở đâu cũng rollback về
+`PENDING` ([ADR-006](adr/006-relay-giu-transaction-khi-day-queue.md)). Bài học: **pattern viết
+đúng tên mà sai thứ tự thì không còn là pattern đó nữa.**
+
+#### 3. Vì sao phải verify chữ ký webhook?
+Vì webhook là **endpoint công khai không có đăng nhập**. Nó phải mở cho máy chủ của cổng thanh
+toán gọi vào, mà máy đó không mang access token nào. Không verify thì bất kỳ ai biết URL cũng
+gửi được một JSON `{"orderId": "...", "type": "payment.succeeded"}` và **đánh dấu đơn của người
+khác là đã trả tiền** — mất hàng thật, không thu được tiền thật.
+
+Chữ ký HMAC-SHA256 chứng minh người gửi **biết khoá bí mật** mà cả hai bên chia sẻ, tức là
+đúng cổng thanh toán. Ba chi tiết bắt buộc làm đúng, sai cái nào cũng hỏng im lặng:
+
+- **Ký trên RAW body.** Đúng chuỗi byte cổng đã gửi. Parse JSON rồi `JSON.stringify` lại là
+  đổi thứ tự khoá và khoảng trắng ⇒ chữ ký không bao giờ khớp, mà triệu chứng ("chữ ký luôn
+  sai") không hề chỉ về nguyên nhân. Đây là lý do `main.ts` bật `rawBody: true`.
+- **Dấu thời gian nằm TRONG phần được ký** (`${t}.${rawBody}`), rồi kiểm `|now - t|`. Không có
+  nó thì một chữ ký hợp lệ bắt được trên đường truyền **dùng lại được mãi mãi** — replay attack.
+- **So sánh bằng `timingSafeEqual`, không phải `===`.** So sánh chuỗi thường dừng ở byte đầu
+  tiên khác nhau, nên thời gian trả lời rò rỉ *độ dài tiền tố đúng* — đủ để dò dần từng byte.
+
+Và một điều Phase 5 làm lộ ra rất rõ: trang demo **không tự thanh toán được**, nó chỉ hiện ra
+lệnh `send-webhook` để copy. Vì trình duyệt không có khoá bí mật. **Nếu FE ký được thì việc
+verify chữ ký là vô nghĩa** — đó không phải hạn chế của demo mà là thứ đang được chứng minh.
+
+#### 4. Xử lý sao khi webhook thanh toán đến sau khi đơn đã huỷ?
+Đây là ca **tiền thật đã chuyển mà hàng không còn**: khách bấm trả tiền lúc phút 14:58, cổng
+xử lý chậm, webhook về lúc 15:03 — đơn đã tự huỷ và hàng đã trả về kho, có thể người khác đã
+mua mất.
+
+Ba cách xử lý **sai**, và mỗi cách sai theo một kiểu:
+
+1. **Bỏ qua webhook** — khách mất tiền, hệ thống im lặng. Tệ nhất.
+2. **Hồi sinh đơn thành `PAID`** — nghe hợp lý nhất nên nguy hiểm nhất: hàng đã trả về kho và
+   có thể đã bán cho người khác, nên đơn này tạo **oversell ở đường sau**, đúng thứ cả dự án
+   tồn tại để chống.
+3. **Tự động hoàn tiền mà không ghi lại** — số dư đúng, nhưng không ai biết chuyện đã xảy ra,
+   và không giải thích được với khách.
+
+Cách **đúng**: giữ nguyên trạng thái `CANCELLED`, ghi một bản ghi `refund_requests` đầy đủ
+(đơn, `paymentIntentId`, số tiền, lý do, `correlationId`), log mức **`error`**, rồi để quy
+trình nghiệp vụ — người hoặc job — xử lý việc hoàn tiền. `UNIQUE(payment_intent_id)` chặn
+webhook lặp tạo hai yêu cầu hoàn tiền.
+
+Nguyên tắc gói lại thành một câu: **tiền thật đã chuyển thì hệ thống không được im lặng, và
+cũng không được tự ý sửa số.** Việc của code là *ghi lại đủ để người khác quyết định được*.
+
+Cùng nguyên tắc đó áp cho ca số tiền lệch (`amountVnd` ≠ `total_vnd`): **không** đánh dấu
+`PAID`, ghi `refund_requests` với `reason='AMOUNT_MISMATCH'`. Chữ ký hợp lệ chỉ chứng minh
+*ai gửi*, không chứng minh *nội dung đúng nghiệp vụ*.
+
+---
+
 # Phase 5 — UI tối thiểu
 
 > Phase duy nhất không phải backend. Mục tiêu **không** phải làm giao diện đẹp, mà là có

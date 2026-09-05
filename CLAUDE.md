@@ -141,7 +141,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
-- Phase hiện tại: **Phase 5 — UI demo** (bắt đầu 2026-09-05)
+- Phase hiện tại: **Phase 5 — UI demo** (bắt đầu 2026-09-05). **Phase 4 ĐÃ ĐÓNG** 2026-09-05.
 - **Phase 0 ĐÃ ĐÓNG** 2026-08-08 — hồ sơ ở `docs/phase-0-checklist.md`. Kết quả: skeleton
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
@@ -181,7 +181,7 @@ Muốn xem lại thì `git log -- .claude/`.
   cắt slug 16 ký tự làm trùng `sku_code` → 500; đã sửa bằng 4 ký tự băm.
   **Còn lại:** Tâm tự trả lời 3 câu hỏi bản chất, review + push. k6 nằm ở `.tools/k6`
   (gitignore) — Homebrew không cài được vì sandbox chặn đọc `/etc/ssl/cert.pem`.
-- **Phase 4 — code + test xong**, chờ Tâm review + push, theo
+- **Phase 4 ĐÃ ĐÓNG** 2026-09-05 — Definition of Done đủ 8/8, theo
   `docs/specs/phase4-async-queue-payment.md`: `infra/queue` (BullMQ, kết nối riêng vì worker
   cần `maxRetriesPerRequest: null`), module `outbox` (hộp thư đi + dấu idempotent), `mail`,
   `payment` (verify HMAC trên raw body, cổng giả lập), `OrderExpiryService` (huỷ đơn quá hạn
@@ -202,7 +202,8 @@ Muốn xem lại thì `git log -- .claude/`.
   nên worker đang chạy trên máy dev sẽ nuốt job của integration test nếu không tách tiền tố.
   **Demo "rút dây mạng" đã chạy tay** (Tâm, 2026-09-05): 20 đơn, giết worker giữa chừng, bật
   lại → outbox còn chờ = 0, email đã gửi = 20. Không mất, không trùng.
-  **Còn lại:** Tâm tự trả lời 4 câu hỏi bản chất.
+  **4 câu hỏi bản chất đã có đáp án** ở `tech-playbook.md` §Phase 4 (Claude viết theo yêu cầu
+  trực tiếp của Tâm 2026-09-05, ghi rõ nguồn — không tính là Tâm tự kiểm tra hiểu bài).
 - **Lưu ý môi trường:** sandbox chặn Jest nối `docker.sock` (`connect EPERM`) dù `docker` CLI
   chạy được ⇒ Testcontainers báo "Could not find a working container runtime strategy". Lối
   thoát đã có sẵn: `TEST_DATABASE_URL`/`TEST_REDIS_URL` trỏ vào Postgres/Redis của
