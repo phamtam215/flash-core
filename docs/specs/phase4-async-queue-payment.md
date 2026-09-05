@@ -291,8 +291,8 @@ Integration (Testcontainers, Postgres + Redis thật) trừ khi ghi rõ:
 - [x] Test #8 và #18 xanh — đây là hai cổng chính của phase
 - [x] Chạy **bằng tay** trên môi trường dev thật (API + worker + Postgres/Redis compose) — số
       liệu ở §Bằng chứng DoD bên dưới
-- [ ] Demo "rút dây mạng" (giết worker giữa chừng) chạy bằng tay — test #18 đã tự động hoá
-      đúng kịch bản đó, còn lại là nhìn tận mắt
+- [x] Demo "rút dây mạng" (giết worker giữa chừng) chạy bằng tay — Tâm chạy 2026-09-05,
+      kết quả ở §Bằng chứng DoD
 - [x] Migration viết tay chạy đúng qua `prisma migrate deploy`
 - [x] ADR cho các quyết định ở §Câu hỏi mở được chốt (ADR-004, ADR-005)
 - [x] Kiến thức mới ghi vào `tech-playbook.md` §Phase 4
@@ -412,3 +412,18 @@ là chỗ để sinh ra bug.
 `SKIP LOCKED`, backoff + jitter, thundering herd, verify chữ ký trên raw body, state machine cấm
 chuyển ngược. Bốn câu hỏi bản chất của phase (`docs/SPEC.md`) sẽ có đáp án ở cùng chỗ đó **sau
 khi** code xong và đo thật — không viết trước.
+
+### Demo "rút dây mạng" chạy tay (Tâm, 2026-09-05)
+
+20 đơn đặt **khi worker đang tắt** ⇒ 20 sự kiện nằm ở outbox `PENDING`. Bật worker, `Ctrl+C`
+sau ~1 giây (cú "rút dây"), bật lại, để chạy tiếp.
+
+| Chỉ số | Kết quả | Ý nghĩa |
+|---|---|---|
+| `so_don` | 20 | |
+| `outbox_con_cho` | **0** | không sự kiện nào kẹt lại ⇒ **không mất** |
+| `email_da_gui` | **20** | đúng một dấu cho mỗi đơn ⇒ **không trùng** |
+
+`21` là gửi trùng, `19` là mất — cả hai đều phá lời hứa của phase. Hai con số này mới là bằng
+chứng, không phải "log nhìn có vẻ ổn". Đây cũng đúng kịch bản test #18 tự động hoá, chạy tay
+để nhìn tận mắt.

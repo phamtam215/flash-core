@@ -200,7 +200,9 @@ Muốn xem lại thì `git log -- .claude/`.
   `QUEUE_CONCURRENCY`, `QUEUE_PREFIX`, `OUTBOX_POLL_INTERVAL_MS`, `OUTBOX_BATCH_SIZE`.
   **`QUEUE_PREFIX` đáng nhớ:** BullMQ chia job cho mọi tiến trình cùng Redis + cùng tiền tố,
   nên worker đang chạy trên máy dev sẽ nuốt job của integration test nếu không tách tiền tố.
-  **Còn lại:** Tâm tự trả lời 4 câu hỏi bản chất, chạy demo "rút dây mạng" bằng tay, review + push.
+  **Demo "rút dây mạng" đã chạy tay** (Tâm, 2026-09-05): 20 đơn, giết worker giữa chừng, bật
+  lại → outbox còn chờ = 0, email đã gửi = 20. Không mất, không trùng.
+  **Còn lại:** Tâm tự trả lời 4 câu hỏi bản chất.
 - **Lưu ý môi trường:** sandbox chặn Jest nối `docker.sock` (`connect EPERM`) dù `docker` CLI
   chạy được ⇒ Testcontainers báo "Could not find a working container runtime strategy". Lối
   thoát đã có sẵn: `TEST_DATABASE_URL`/`TEST_REDIS_URL` trỏ vào Postgres/Redis của
