@@ -10,7 +10,7 @@
 <div class="layout">
 <nav class="sidebar">
 <!--@@nav-->
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
 <!--@@end-->
 </nav>
 <main class="content">
@@ -25,22 +25,24 @@ bản đọc tĩnh (offline) của toàn bộ tài liệu Markdown trong repo, �
 duyệt — bấm vào thẻ hoặc sidebar bên trái để đi tới từng trang.</p>
 
 <blockquote class="note">
-<p><strong>Bắt đầu từ đâu.</strong> Sidebar có 15 trang — đừng đọc hết một lượt, dễ ngợp. Theo
+<p><strong>Bắt đầu từ đâu.</strong> Sidebar có 21 trang — đừng đọc hết một lượt, dễ ngợp. Theo
 đúng thứ tự này:</p>
 <ol>
 <li>Đọc 2 đoạn ngay trên đây (30 giây) — biết dự án làm gì.</li>
-<li>Đọc <strong>Phase 0 → 1 → 2 → 3, đúng thứ tự</strong>, đừng nhảy cóc. Mỗi phase xây trên
-phase trước — nhảy cóc sẽ thấy code "tự nhiên xuất hiện" mà không hiểu vì sao cần nó.</li>
+<li>Đọc <strong>Phase 0 → 1 → 2 → 3 → 4 → 5, đúng thứ tự</strong>, đừng nhảy cóc. Mỗi phase
+xây trên phase trước — nhảy cóc sẽ thấy code "tự nhiên xuất hiện" mà không hiểu vì sao cần nó.</li>
 <li>Mỗi trang Phase đã có sẵn <strong>API</strong> + <strong>code thật</strong> ngay trong bài —
 không cần mở source để hiểu ý tưởng.</li>
-<li>Xong cả 4 phase mới đọc "Tham khảo" ở sidebar — đó là chỗ để <em>tra cứu</em> khi cần
+<li>Xong cả 6 phase mới đọc "Tham khảo" ở sidebar — đó là chỗ để <em>tra cứu</em> khi cần
 (gặp từ lạ → glossary; muốn biết "vì sao" → ADR; vướng bug hoặc muốn hiểu sâu → sổ tay kỹ
 thuật), không phải đọc tuần tự từ đầu.</li>
 <li>Sắp đi phỏng vấn? Vào thẳng
 <a href="tech-playbook.html">Sổ tay kỹ thuật</a> → mục <em>Ôn phỏng vấn — 12 câu chốt</em>.</li>
 </ol>
 <p>Chỉ có 5 phút? Đọc riêng <a href="phase-3.html">Phase 3</a> ⭐ — đó là phần cốt lõi của cả
-dự án (1.000 người bấm, 100 chiếc áo, bán ra đúng 100), và có số đo thật của ba chiến lược.</p>
+dự án (1.000 người bấm, 100 chiếc áo, bán ra đúng 100), và có số đo thật của ba chiến lược.
+Có 10 phút thì đọc thêm <a href="phase-4.html">Phase 4</a> — chỗ kể một lỗi thật khiến hệ thống
+mất message im lặng mà <em>không test nào đỏ</em>.</p>
 </blockquote>
 
 <h2>Các phase — business, technical, kiến thức học được</h2>
@@ -74,13 +76,31 @@ các trang phase <em>không</em> được gõ lại ở đây — chúng đượ
     <strong>oversell = 0</strong> ở cả ba. Phần cốt lõi của cả dự án.</p>
     <a href="phase-3.html">Đọc</a>
   </div>
+  <div class="card">
+    <h3>Phase 4 — Async, Queue &amp; Payment</h3>
+    <p class="status">Đã đóng — Outbox, worker riêng, webhook ký HMAC. Demo "rút dây mạng":
+    <strong>20 email đúng 20</strong>, không mất không trùng.</p>
+    <a href="phase-4.html">Đọc</a>
+  </div>
+  <div class="card">
+    <h3>Phase 5 — UI demo</h3>
+    <p class="status">Trang tĩnh một file. k6 1.000 VU trong khi trang mở:
+    <strong>tồn kho rơi về 0 và dừng đúng 0</strong>.</p>
+    <a href="phase-5.html">Đọc</a>
+  </div>
 </div>
 
 <h2>ADR — Quyết định kiến trúc</h2>
+<p class="muted">Mỗi ADR 5–10 dòng, và luôn ghi <strong>cả lựa chọn đã bị loại cùng lý do</strong>
+— đó là phần đáng kể khi phỏng vấn, không phải phần "đã chọn gì".</p>
 <ul>
   <li><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith thay vì Microservices</a></li>
   <li><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật Phase 0</a></li>
   <li><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Module nào sở hữu logic trừ tồn kho</a></li>
+  <li><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu đã-xử-lý trước khi gửi email</a></li>
+  <li><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker chạy process riêng</a></li>
+  <li><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction khi đẩy queue</a> — đọc cái này nếu chỉ đọc một</li>
+  <li><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh một file</a></li>
 </ul>
 
 <h2>Tham khảo xuyên phase</h2>

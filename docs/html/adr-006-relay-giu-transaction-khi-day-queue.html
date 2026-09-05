@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-006: Relay giữ transaction khi đẩy queue</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html" class="active">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-006-relay-giữ-transaction-mở-trong-lúc-đẩy-queue">ADR-006: Relay giữ transaction mở trong lúc đẩy queue</h1>
+<ul><li><strong>Ngày:</strong> 2026-09-05</li><li><strong>Trạng thái:</strong> Đã chốt</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p><code>CLAUDE.md</code> có luật: <em>"Transaction boundary phải hẹp nhất có thể; không gọi API ngoài trong transaction."</em> Luật đó đúng cho đường request — giữ khoá trên dòng nghiệp vụ nóng trong lúc chờ mạng là cách làm sập hệ thống dưới tải.</p>
+<p>Nhưng relay của Outbox có ba thao tác phải xảy ra theo đúng một thứ tự: <strong>lấy dòng và khoá lại → đẩy vào queue → đánh dấu đã đẩy</strong>. Bản đầu tiên của <code>OutboxRepository</code> làm khác: đánh dấu <code>DISPATCHED</code> và <strong>commit</strong> trước, rồi mới gọi <code>queue.add</code> ở ngoài. Kết quả là một cửa sổ mất dữ liệu: process bị giết đúng khe giữa commit và <code>queue.add</code> thì dòng nằm lại <code>DISPATCHED</code> vĩnh viễn — không ai đẩy nữa và <strong>không ai biết</strong>. Email của đơn đó không bao giờ được gửi.</p>
+<p>Điều đó phá đúng lời hứa của cả phase ("không mất message") và mâu thuẫn với chính câu giải thích trong <code>tech-playbook.md</code>: Outbox chuyển bài toán từ <em>có thể mất</em> sang <em>có thể trùng</em>.</p>
+<h2 id="quyết-định">Quyết định</h2>
+<p>Giữ transaction mở suốt cả ba thao tác: <code>SELECT … FOR UPDATE SKIP LOCKED</code> → <code>queue.add</code> → <code>UPDATE … DISPATCHED</code> → commit. Transaction có trần thời gian 15 giây.</p>
+<p>Hỏng ở bất kỳ đâu ⇒ rollback ⇒ các dòng quay lại <code>PENDING</code> ⇒ nhịp quét sau đẩy lại.</p>
+<h2 id="các-lựa-chọn-đã-cân-nhắc">Các lựa chọn đã cân nhắc</h2>
+<ul><li><strong>Giữ transaction mở</strong> ✅ — <em>ưu</em>: không bao giờ mất; rollback tự làm việc dọn dẹp, không cần trạng thái trung gian hay job đối soát. <em>nhược</em>: vi phạm luật "không gọi ngoài trong transaction"; một lô hỏng có thể đẩy trùng vài job đầu.</li><li><strong>Đánh dấu trước rồi đẩy</strong> ❌ — <em>ưu</em>: transaction ngắn nhất. <em>nhược</em>: <strong>mất im lặng</strong> khi process chết giữa hai bước. Đây là bản đầu, đã bỏ.</li><li><strong>Trạng thái <code>DISPATCHING</code> + job đối soát</strong> — <em>ưu</em>: transaction ngắn mà vẫn không mất (dòng kẹt ở <code>DISPATCHING</code> quá lâu thì trả về <code>PENDING</code>). <em>nhược</em>: thêm một trạng thái, một migration, một job nền và một hằng số timeout nữa phải chỉnh — nhiều máy móc hơn hẳn cho cùng một bảo đảm, ở quy mô mà lô chỉ mất vài chục mili-giây để đẩy.</li></ul>
+<h2 id="hệ-quả-trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
+<p><strong>Được:</strong> bảo đảm <em>at-least-once</em> đúng như tài liệu nói. Test <code>4b</code> khoá tính chất này lại: đẩy hỏng giữa lô thì cả 5 dòng phải quay về <code>PENDING</code>, không dòng nào kẹt ở <code>DISPATCHED</code>.</p>
+<p><strong>Mất:</strong> một ngoại lệ của luật transaction, và nó <strong>chỉ</strong> hợp lệ vì ba điều kiện cùng đúng — (1) dòng bị khoá là dòng <code>outbox_events</code>, không ai ngoài relay đụng tới; (2) worker khác gặp khoá thì <code>SKIP LOCKED</code> đi tiếp ngay, không xếp hàng; (3) Redis nằm cùng hạ tầng và transaction có trần thời gian. Mất một trong ba thì phải xem lại.</p>
+<p><strong>Xem lại khi:</strong> đẩy sự kiện ra một hệ thống ngoài mạng nội bộ (webhook đối tác, Kafka ở xa) — lúc đó độ trễ không còn kiểm soát được và phải chuyển sang phương án <code>DISPATCHING</code> + đối soát.</p>
+</main>
+</div>
+</body>
+</html>

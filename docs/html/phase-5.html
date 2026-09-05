@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 5 — UI demo</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<!--@@nav-->
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html" class="active">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@end-->
+</nav>
+<main class="content">
+
+<h1>Phase 5 — UI demo</h1>
+<p class="status">Code + test xong. Chạy đầu-cuối trên Chrome thật; k6 1.000 VU cho
+<strong>tồn kho rơi về 0 và dừng đúng ở 0</strong>. Còn lại: quay video 2 phút.</p>
+
+<h2>Business</h2>
+<p>Phase này <strong>không phải để làm sản phẩm</strong>. Nó tồn tại để làm được đúng một cảnh:
+k6 bắn 1.000 người ảo trong khi cột Tồn kho trên màn hình rơi về 0 — và <strong>dừng đúng ở
+0</strong>.</p>
+<p>Vì sao cảnh đó đáng: một bảng số trong terminal nói "oversell = 0" thì người nghe phải
+<em>tin</em>. Nhìn con số rơi rồi đứng lại thì người nghe <em>thấy</em>. Đó là khác biệt giữa
+"em có làm concurrency" và "đây, nhìn đi".</p>
+
+<h2>Technical</h2>
+<ul>
+<li><strong>Một file HTML tĩnh</strong>, không framework, không build step — đổi lại quyết định
+"Vite + React + Tailwind" mà <code>SPEC.md</code> chốt từ đầu dự án
+(<a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007</a>).</li>
+<li><strong>Nest phục vụ tĩnh</strong> bằng <code>useStaticAssets</code>, cộng
+<code>AppController</code> khai <em>tường minh</em> route <code>GET /</code>. Không để
+middleware tĩnh tự trả <code>index.html</code>: nó chạy TRƯỚC router của Nest, nên bật
+<code>index: true</code> là để nó tự quyết đường dẫn nào trả HTML — và khi nó đoán sai thì một
+endpoint API bỗng trả về trang web.</li>
+<li><strong>Cùng origin nên không có CORS.</strong> FE và API cùng <code>localhost:3000</code>,
+cookie <code>SameSite=Strict</code> tự đi kèm mọi <code>fetch</code> — chỉ cần
+<code>credentials: 'same-origin'</code>.</li>
+<li><strong>Polling 1,5 giây</strong>, không WebSocket. Cảnh cần quay dài ~10 giây; WebSocket là
+một tầng hạ tầng mới phải nuôi mà không làm demo tốt hơn.</li>
+<li><strong>Không có token nào trong JavaScript.</strong> Access token nằm trong HttpOnly
+cookie — JS không đọc được, và đó là chủ đích từ Phase 1.</li>
+</ul>
+
+<h3>Vì sao trang này KHÔNG tự thanh toán được</h3>
+<p>Bấm "Thanh toán" chỉ gọi <code>POST /payments/checkout/:id</code> lấy
+<code>paymentIntentId</code>, rồi <strong>hiện ra lệnh <code>send-webhook</code> để copy</strong>.
+Trình duyệt không có <code>PAYMENT_WEBHOOK_SECRET</code> nên không ký nổi webhook.</p>
+<blockquote class="note"><p>Đó không phải hạn chế của demo mà là <strong>thứ đang được chứng
+minh</strong>: nếu FE tự đánh dấu đơn đã trả tiền được thì toàn bộ việc verify chữ ký ở Phase 4
+là vô nghĩa.</p></blockquote>
+
+<h2>Bốn màn hình</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Màn hình</th><th>Dùng API</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Đăng nhập / Đăng ký</td><td><code>/auth/register</code>, <code>/auth/login</code>, <code>/auth/me</code>, <code>/auth/logout</code></td></tr>
+<tr><td>2</td><td>Sự kiện sale — lưới áo, tồn kho tự cập nhật</td><td><code>/products</code>, <code>/products/:id/skus</code></td></tr>
+<tr><td>3</td><td>Săn ngay → đơn giữ chỗ + đếm ngược</td><td><code>/orders</code>, <code>/payments/checkout/:id</code></td></tr>
+<tr><td>4</td><td>Đơn của tôi</td><td><code>/orders</code></td></tr>
+</tbody>
+</table></div>
+
+<h2>Code thật</h2>
+<p><code>public/app.js</code> — chỗ tinh tế nhất của cả trang, và nó nói về Phase 1 chứ không
+phải về FE:</p>
+<pre><code class="language-javascript">if (res.status === 401 &amp;&amp; !state.refreshed &amp;&amp; path !== '/auth/refresh') {
+  state.refreshed = true;                       // ← CHỈ được thử MỘT lần
+  const refreshed = await fetch('/auth/refresh', { method: 'POST', credentials: 'same-origin' });
+  if (refreshed.ok) { state.refreshed = false; return api(path, options); }
+  showAuth();
+  throw new Error('Phiên đăng nhập đã hết hạn');
+}</code></pre>
+<p>Access token sống 15 phút nên một phiên xem lâu <em>chắc chắn</em> gặp 401. Không giới hạn
+một lần thì hai request cùng hết hạn sẽ gọi refresh chồng nhau — và refresh token rotation của
+Phase 1 coi lần thứ hai là <strong>dùng lại token đã thu hồi</strong> ⇒ thu hồi cả family ⇒
+đăng xuất sạch. <strong>Tự mình gây ra reuse detection của chính mình.</strong></p>
+
+<p>Và chỗ vẽ lại bảng — nơi có một bug thật:</p>
+<pre><code class="language-javascript">// Chỉ dựng lại HÀNG khi danh sách SKU đổi; còn lại chỉ ghi đè đúng ô tồn kho.
+const signature = state.skus.map((s) =&gt; s.id).join(',');
+if (tbody.dataset.signature !== signature) { /* dựng lại hàng + gắn onclick */ }
+
+for (const sku of state.skus) {
+  cell.textContent = String(sku.stock);
+  cell.className = `stock ${'${level}'}`;
+  if (button.dataset.busy !== '1') { button.disabled = sku.stock === 0; }
+}</code></pre>
+
+<h2>Bug thật — và vì sao nhìn màn hình không thấy</h2>
+<p>Bản đầu ghi đè <code>innerHTML</code> của cả <code>&lt;tbody&gt;</code> mỗi nhịp polling. Nhìn
+thì hoàn toàn bình thường — nhưng <strong>mọi nút "Săn ngay" bị huỷ và tạo lại mỗi 1,5
+giây</strong>, nên một cú bấm chậm rơi vào phần tử đã bị gỡ khỏi DOM và <em>không có gì xảy
+ra</em>.</p>
+<p>Chỉ lộ ra khi bấm bằng trình duyệt tự động, nó báo thẳng: <em>"element did not become
+interactive"</em>. Đã sửa thành cập nhật tại chỗ.</p>
+
+<h2>Bằng chứng: k6 chạy với trang đang mở</h2>
+<p>SKU <code>stock = 100</code>, 1.000 VU, trang đang polling trên cùng SKU đó:</p>
+<pre><code>201 (bán được):    100   ← đúng 100
+409 (hết hàng):    900   ← trạng thái nghiệp vụ, không phải lỗi
+4xx khác:          0
+5xx:               0</code></pre>
+<p>1.000 iteration xong trong <strong>1,4 giây</strong>. Trên màn hình, ô Tồn kho đi từ 100
+xuống 0, đổi đỏ, nút thành "Hết hàng" và dừng ở 0. DB đối chiếu: <code>stock = 0</code>, đúng
+100 dòng <code>order_items</code>, tổng bán ra 100.</p>
+<p><strong>Oversell = 0</strong> — lần này nhìn thấy được, không chỉ đọc trong bảng số.</p>
+
+<h2>Quyết định kiến trúc của phase này</h2>
+<p><a href="adr-007-ui-la-trang-tinh-mot-file.html"><strong>ADR-007</strong></a>: UI là trang
+tĩnh một file, không Vite/React/Tailwind. Đánh đổi nói thẳng — mất một dòng React trong CV,
+được toàn bộ thời gian còn lại cho Phase 6 (observability), thứ thật sự cộng điểm cho một CV
+backend.</p>
+
+</main>
+</div>
+</body>
+</html>

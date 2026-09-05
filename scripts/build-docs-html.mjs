@@ -31,6 +31,10 @@ const PAGES = [
   { src: 'docs/adr/001-modular-monolith.md', out: 'adr-001-modular-monolith.html', title: 'ADR-001: Modular Monolith' },
   { src: 'docs/adr/002-nen-mong-ky-thuat-phase-0.md', out: 'adr-002-nen-mong-ky-thuat-phase-0.html', title: 'ADR-002: Nền móng kỹ thuật Phase 0' },
   { src: 'docs/adr/003-so-huu-logic-tru-ton-kho.md', out: 'adr-003-so-huu-logic-tru-ton-kho.html', title: 'ADR-003: Ai sở hữu logic trừ tồn kho' },
+  { src: 'docs/adr/004-ghi-dau-truoc-khi-gui-mail.md', out: 'adr-004-ghi-dau-truoc-khi-gui-mail.html', title: 'ADR-004: Ghi dấu trước khi gửi mail' },
+  { src: 'docs/adr/005-worker-chay-process-rieng.md', out: 'adr-005-worker-chay-process-rieng.html', title: 'ADR-005: Worker chạy process riêng' },
+  { src: 'docs/adr/006-relay-giu-transaction-khi-day-queue.md', out: 'adr-006-relay-giu-transaction-khi-day-queue.html', title: 'ADR-006: Relay giữ transaction khi đẩy queue' },
+  { src: 'docs/adr/007-ui-la-trang-tinh-mot-file.md', out: 'adr-007-ui-la-trang-tinh-mot-file.html', title: 'ADR-007: UI là trang tĩnh một file' },
 ];
 
 const NAV = [
@@ -39,11 +43,17 @@ const NAV = [
     ['phase-1.html', 'Phase 1 — Auth'],
     ['phase-2.html', 'Phase 2 — Product'],
     ['phase-3.html', 'Phase 3 — Order ⭐'],
+    ['phase-4.html', 'Phase 4 — Async &amp; Payment'],
+    ['phase-5.html', 'Phase 5 — UI demo'],
   ]],
   ['ADR', [
     ['adr-001-modular-monolith.html', 'ADR-001: Modular Monolith'],
     ['adr-002-nen-mong-ky-thuat-phase-0.html', 'ADR-002: Nền móng kỹ thuật'],
     ['adr-003-so-huu-logic-tru-ton-kho.html', 'ADR-003: Ai sở hữu tồn kho'],
+    ['adr-004-ghi-dau-truoc-khi-gui-mail.html', 'ADR-004: Ghi dấu trước khi gửi mail'],
+    ['adr-005-worker-chay-process-rieng.html', 'ADR-005: Worker process riêng'],
+    ['adr-006-relay-giu-transaction-khi-day-queue.html', 'ADR-006: Relay giữ transaction'],
+    ['adr-007-ui-la-trang-tinh-mot-file.html', 'ADR-007: UI là trang tĩnh'],
   ]],
   ['Tham khảo', [
     ['docs-map.html', 'Bản đồ tài liệu (docs/README.md)'],
@@ -68,6 +78,10 @@ const LINK_MAP = new Map([
   ['001-modular-monolith.md', 'adr-001-modular-monolith.html'],
   ['002-nen-mong-ky-thuat-phase-0.md', 'adr-002-nen-mong-ky-thuat-phase-0.html'],
   ['003-so-huu-logic-tru-ton-kho.md', 'adr-003-so-huu-logic-tru-ton-kho.html'],
+  ['007-ui-la-trang-tinh-mot-file.md', 'adr-007-ui-la-trang-tinh-mot-file.html'],
+  ['006-relay-giu-transaction-khi-day-queue.md', 'adr-006-relay-giu-transaction-khi-day-queue.html'],
+  ['005-worker-chay-process-rieng.md', 'adr-005-worker-chay-process-rieng.html'],
+  ['004-ghi-dau-truoc-khi-gui-mail.md', 'adr-004-ghi-dau-truoc-khi-gui-mail.html'],
 ]);
 
 const escapeHtml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

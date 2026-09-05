@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-007: UI là trang tĩnh một file</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html" class="active">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-007-ui-của-phase-5-là-một-trang-tĩnh-không-vitereacttailwind">ADR-007: UI của Phase 5 là một trang tĩnh, không Vite/React/Tailwind</h1>
+<ul><li><strong>Ngày:</strong> 2026-09-05</li><li><strong>Trạng thái:</strong> Đã chốt</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p><code>docs/SPEC.md</code> §Phase 5 chốt từ đầu dự án là <strong>Vite + React + Tailwind</strong>, timebox 2 buổi tối. Nhưng <code>project-context.md</code> quyết định #10 nói rõ vai của phần này: <em>"FE là <strong>công cụ trực quan hoá</strong>, không phải sản phẩm. Giá trị duy nhất: cảnh k6 chạy trong khi tồn kho trên màn hình rơi về 0 và <strong>dừng đúng 0</strong> → demo evidence."</em></p>
+<p>Hai câu đó không cùng hướng, và khi rà lại tài liệu ở đợt gom nguồn, chính tôi viết vào <code>tech-playbook.md</code> §Phase 5 câu ngược với SPEC. Phải chốt một lần cho hết mâu thuẫn.</p>
+<h2 id="quyết-định">Quyết định</h2>
+<p><strong>Một file <code>public/index.html</code></strong>, không dependency, không build step, do Nest phục vụ tĩnh ngay trên cổng 3000. Bốn màn hình bằng show/hide, CSS viết tay, polling <code>fetch</code> 1,5 giây.</p>
+<h2 id="các-lựa-chọn-đã-cân-nhắc">Các lựa chọn đã cân nhắc</h2>
+<ul><li><strong>Trang tĩnh một file</strong> ✅ — <em>ưu</em>: 0 dependency mới, không toolchain thứ hai, không CORS (cùng origin nên cookie <code>SameSite=Strict</code> tự gửi), mở file là chạy, và <strong>toàn bộ thời gian còn lại dồn cho Phase 6</strong>. <em>nhược</em>: không có component/state management, sửa nhiều sẽ mỏi; không kể được gì về React trong CV.</li><li><strong>Vite + React + Tailwind</strong> (SPEC gốc) — <em>ưu</em>: đúng cam kết ban đầu, có hot reload, dễ mở rộng. <em>nhược</em>: ~15 dependency, một toolchain thứ hai phải nuôi, phải cấu hình CORS + <code>credentials</code> cho cookie giữa hai origin, và nguy cơ tràn timebox cao. Với CV <strong>backend</strong>, phần này không cộng điểm — mà thời gian thì lấy từ Phase 6 (observability), thứ cộng điểm thật.</li><li><strong>Chỉ 2 màn hình</strong> (phương án dự phòng SPEC đã ghi) — <em>ưu</em>: nhanh nhất. <em>nhược</em>: bỏ màn "Đơn của tôi" là bỏ luôn chỗ nhìn thấy đơn <code>PENDING → PAID/CANCELLED</code>, tức mất phần trực quan hoá của cả Phase 4. Giữ lại 4 màn vì với trang tĩnh thì thêm 2 màn rẻ hơn nhiều so với React.</li></ul>
+<h2 id="hệ-quả-trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
+<p><strong>Được:</strong> Phase 5 gọn trong một file; không có <code>node_modules</code> thứ hai; cùng origin nên không phải đụng vào CORS — bài học CORS vẫn ghi ở <code>tech-playbook.md</code> §Phase 5 để biết khi nào nó xuất hiện, chỉ là dự án này không cần trả giá cho nó.</p>
+<p><strong>Mất:</strong> một dòng trong CV về React. Đây là đánh đổi có ý thức, không phải quên: dự án này bán câu chuyện <strong>concurrency và reliability</strong>, không bán câu chuyện frontend.</p>
+<p><strong>Xem lại khi:</strong> UI cần nhiều hơn ~600 dòng, hoặc cần nhiều người cùng sửa. Lúc đó dựng Vite là việc một buổi, và trang tĩnh hiện tại thành bản đặc tả sống của những gì cần dựng lại.</p>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-004: Ghi dấu trước khi gửi mail</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html" class="active">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-004-ghi-dấu-đã-xử-lý-trước-khi-gửi-email-không-phải-sau">ADR-004: Ghi dấu đã-xử-lý TRƯỚC khi gửi email, không phải sau</h1>
+<ul><li><strong>Ngày:</strong> 2026-09-05</li><li><strong>Trạng thái:</strong> Đã chốt</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p>Hàng đợi của Phase 4 là <strong>at-least-once</strong>: BullMQ có thể giao cùng một job hai lần (worker chết giữa chừng, job bị coi là stalled và giao lại). Consumer vì thế phải idempotent, và cơ chế là <code>INSERT</code> một dấu vào <code>processed_events</code> rồi để UNIQUE của DB làm trọng tài.</p>
+<p>Với việc <strong>ghi DB</strong> (đánh dấu đơn <code>PAID</code>) thì không có gì phải quyết: dấu và hệ quả nằm chung một transaction, hoặc cùng có hoặc cùng không.</p>
+<p>Với việc <strong>gửi email</strong> thì không có transaction nào bao được cả hai — SMTP không nằm trong ACID của Postgres. Buộc phải chọn thứ tự, và mỗi thứ tự hỏng theo một kiểu:</p>
+<ul><li><strong>Gửi trước, ghi dấu sau:</strong> process chết ở giữa ⇒ email đã đi mà không có dấu ⇒ lần retry gửi <strong>lần hai</strong>.</li><li><strong>Ghi dấu trước, gửi sau:</strong> process chết ở giữa ⇒ có dấu mà email chưa đi ⇒ email <strong>mất</strong>.</li></ul>
+<h2 id="quyết-định">Quyết định</h2>
+<p><strong>Ghi dấu trước.</strong> Nếu việc gửi thất bại <em>mà mã còn chạy được</em>, dấu được <strong>trả lại</strong> (<code>IdempotencyRepository.release</code>) để lần retry sau còn chạy. Chỉ khi process bị giết đúng khe giữa hai bước thì email mới mất.</p>
+<p>Lỗi <strong>vĩnh viễn</strong> (địa chỉ sai định dạng, không tìm thấy người nhận) thì <strong>không</strong> trả dấu: giữ nguyên để job có nằm lại DLQ cũng không ai vô tình chạy lại và gửi trùng.</p>
+<h2 id="các-lựa-chọn-đã-cân-nhắc">Các lựa chọn đã cân nhắc</h2>
+<ul><li><strong>Ghi dấu trước</strong> ✅ — <em>ưu</em>: bảo đảm "không gửi trùng", đúng thứ test #18 kiểm chứng; cửa sổ mất mail rất hẹp (giữa hai lệnh liền nhau). <em>nhược</em>: mất mail là mất im lặng — không ai biết, vì dấu vẫn nằm đó như thể đã gửi.</li><li><strong>Gửi trước, ghi dấu sau</strong> — <em>ưu</em>: không bao giờ mất mail. <em>nhược</em>: khách nhận hai email xác nhận cho một đơn; với email liên quan tiền bạc, đó là mất lòng tin, và không có cách nào thu hồi cái đã gửi.</li><li><strong>Bảng <code>sent_emails</code> + trạng thái hai pha</strong> (<code>SENDING</code> → <code>SENT</code>) — <em>ưu</em>: nhìn ra được email kẹt ở <code>SENDING</code> để dò lại. <em>nhược</em>: thêm một bảng làm đúng việc <code>processed_events</code> đang làm, và vẫn không xoá được cửa sổ rủi ro — chỉ chuyển nó thành "phải có người dọn hàng kẹt".</li></ul>
+<h2 id="hệ-quả-trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
+<p><strong>Được:</strong> một cơ chế duy nhất (<code>processed_events</code>) cho mọi consumer; bảo đảm mạnh nhất ở đúng hướng người dùng quan tâm — không bao giờ nhận email trùng.</p>
+<p><strong>Mất:</strong> khi process bị giết đúng khe hẹp đó, email xác nhận của đơn ấy sẽ không bao giờ được gửi, và <strong>hệ thống không biết</strong>. Chấp nhận được vì đơn hàng vẫn tra được ở <code>GET /orders</code> — email là tiện ích, không phải nguồn sự thật.</p>
+<p><strong>Xem lại khi:</strong> có loại email mà mất là không chấp nhận được (ví dụ hoá đơn/biên lai theo quy định). Lúc đó dùng đúng cơ chế của Outbox cho luôn phần gửi: ghi trạng thái gửi vào DB trong transaction, và một job đối soát quét những dòng "đã đánh dấu mà chưa xác nhận gửi".</p>
+</main>
+</div>
+</body>
+</html>

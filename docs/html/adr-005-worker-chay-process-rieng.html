@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-005: Worker chạy process riêng</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html" class="active">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-005-worker-chạy-process-riêng-không-chung-với-api">ADR-005: Worker chạy process riêng, không chung với API</h1>
+<ul><li><strong>Ngày:</strong> 2026-09-05</li><li><strong>Trạng thái:</strong> Đã chốt (giới hạn tới hết Phase 6)</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p>Phase 4 thêm bốn loại job nền (relay outbox, gửi email, huỷ đơn quá hạn, xử lý webhook). BullMQ cho phép chạy <code>Worker</code> ngay trong process của API — một lệnh <code>npm run dev</code> là xong.</p>
+<p>Nhưng deliverable chốt phase là demo <strong>"rút dây mạng"</strong>: giết worker giữa lúc xử lý, chứng minh không mất message và không gửi email trùng. Chạy chung process thì giết worker là giết luôn API, và không còn gì để quan sát.</p>
+<h2 id="quyết-định">Quyết định</h2>
+<p>Hai entrypoint trong cùng một repo: <code>src/main.ts</code> (API) và <code>src/worker.ts</code> (worker), với hai cây DI song song — <code>AppModule</code> và <code>WorkerModule</code>. Chạy bằng <code>npm run dev</code> và <code>npm run worker</code>.</p>
+<p><code>WorkerModule</code> không nạp controller nào và dùng <code>NestFactory.createApplicationContext</code> (không mở cổng HTTP).</p>
+<p><code>npm run worker</code> = <code>nest start --entryFile worker</code>, <strong>không</strong> phải <code>ts-node src/worker.ts</code>: Prisma Client sinh import kèm đuôi <code>.js</code> trong khi file thật là <code>.ts</code>, và <code>ts-node</code> không có gì ánh xạ lại nên vỡ ngay khi nạp client. <code>nest start</code> biên dịch bằng đúng tsc như API rồi chạy <code>dist/worker.js</code> — worker dùng chung một đường build đã biết là đúng.</p>
+<h2 id="các-lựa-chọn-đã-cân-nhắc">Các lựa chọn đã cân nhắc</h2>
+<ul><li><strong>Hai process</strong> ✅ — <em>ưu</em>: demo được deliverable; scale worker độc lập với API; job nặng không ăn CPU của request đang chờ; tắt êm (<code>worker.close()</code>) tách bạch với tắt API. <em>nhược</em>: local phải chạy hai lệnh; hai chỗ phải cùng có biến môi trường.</li><li><strong>Một process, worker chạy kèm API</strong> — <em>ưu</em>: một lệnh, một container, hợp free tier Cloud Run. <em>nhược</em>: không demo được; một job ngốn CPU làm chậm mọi request; và nguy hiểm hơn cả: autoscaling theo lưu lượng HTTP sẽ nhân số worker lên theo số instance mà không ai chủ ý.</li><li><strong>Cờ <code>WORKER_INLINE=true</code></strong> để chọn lúc chạy — <em>ưu</em>: linh hoạt. <em>nhược</em>: thêm một nhánh hành vi phải test hai lần, trong khi bài toán thật (deploy ra sao) vẫn chưa được trả lời.</li></ul>
+<h2 id="hệ-quả-trade-off-chấp-nhận">Hệ quả &amp; trade-off chấp nhận</h2>
+<p><strong>Được:</strong> giết/khởi động lại worker mà API không hề gián đoạn — điều kiện để test #18 tồn tại; <code>QUEUE_CONCURRENCY</code> trở thành một núm vặn thật.</p>
+<p><strong>Mất:</strong> local nhiều thao tác hơn một chút. Và <strong>câu hỏi deploy vẫn còn nợ</strong>: Cloud Run free tier khó nuôi một process nền luôn thức (scale-to-zero là điều kiện để giữ 0đ).</p>
+<p><strong>Xem lại ở Phase 7</strong> — ba hướng đã thấy: (1) worker chạy như Cloud Run Job kích bằng Cloud Scheduler thay vì service luôn sống; (2) <code>min-instances=1</code> cho service worker, mất free tier; (3) quay lại chạy kèm API và chấp nhận mất tính tách bạch. Quyết định đó cần số liệu chi phí thật, nên không chốt trước ở đây.</p>
+</main>
+</div>
+</body>
+</html>
