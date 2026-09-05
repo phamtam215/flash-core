@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ENV, type Env } from '../../config';
+import { MetricsService } from '../../infra/metrics';
 import { JOB, QueueService, type EmailConfirmPayload } from '../../infra/queue';
 import { OutboxRepository, type ClaimedEvent } from './outbox.repository';
 
@@ -18,6 +19,7 @@ export class OutboxRelay {
   constructor(
     private readonly repo: OutboxRepository,
     private readonly queue: QueueService,
+    private readonly metrics: MetricsService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -31,6 +33,9 @@ export class OutboxRelay {
       });
 
       if (sent > 0) this.logger.debug({ sent }, 'Đã đẩy sự kiện từ hộp thư đi');
+      // Cập nhật mỗi vòng quét: số này TĂNG ĐỀU nghĩa là relay đang chết hoặc cổng ra hỏng —
+      // triệu chứng nhìn thấy được rất lâu trước khi có ai báo "không nhận được email".
+      this.metrics.outboxPending.set(await this.repo.countByStatus('PENDING'));
       return sent;
     } catch (error) {
       // Cả lô đã rollback về `PENDING`. Ghi lại số lần hỏng ở một lệnh RIÊNG, ngoài transaction
@@ -49,6 +54,8 @@ export class OutboxRelay {
           // `eventId` = id dòng outbox. Đẩy lại cùng dòng ⇒ cùng eventId ⇒ consumer nhận ra
           // bản trùng. Sinh id mới ở đây là tự tay phá vỡ tính idempotent.
           eventId: event.id,
+          // `correlationId` nằm sẵn trong payload outbox (ghi lúc tạo đơn) nên nó đi theo
+          // luôn — relay không cần biết gì về nó, chỉ chuyển tiếp nguyên vẹn.
           ...(event.payload as unknown as Omit<EmailConfirmPayload, 'eventId'>),
         });
         return;

@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { decodeCursor, paginate } from '../../common';
+import { decodeCursor, getCorrelationId, paginate } from '../../common';
 import { ENV, type Env } from '../../config';
+import { MetricsService } from '../../infra/metrics';
 import { JOB, QueueService, type OrderExpirePayload } from '../../infra/queue';
 import { INVENTORY_RESERVER, type InventoryReserver } from './inventory-reserver';
 import type { CreateOrderDto, ListOrderQueryDto } from './order.dto';
@@ -15,6 +16,7 @@ export class OrderService {
   constructor(
     private readonly repo: OrderRepository,
     private readonly queue: QueueService,
+    private readonly metrics: MetricsService,
     @Inject(INVENTORY_RESERVER) private readonly reserver: InventoryReserver,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -31,10 +33,22 @@ export class OrderService {
    * Trả kèm `created` để controller biết trả `201` (vừa tạo) hay `200` (đơn đã có sẵn).
    */
   async placeOrder(userId: string, idempotencyKey: string, dto: CreateOrderDto) {
+    // Đo riêng bước trừ kho, tách theo chiến lược: đây là đoạn nóng nhất của cả hệ thống và
+    // là thứ benchmark Phase 3 đã so sánh. Có metric thì so sánh đó tiếp tục được trên môi
+    // trường thật, không chỉ trong một lần chạy k6.
+    const stopReserveTimer = this.metrics.reserveDuration.startTimer({ strategy: this.reserver.name });
     const reserved = await this.reserver.reserve(dto.skuId, dto.quantity);
+    stopReserveTimer();
 
     if (!reserved.ok) {
-      if (reserved.reason === 'SKU_NOT_FOUND') throw new SkuNotFoundError();
+      // Đếm ở ĐÂY chứ không ở interceptor, vì chỉ chỗ này biết `409` là "hết hàng" hay
+      // "SKU không tồn tại". Một metric `http_requests_total{status="409"}` không trả lời
+      // được câu hỏi thật sự đáng hỏi: bán hết hàng, hay đang có ai bắn vào SKU không có thật?
+      if (reserved.reason === 'SKU_NOT_FOUND') {
+        this.metrics.ordersPlaced.inc({ result: 'sku_not_found' });
+        throw new SkuNotFoundError();
+      }
+      this.metrics.ordersPlaced.inc({ result: 'out_of_stock' });
       throw new OutOfStockError();
     }
 
@@ -62,6 +76,7 @@ export class OrderService {
         throw new Error('Idempotency-Key trùng nhưng không tìm thấy đơn cũ');
       }
 
+      this.metrics.ordersPlaced.inc({ result: 'duplicate' });
       this.logger.log({ orderId: existing.id, userId }, 'Idempotency-Key trùng — trả lại đơn cũ');
       return { order: existing, created: false };
     }
@@ -75,7 +90,7 @@ export class OrderService {
     try {
       await this.queue.add<OrderExpirePayload>(
         JOB.ORDER_EXPIRE,
-        { orderId: order.id },
+        { orderId: order.id, correlationId: getCorrelationId() },
         {
           delay: this.env.ORDER_HOLD_MINUTES * 60 * 1000,
           // `jobId` theo đơn: đẩy lại cùng đơn không sinh ra hai lịch hẹn.
@@ -86,6 +101,7 @@ export class OrderService {
       this.logger.warn({ orderId: order.id, err: error }, 'Không hẹn được lịch huỷ đơn — sweeper sẽ dọn');
     }
 
+    this.metrics.ordersPlaced.inc({ result: 'created' });
     this.logger.log(
       { orderId: order.id, userId, skuId: dto.skuId, strategy: this.reserver.name, attempts: reserved.attempts },
       'Đặt đơn thành công',

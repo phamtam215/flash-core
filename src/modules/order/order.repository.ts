@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import type { Cursor } from '../../common';
+import { getCorrelationId, type Cursor } from '../../common';
 import { PrismaService, type PrismaTx } from '../../infra/prisma';
 
 /**
@@ -161,7 +161,15 @@ export class OrderRepository {
             aggregate: 'order',
             aggregateId: order.id,
             type: 'order.placed',
-            payload: { orderId: order.id, userId: input.userId, totalVnd: order.totalVnd },
+            payload: {
+              orderId: order.id,
+              userId: input.userId,
+              totalVnd: order.totalVnd,
+              // Id của request đang chạy, ghi luôn vào hộp thư đi. Đây là mắt xích nối log
+              // của lúc ĐẶT đơn với log của lúc GỬI email — hai việc cách nhau vài giây và
+              // xảy ra ở hai process khác nhau (Phase 6).
+              correlationId: getCorrelationId() ?? null,
+            },
           },
         });
 

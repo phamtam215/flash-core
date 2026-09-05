@@ -17,6 +17,23 @@ export abstract class DomainError extends Error {
   /** Mã lỗi ổn định để client xử lý theo nhánh — không dùng message để so sánh. */
   abstract readonly code: string;
 
+  /**
+   * Mức log khi lỗi này lọt ra biên HTTP. Mặc định suy từ `httpStatus`: 5xx là `error`, còn
+   * lại là `warn`.
+   *
+   * Vì sao cần override được (nợ ghi ở `architecture.md` §Một chỗ chưa ổn từ Phase 0):
+   * `/ready` trả **503** khi Postgres chớp, mà Cloud Run gọi `/ready` vài giây một lần ⇒ hàng
+   * chục dòng `error` cho một sự cố vận hành *bình thường*. Đến khi gắn cảnh báo theo số dòng
+   * `error` thì chuông kêu sai, và cảnh báo kêu sai vài lần là người ta tắt tiếng nó — lần thứ
+   * n có sự cố thật thì không ai nghe.
+   *
+   * Đặt thuộc tính này ở **lớp lỗi** chứ không ở filter, vì nó trả lời câu *"lỗi này có đáng
+   * gọi người dậy lúc 3 giờ sáng không"* — đó là tính chất của lỗi, không phải của filter.
+   */
+  get logLevel(): 'warn' | 'error' {
+    return this.httpStatus >= 500 ? 'error' : 'warn';
+  }
+
   constructor(
     message: string,
     readonly details?: Readonly<Record<string, unknown>>,

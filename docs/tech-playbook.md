@@ -1211,52 +1211,64 @@ HttpOnly cookie) thì phải bật `credentials` ở cả hai phía, và `Allow-
 
 > Phần **logging và `correlationId`** đã được giải thích đầy đủ ở
 > [Phase 0 §Logging và correlationId](#logging-và-correlationid--đọc-kỹ-code-đã-dùng-từ-phase-0)
-> — có ví dụ log thật và cách dùng khi khách báo lỗi. Phần dưới đây chỉ là những thứ Phase 6
-> **thêm vào**: đưa id qua queue, metrics, probe, graceful shutdown.
 
 ### Cần rõ
 
 | Thuật ngữ | Một câu |
 |---|---|
-| **Logs / Metrics / Traces** | Sự kiện rời rạc / số đo theo thời gian / hành trình một request qua nhiều thành phần |
-| **Structured logging** | Log dạng JSON để **máy** query được, không phải chuỗi cho người đọc |
-| **Correlation ID** | Một id xuyên suốt request → queue → worker, để nối các dòng log lại |
-| **Liveness probe** | "Còn sống không?" Fail → **restart container** |
-| **Readiness probe** | "Nhận traffic được chưa?" Fail → **ngừng gửi traffic**, không restart |
-| **Graceful shutdown** | Nhận SIGTERM → ngừng nhận request mới → chờ việc đang chạy → đóng kết nối |
-| **Cardinality** | Số giá trị khác nhau của một nhãn metric. Cao quá thì nổ bộ nhớ |
-| **PII** | Dữ liệu định danh cá nhân — không được lọt vào log |
+| **Liveness** | "Process còn sống không?" — fail thì **restart container** |
+| **Readiness** | "Có nên gửi traffic vào đây không?" — fail thì **ngừng gửi**, không restart |
+| **Counter** | Metric chỉ tăng (số request, số đơn). Hỏi nó "tăng bao nhiêu mỗi giây" |
+| **Gauge** | Metric lên xuống (số job đang chờ, RAM). Hỏi nó "bây giờ là bao nhiêu" |
+| **Histogram** | Phân bố theo bucket — thứ duy nhất cho ra p95/p99 đúng |
+| **Cardinality** | Số tổ hợp nhãn của một metric. Cao vô hạn = sập Prometheus |
+| **`AsyncLocalStorage`** | Kho lưu trữ đi theo *ngữ cảnh async*, không phải biến toàn cục |
+| **Graceful shutdown** | Ngừng nhận việc mới → chờ việc đang chạy xong → mới đóng |
 
 ### Cơ chế phải nắm
 
-- **Liveness không được kiểm tra dependency.** DB chết → `/health` fail → orchestrator restart
-  container → app khởi động lại → DB vẫn chết → restart loop. Restart app không chữa được DB;
-  nó chỉ làm mất luôn những request app còn xử lý được.
-- **Correlation ID phải đi qua ranh giới async.** Trong HTTP request thì dễ; khi đẩy job vào
-  queue, id phải nằm trong payload — nếu không, hành trình đứt đúng chỗ khó debug nhất.
-- **Graceful shutdown có thứ tự**: ngừng nhận mới → chờ inflight xong (có timeout) → đóng
-  pool/queue. Làm sai thứ tự thì vẫn mất việc đang chạy.
-- **Redact ở tầng logger**, không dựa vào việc nhớ đừng log. Cấu hình một lần, áp dụng mọi nơi.
-- **Metric label không được chứa userId/orderId.** Mỗi giá trị mới tạo một time series —
-  cardinality nổ, hệ thống metric chết.
+- **Liveness và readiness fail theo hai cách khác nhau, và gộp chúng là lỗi đắt.** `/health`
+  kiểm DB nghĩa là: DB chớp → liveness fail → orchestrator **restart container**. Restart app
+  không chữa được DB, chỉ làm mất luôn những request app vẫn xử lý được, rồi container mới lại
+  fail tiếp — vòng lặp restart giữa lúc đang có sự cố.
+- **Metric trả lời "bao nhiêu", log trả lời "chuyện gì".** Muốn tra theo `orderId` thì đó là
+  việc của log. Nhét `orderId` vào nhãn metric là mỗi đơn sinh một chuỗi thời gian mới —
+  Prometheus phình bộ nhớ tuyến tính theo lưu lượng cho tới khi chết.
+- **Nhãn `route` phải là *mẫu* route.** `/orders/:id`, không phải `/orders/9722…`. Đây là lỗi
+  cardinality phổ biến nhất, và nó chỉ lộ ra khi đã có lưu lượng thật.
+- **Đếm metric nghiệp vụ ở nơi BIẾT LÝ DO.** Interceptor chỉ thấy `409`; nó không phân biệt
+  được "hết hàng" với "SKU không tồn tại". `orders_placed_total{result}` chỉ có nghĩa khi đếm
+  trong service.
+- **Graceful shutdown có ba bước, bước giữa hay bị bỏ.** Nhận SIGTERM → `/ready` trả 503 →
+  **chờ vài giây** → mới đóng. Bỏ bước chờ thì load balancer chưa kịp nhận ra đã bị cắt ngang
+  request — đó là "deploy xong có vài đơn lỗi" mà không ai lần ra.
+- **`AsyncLocalStorage` không phải biến toàn cục.** Hai request song song có hai store riêng.
+  Node nối ngữ cảnh qua các mắt xích async, nên giá trị sống xuyên `await` và callback lồng
+  nhau — điều kiện để nó dùng được ở server.
 
 ### Bug hay gặp
 
 | Triệu chứng | Nguyên nhân | Cách chặn |
 |---|---|---|
-| Container restart liên tục khi DB chậm | Liveness kiểm tra DB | Tách rõ `/health` và `/ready` |
-| Có log nhưng không lần được request | Thiếu correlationId, hoặc id đứt ở queue | Sinh ở middleware, truyền vào payload job |
-| Deploy làm mất job đang chạy | Không bắt SIGTERM | Bật shutdown hooks, chờ inflight |
-| Prometheus ngốn RAM | Label cardinality cao | Chỉ label thứ hữu hạn: route, method, status |
-| Log lộ token | Log nguyên headers | Redact paths ở logger |
+| Container restart liên tục khi DB chớp | `/health` kiểm dependency | Liveness không được chạm DB/Redis |
+| Cảnh báo kêu inh ỏi vì 503 | 503 của readiness log mức `error` | Cho lỗi tự khai `logLevel`; sự cố vận hành là `warn` |
+| Prometheus ngốn RAM rồi chết | Nhãn chứa id/đường dẫn thật | Chỉ dùng tập giá trị đóng, `route` là mẫu |
+| Tỉ lệ lỗi luôn bằng 0 | Chỉ đếm ở nhánh thành công | Đếm cả nhánh `catch`, **trước** khi ném lại |
+| Deploy xong có vài request lỗi | Đóng app ngay khi nhận SIGTERM | Chờ `SHUTDOWN_GRACE_MS` sau khi `/ready` chuyển 503 |
+| Log của worker không có `correlationId` | Id chết ở biên HTTP | Nhét id vào payload job + ALS ở `JobProcessor` |
+| `/metrics` trả trang rỗng khi tắt | Trả 200 với nội dung rỗng | Trả **404** — trang rỗng làm Prometheus tưởng scrape thành công với 0 metric |
 
 ### Tình huống thực tế
 
-Khách báo "đặt hàng lỗi lúc 20:15". Không có correlation ID thì phải mò log theo timestamp
-giữa hàng nghìn request đồng thời. Có rồi thì: lấy id từ response header khách gửi lại →
-một câu query → thấy đủ hành trình từ HTTP tới worker, kể cả job retry ba lần.
+Khách báo "đặt hàng lúc 8 giờ tối bị lỗi". Không có `correlationId` thì bắt đầu từ đâu? Lọc
+log theo thời gian, ra hàng nghìn dòng của hàng trăm request đan xen nhau.
 
-Đó là toàn bộ lý do Phase 6 tồn tại: **biến việc điều tra từ vài giờ thành một câu query.**
+Có `correlationId` — và **có nó xuyên cả worker** — thì lấy id từ response header khách gửi
+lại, `grep` một lần, ra đúng chuỗi: request vào lúc nào, trừ kho mất bao lâu, sự kiện ghi vào
+outbox lúc nào, relay đẩy đi lúc nào, job gửi mail hỏng vì lý do gì. **Ba giây thay vì ba giờ.**
+
+Đó là toàn bộ lý do Phase 6 tồn tại, và cũng là lý do id phải đi được qua ranh giới process —
+nửa chuỗi thì cũng như không.
 
 ---
 

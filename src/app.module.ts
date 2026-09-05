@@ -4,6 +4,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AllExceptionsFilter, LoggerModule } from './common';
 import { ConfigModule } from './config';
+import { MetricsModule } from './infra/metrics';
 import { PrismaModule } from './infra/prisma';
 import { QueueModule } from './infra/queue';
 import { RedisModule } from './infra/redis';
@@ -30,6 +31,7 @@ import { ProductModule } from './modules/product';
     PrismaModule,
     RedisModule,
     QueueModule,
+    MetricsModule,
     AuthModule,
     ProductModule,
     MailModule,

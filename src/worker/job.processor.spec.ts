@@ -15,12 +15,16 @@ describe('JobProcessor', () => {
   const relay = { relayOnce: jest.fn() };
   const expiry = { cancelExpired: jest.fn(), sweepExpired: jest.fn() };
   const payments = { process: jest.fn() };
+  // Metric giả: chỉ cần đếm được `inc` để kiểm nhánh completed/failed.
+  const queueJobs = { inc: jest.fn() };
+  const metrics = { queueJobs };
 
   const processor = new JobProcessor(
     relay as never,
     notifier as never,
     expiry as never,
     payments as never,
+    metrics as never,
   );
 
   const emailJob = { name: JOB.EMAIL_CONFIRM, data: { eventId: 'e1' } } as Job;
@@ -42,6 +46,14 @@ describe('JobProcessor', () => {
     await expect(processor.process({ name: 'job.khong-ton-tai' } as Job)).rejects.toBeInstanceOf(
       UnrecoverableError,
     );
+  });
+
+  it('job hỏng vẫn được ĐẾM trước khi ném lại — nếu không tỉ lệ lỗi luôn bằng 0', async () => {
+    notifier.sendConfirmation.mockRejectedValueOnce(new Error('SMTP hỏng'));
+
+    await expect(processor.process(emailJob)).rejects.toThrow();
+
+    expect(queueJobs.inc).toHaveBeenCalledWith({ job: JOB.EMAIL_CONFIRM, outcome: 'failed' });
   });
 
   it('định tuyến đúng service cho từng tên job', async () => {

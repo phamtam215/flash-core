@@ -124,6 +124,28 @@ export const envSchema = z.object({
 
   /** Số dòng outbox lấy mỗi vòng quét. */
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(1000).default(50),
+
+  // ── Phase 6: Observability (spec: docs/specs/phase6-observability.md) ──────────────────
+
+  /**
+   * Bật `GET /metrics`. Tắt được để **đo chi phí của chính việc đo** — thu thập metric mặc
+   * định của Node (event loop lag, GC) không miễn phí, và trên free tier thì mọi mili-giây
+   * đều tính.
+   */
+  METRICS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+
+  /**
+   * Sau khi nhận SIGTERM, chờ ngần này mili-giây rồi mới đóng app.
+   *
+   * Không phải chờ cho vui: `/ready` chuyển 503 ngay khi nhận tín hiệu, nhưng **load balancer
+   * cần vài giây mới nhận ra** và ngừng gửi request mới. Đóng ngay lập tức là cắt ngang những
+   * request vừa được gửi tới trong khe đó — đúng nguyên nhân của "deploy xong có vài đơn lỗi"
+   * mà không ai lần ra được.
+   */
+  SHUTDOWN_GRACE_MS: z.coerce.number().int().nonnegative().max(60_000).default(5_000),
 });
 
 export type Env = Readonly<z.infer<typeof envSchema>>;

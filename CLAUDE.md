@@ -141,7 +141,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - Lệnh hay dùng: `npm run check` (lint + typecheck + test), `npm run up`, `npm run db:generate`.
 
 ## Trạng thái hiện tại
-- Phase hiện tại: **Phase 5 — UI demo** (bắt đầu 2026-09-05). **Phase 4 ĐÃ ĐÓNG** 2026-09-05.
+- Phase hiện tại: **Phase 6 — Observability** (bắt đầu 2026-09-06). **Phase 4 ĐÃ ĐÓNG** 2026-09-05.
 - **Phase 0 ĐÃ ĐÓNG** 2026-08-08 — hồ sơ ở `docs/phase-0-checklist.md`. Kết quả: skeleton
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
@@ -219,6 +219,16 @@ Muốn xem lại thì `git log -- .claude/`.
   **Đã chạy k6 với trang đang mở:** 1.000 VU → 201=100, 409=900, 5xx=0; tồn kho trên màn hình
   về 0 và dừng ở 0, DB xác nhận `stock=0` / bán đúng 100. Số ở spec §Chạy k6 với trang đang mở.
   **Còn lại:** Tâm quay video 2 phút (deliverable), trả lời câu hỏi bản chất, review + push.
+- **Phase 6 — code + test xong**, chờ Tâm review + push, theo `docs/specs/phase6-observability.md`:
+  `common/correlation/` (AsyncLocalStorage + mixin Pino — `correlationId` giờ đi xuyên cả
+  worker, ADR-008), `infra/metrics/` (prom-client, `GET /metrics`, 4 metric hạ tầng + 4 nghiệp
+  vụ), `/ready` kiểm cả Redis + cờ `shuttingDown`, `DomainError.logLevel` (503 readiness log
+  `warn` chứ không `error` — trả nợ ghi từ Phase 0), graceful shutdown 3 bước ở `main.ts`.
+  **15 integration test mới, tổng 89/89**; unit **77/77**. 2 biến env mới có mặc định:
+  `METRICS_ENABLED`, `SHUTDOWN_GRACE_MS`.
+  **`test/infra-fixture.ts` giờ tự reset schema** khi dùng `TEST_DATABASE_URL`, và từ chối chạy
+  nếu tên DB không kết thúc bằng `_test`.
+  **Còn lại:** Tâm trả lời 3 câu hỏi bản chất, review + push.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

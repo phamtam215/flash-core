@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UnrecoverableError, type Job } from 'bullmq';
 
+import { runWithCorrelationId } from '../common';
+import { MetricsService } from '../infra/metrics';
 import {
   JOB,
   type EmailConfirmPayload,
@@ -28,9 +30,37 @@ export class JobProcessor {
     private readonly notifier: OrderNotifier,
     private readonly expiry: OrderExpiryService,
     private readonly payments: PaymentService,
+    private readonly metrics: MetricsService,
   ) {}
 
+  /**
+   * Điểm vào của mọi job — và là **chỗ thứ hai (và cuối cùng) trong toàn bộ code nạp
+   * `AsyncLocalStorage`** (chỗ kia là middleware HTTP).
+   *
+   * Id lấy từ payload job, tức là id của **request đã tạo ra việc này**, không phải id mới.
+   * Nhờ vậy `grep` một id ra được cả log lúc đặt đơn lẫn log lúc gửi email — dù hai việc cách
+   * nhau vài giây và chạy ở hai process khác nhau. Đó chính là deliverable của Phase 6.
+   *
+   * Job lặp (relay, sweeper) không có id trong payload vì không request nào tạo ra chúng —
+   * lúc đó sinh id mới, và mỗi vòng quét có id riêng của nó.
+   */
   async process(job: Job): Promise<void> {
+    const payload = job.data as { correlationId?: string } | undefined;
+
+    return runWithCorrelationId(payload?.correlationId, async () => {
+      try {
+        await this.route(job);
+        this.metrics.queueJobs.inc({ job: job.name, outcome: 'completed' });
+      } catch (error) {
+        // Đếm TRƯỚC khi ném lại: ném rồi thì không còn chỗ nào đếm được nữa, và tỉ lệ hỏng
+        // của job sẽ luôn bằng 0 — metric nhìn đẹp mà vô dụng.
+        this.metrics.queueJobs.inc({ job: job.name, outcome: 'failed' });
+        throw error;
+      }
+    });
+  }
+
+  private async route(job: Job): Promise<void> {
     switch (job.name) {
       case JOB.OUTBOX_RELAY:
         await this.relay.relayOnce();

@@ -79,7 +79,10 @@ describe('Health (e2e)', () => {
     it('trả 200 khi Postgres còn sống', async () => {
       const res = await request(app.getHttpServer()).get('/ready').expect(200);
 
-      expect(res.body).toEqual({ ready: true, checks: { database: 'up' } });
+      // Phase 6 thêm hai check vào report. Dùng `toMatchObject` thay `toEqual` để test này
+      // không vỡ mỗi lần thêm một dependency mới cần kiểm — thứ nó khẳng định là "ready khi
+      // DB sống", không phải "report có đúng ba field".
+      expect(res.body).toMatchObject({ ready: true, checks: { database: 'up', redis: 'up' } });
     });
   });
 

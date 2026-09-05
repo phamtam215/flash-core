@@ -1,5 +1,6 @@
 import { HealthService } from './health.service';
 import type { PrismaService } from '../../infra/prisma';
+import type { RedisService } from '../../infra/redis';
 
 /**
  * Unit test cho HealthService.
@@ -10,8 +11,10 @@ import type { PrismaService } from '../../infra/prisma';
  * thật (xem skill `test-contract`).
  */
 describe('HealthService', () => {
-  const makeService = (queryRaw: jest.Mock): HealthService =>
-    new HealthService({ $queryRaw: queryRaw } as unknown as PrismaService);
+  const makeService = (queryRaw: jest.Mock, ping: jest.Mock = jest.fn().mockResolvedValue('PONG')): HealthService =>
+    new HealthService({ $queryRaw: queryRaw } as unknown as PrismaService, {
+      client: { ping },
+    } as unknown as RedisService);
 
   describe('liveness', () => {
     it('luôn trả về ok kèm uptime, không phụ thuộc DB', () => {
@@ -33,7 +36,10 @@ describe('HealthService', () => {
 
       const result = await makeService(queryRaw).readiness();
 
-      expect(result).toEqual({ ready: true, checks: { database: 'up' } });
+      expect(result).toEqual({
+        ready: true,
+        checks: { database: 'up', redis: 'up', shuttingDown: false },
+      });
       expect(queryRaw).toHaveBeenCalledTimes(1);
     });
 
@@ -44,7 +50,32 @@ describe('HealthService', () => {
       // thông tin check nào fail. Nếu service throw, client chỉ nhận 500 vô nghĩa.
       const result = await makeService(queryRaw).readiness();
 
-      expect(result).toEqual({ ready: false, checks: { database: 'down' } });
+      expect(result.ready).toBe(false);
+      expect(result.checks.database).toBe('down');
+    });
+
+    it('ready = false khi REDIS lỗi, dù DB vẫn sống', async () => {
+      // Trước Phase 6 instance này vẫn báo "sẵn sàng" — nên request cứ được gửi vào một
+      // instance mà chiến lược tồn kho `redis`, rate limit và toàn bộ queue đều đang hỏng.
+      const queryRaw = jest.fn().mockResolvedValue([{ '1': 1 }]);
+      const ping = jest.fn().mockRejectedValue(new Error('connection refused'));
+
+      const result = await makeService(queryRaw, ping).readiness();
+
+      expect(result.ready).toBe(false);
+      expect(result.checks).toMatchObject({ database: 'up', redis: 'down' });
+    });
+
+    it('sau beginShutdown() → ready = false dù mọi dependency đều sống', async () => {
+      // Đây là cơ chế rút khỏi vòng phục vụ: load balancer thấy 503 thì ngừng gửi request
+      // mới, trong khi app vẫn xử lý nốt request đang chạy dở.
+      const service = makeService(jest.fn().mockResolvedValue([{ '1': 1 }]));
+
+      service.beginShutdown();
+      const result = await service.readiness();
+
+      expect(result.ready).toBe(false);
+      expect(result.checks).toMatchObject({ database: 'up', redis: 'up', shuttingDown: true });
     });
   });
 });

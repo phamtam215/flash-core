@@ -17,3 +17,4 @@ export {
   type Page,
 } from './pagination/cursor';
 export { LoggerModule, CORRELATION_ID_HEADER } from './logger/logger.module';
+export { getCorrelationId, runWithCorrelationId } from './correlation';

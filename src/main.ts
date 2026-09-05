@@ -48,6 +48,8 @@ import { join } from 'node:path';
 
 import { AppModule } from './app.module';
 import { ENV, type Env } from './config';
+import { MetricsInterceptor } from './infra/metrics';
+import { HealthService } from './modules/health';
 
 /**
  * Hàm khởi động app.
@@ -172,6 +174,14 @@ async function bootstrap(): Promise<void> {
   // ĐẶT SAU `cookieParser` và TRƯỚC `listen`: nó là middleware, thứ tự đăng ký là thứ tự chạy.
   app.useStaticAssets(join(__dirname, '..', 'public'), { index: false });
 
+  // -------------------------------------------------------------------------------------
+  // BƯỚC 3d — Đếm mọi request (Phase 6)
+  // -------------------------------------------------------------------------------------
+  //
+  // Interceptor toàn cục thay vì gắn từng controller: không thể quên áp dụng cho endpoint
+  // mới, cùng lý do với exception filter ở `app.module.ts`.
+  app.useGlobalInterceptors(app.get(MetricsInterceptor));
+
   app.enableShutdownHooks();
 
   // -------------------------------------------------------------------------------------
@@ -194,6 +204,42 @@ async function bootstrap(): Promise<void> {
 
   // Dòng log đầu tiên của app, và cũng là tín hiệu "mọi bước trên đã qua an toàn".
   app.get(Logger).log(`Flash-Core đang chạy tại http://localhost:${env.PORT} (${env.NODE_ENV})`);
+
+  // -------------------------------------------------------------------------------------
+  // BƯỚC 6 — Tắt êm (Phase 6)
+  // -------------------------------------------------------------------------------------
+  //
+  // VẤN ĐỀ: `enableShutdownHooks` ở bước 4 đóng pool/Redis tử tế, nhưng nó đóng **ngay**.
+  // Mà lúc nhận SIGTERM, load balancer VẪN ĐANG gửi request tới — nó cần vài giây mới nhận
+  // ra instance này đã rút. Đóng ngay là cắt ngang những request vừa được gửi trong khe đó,
+  // và đó chính là nguyên nhân của "mỗi lần deploy có vài đơn lỗi" mà không ai lần ra được.
+  //
+  // BA BƯỚC, đúng thứ tự:
+  //   1. `/ready` trả 503 NGAY  → báo cho load balancer: đừng gửi nữa
+  //   2. chờ `SHUTDOWN_GRACE_MS` → cho nó kịp nhận ra, và cho request đang chạy kịp xong
+  //   3. `app.close()`          → giờ mới đóng pool, Redis, queue
+  //
+  // Bước 2 là bước hay bị bỏ nhất, và cũng là bước duy nhất thật sự cứu được request.
+  const health = app.get(HealthService);
+  let shuttingDown = false;
+
+  const shutdown = async (signal: string): Promise<void> => {
+    // Gọi hai lần (Ctrl+C hai phát, hoặc orchestrator gửi lại) thì bỏ qua lần sau — đóng
+    // chồng lên nhau giữa chừng còn tệ hơn là không đóng.
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    const logger = app.get(Logger);
+    logger.log(`Nhận ${signal} — /ready trả 503, chờ ${env.SHUTDOWN_GRACE_MS}ms rồi đóng`);
+    health.beginShutdown();
+
+    await new Promise((resolve) => setTimeout(resolve, env.SHUTDOWN_GRACE_MS));
+    await app.close();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
 // -----------------------------------------------------------------------------------------

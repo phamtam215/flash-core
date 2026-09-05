@@ -35,10 +35,13 @@ export interface EmailConfirmPayload {
   orderId: string;
   userId: string;
   totalVnd: number;
+  /** Id của request đã tạo ra đơn — để log của job nối được với log của request. */
+  correlationId?: string;
 }
 
 export interface OrderExpirePayload {
   orderId: string;
+  correlationId?: string;
 }
 
 export interface PaymentProcessPayload {

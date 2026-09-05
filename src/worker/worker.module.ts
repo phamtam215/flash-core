@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { LoggerModule } from '../common';
 import { ConfigModule } from '../config';
+import { MetricsModule } from '../infra/metrics';
 import { PrismaModule } from '../infra/prisma';
 import { QueueModule } from '../infra/queue';
 import { RedisModule } from '../infra/redis';
@@ -28,6 +29,7 @@ import { JobProcessor } from './job.processor';
     PrismaModule,
     RedisModule,
     QueueModule,
+    MetricsModule,
     MailModule,
     OutboxModule,
     OrderModule,

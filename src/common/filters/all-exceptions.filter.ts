@@ -52,7 +52,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const correlationId = request.id;
     const { status, body } = this.describe(exception);
 
-    if (status >= SERVER_ERROR_FROM) {
+    // `DomainError` được tự khai mức log của mình; còn lại suy từ status. Nhờ vậy 503 của
+    // readiness (sự cố vận hành bình thường) không nhuộm `error` vào log, trong khi 500 thật
+    // vẫn `error` — xem `DomainError.logLevel`.
+    const level =
+      exception instanceof DomainError
+        ? exception.logLevel
+        : status >= SERVER_ERROR_FROM
+          ? 'error'
+          : 'warn';
+
+    if (level === 'error') {
       this.logger.error(
         { err: exception, correlationId, method: request.method, path: request.url },
         'Lỗi hệ thống chưa được xử lý',
