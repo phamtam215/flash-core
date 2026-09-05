@@ -51,11 +51,28 @@ async function bootstrap(): Promise<void> {
   });
 
   worker.on('failed', (job, err) => {
-    // Job hết lượt thử mới thật sự là "vào DLQ"; những lần trước đó chỉ là sẽ-thử-lại.
+    // Ba tình huống khác hẳn nhau, đừng gộp thành một dòng log:
+    //
+    // 1. **Job lặp** (relay, sweeper) — không có `attempts`, nhưng nó KHÔNG nằm lại DLQ: lịch
+    //    lặp sẽ tạo một job mới ở nhịp sau. Gọi nó là "cạn số lần thử" là nói sai, và dưới
+    //    một sự cố kéo dài (DB chưa migrate chẳng hạn) nó in ra mỗi giây một dòng `error`
+    //    khiến người đọc tưởng có hàng trăm job chết.
+    // 2. **Job một lần, còn lượt** — sẽ thử lại, chỉ đáng `warn`.
+    // 3. **Job một lần, hết lượt** — mới thật sự nằm lại DLQ, và mới đáng `error`.
+    // `repeatJobKey` chỉ có ở job do lịch lặp sinh ra — đó là cách phân biệt duy nhất.
+    const repeatable = Boolean(job?.repeatJobKey);
     const exhausted = job ? job.attemptsMade >= (job.opts.attempts ?? 1) : false;
-    logger[exhausted ? 'error' : 'warn'](
+
+    const level = repeatable || !exhausted ? 'warn' : 'error';
+    const message = repeatable
+      ? 'Job lặp thất bại — sẽ chạy lại ở nhịp sau'
+      : exhausted
+        ? 'Job cạn số lần thử — nằm lại ở DLQ'
+        : 'Job thất bại, sẽ thử lại';
+
+    logger[level](
       { jobId: job?.id, name: job?.name, attempt: job?.attemptsMade, err: err.message },
-      exhausted ? 'Job cạn số lần thử — nằm lại ở DLQ' : 'Job thất bại, sẽ thử lại',
+      message,
     );
   });
 

@@ -1001,6 +1001,7 @@ vào DB trong cùng transaction, rồi mới đẩy ra ngoài.
 | Đơn đã huỷ bỗng thành đã trả tiền | Webhook đến muộn, code hồi sinh đơn `CANCELLED` | State machine cấm chuyển ngược; ghi bản ghi cần hoàn tiền |
 | Tồn kho bị trả về kho hai lần | Job huỷ đơn chạy hai lần, không kiểm tra trạng thái trước khi bù | Conditional `UPDATE`, xem số dòng bị ảnh hưởng |
 | Job biến mất không dấu vết | `removeOnFail: true`, không có DLQ | Giữ failed job + metric + log mức error |
+| Log `error` dồn dập tưởng hàng trăm job chết | Job **lặp** thất bại bị gộp chung với job một lần cạn retry | Job lặp không nằm lại DLQ — nhịp sau nó chạy lại; phân biệt bằng `job.repeatJobKey` và hạ xuống `warn` |
 | Service vừa hồi phục lại sập | Thundering herd | Backoff **+ jitter** |
 | Job retry mãi cho lỗi không thể sửa | Không phân biệt lỗi tạm thời với lỗi vĩnh viễn | Email sai định dạng → `UnrecoverableError`, đừng retry |
 | BullMQ ném `MaxRetriesPerRequestError` khi queue rảnh | Dùng chung kết nối ioredis với phần khác của app | Worker chạy lệnh **blocking** để chờ việc ⇒ bắt buộc `maxRetriesPerRequest: null`, phải là kết nối RIÊNG |
