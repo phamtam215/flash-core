@@ -213,8 +213,9 @@ Muốn xem lại thì `git log -- .claude/`.
   phục vụ trang** (tổng 74/74), unit 74/74. Đã chạy đầu-cuối trên Chrome thật: đăng ký → săn
   → thanh toán → PAID. Bug thật tìm được: vẽ lại cả `<tbody>` mỗi nhịp polling làm nút bị huỷ
   giữa lúc bấm — đã đổi sang cập nhật tại chỗ.
-  **Còn lại:** chạy k6 trong lúc mở trang để quay video 2 phút (deliverable của phase), Tâm
-  trả lời câu hỏi bản chất, review + push.
+  **Đã chạy k6 với trang đang mở:** 1.000 VU → 201=100, 409=900, 5xx=0; tồn kho trên màn hình
+  về 0 và dừng ở 0, DB xác nhận `stock=0` / bán đúng 100. Số ở spec §Chạy k6 với trang đang mở.
+  **Còn lại:** Tâm quay video 2 phút (deliverable), trả lời câu hỏi bản chất, review + push.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

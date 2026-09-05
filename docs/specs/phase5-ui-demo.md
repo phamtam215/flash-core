@@ -93,7 +93,7 @@ Phần UI kiểm bằng tay theo danh sách edge case ở trên.
 
 - [x] 4 màn hình chạy được trên trình duyệt thật — xem §Bằng chứng DoD
 - [x] 4 test server ở trên xanh, `npm run check` sạch (74 unit + 74 integration)
-- [ ] Chạy k6 (`k6/flash-sale.js`) trong khi mở màn (2): tồn kho rơi về **0 và dừng ở 0**
+- [x] Chạy k6 (`k6/flash-sale.js`) trong khi mở màn (2): tồn kho rơi về **0 và dừng ở 0**
 - [ ] Quay video/GIF ~2 phút cảnh đó — deliverable của phase
 - [ ] Tâm tự trả lời câu hỏi bản chất của Phase 5 trong `docs/SPEC.md`
 
@@ -129,3 +129,29 @@ ngay" bị huỷ và tạo lại mỗi 1,5 giây**. Nhìn thì không thấy gì
 phần tử đã bị gỡ khỏi DOM và **không có gì xảy ra**. Trình duyệt tự động báo thẳng: *"element
 did not become interactive"*. Đã sửa thành cập nhật tại chỗ — chỉ dựng lại hàng khi danh sách
 SKU thật sự đổi, còn lại chỉ ghi đè ô tồn kho.
+
+### Chạy k6 với trang đang mở (2026-09-05)
+
+SKU `stock = 100`, 1.000 VU, trang đang polling 1,5 giây trên cùng SKU đó:
+
+```
+201 (bán được):    100   ← đúng 100
+409 (hết hàng):    900   ← trạng thái nghiệp vụ, không phải lỗi
+4xx khác:          0
+5xx:               0
+```
+
+Toàn bộ 1.000 iteration xong trong **1,4 giây**. Trên màn hình, ô Tồn kho đi từ `100` xuống
+`0`, đổi sang màu đỏ, nút chuyển thành "Hết hàng" và **dừng ở 0** — không có nhịp polling nào
+hiện số âm hay số khác 0 sau đó.
+
+Đối chiếu DB ngay sau khi chạy:
+
+| | |
+|---|---|
+| `product_skus.stock` | **0** |
+| số dòng `order_items` của SKU đó | **100** |
+| tổng `quantity` đã bán | **100** |
+
+Bán ra đúng 100 chiếc trên 1.000 người bấm. **Oversell = 0**, lần này nhìn thấy được chứ không
+chỉ đọc trong bảng số của k6.
