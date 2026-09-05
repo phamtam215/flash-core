@@ -79,6 +79,12 @@ Mọi response có header `x-correlation-id`.
 Test 12–16 chạy trên **Postgres 16 thật** qua Testcontainers (`npm run test:int`): 5/5 pass,
 10.4 giây. Tổng cộng Phase 0 có **16/16 test xanh**.
 
+## Bằng chứng Definition of Done
+
+Phase 0 đóng 2026-08-08, **16/16 test pass**. Hồ sơ đầy đủ (từng mục đã làm, những gì cố tình
+không làm, ba điều kiện đóng phase): [`../phase-0-checklist.md`](../phase-0-checklist.md).
+Kiến thức rút ra: [`tech-playbook.md` §Phase 0](../tech-playbook.md).
+
 ## Ngoài phạm vi (Non-goals)
 
 - Model nghiệp vụ trong Prisma (sản phẩm, SKU, tồn kho, đơn) — Phase 2–3, cần spec riêng.

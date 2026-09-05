@@ -9,7 +9,9 @@
 <body>
 <div class="layout">
 <nav class="sidebar">
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html" class="active">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@nav-->
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html" class="active">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@end-->
 </nav>
 <main class="content">
 
@@ -52,36 +54,15 @@ biết app còn sống hay không:</p>
 </table></div>
 
 <h2>Kiến thức học được (Q&amp;A)</h2>
-
-<h3>1. Modular Monolith khác Microservices ở đâu?</h3>
-<p>Cả hai đều là cách <em>chia</em> hệ thống, khác độ tách. <strong>Monolith thường</strong>: 1
-process, không có ranh giới rõ giữa các phần — nhanh viết, nhưng sau vài tháng thành mớ phụ
-thuộc chằng chịt. <strong>Microservices</strong>: nhiều service độc lập, mỗi service tự deploy,
-tự DB riêng — tách được thật, nhưng phải tự xây lại từ đầu mọi thứ một DB đơn lẻ vốn cho sẵn
-(distributed transaction, service discovery, độ trễ mạng giữa các service).
-<strong>Modular Monolith</strong>: MỘT process, MỘT DB, nhưng module có ranh giới được ép bằng
-máy — giữ được transaction/lock của một DB (thứ Phase 3 cần để chống oversell), mà vẫn có sẵn
-"đường cắt" nếu sau này thật sự cần tách.</p>
-
-<h3>2. Vì sao dự án một người không nên làm microservices?</h3>
-<p>Với một người, thời gian hữu hạn chảy vào đâu quyết định học được gì.
-Microservices đòi hỏi cả một tầng hạ tầng: service discovery, distributed tracing, saga pattern
-cho transaction xuyên service, deploy nhiều service riêng — toàn bộ thời gian đó
-<strong>không dạy gì về concurrency</strong>, mục tiêu thật của dự án. Tệ hơn: oversell trong
-hệ phân tán là bài toán <em>khác hẳn</em> — mất khả năng dùng transaction/lock của một DB duy
-nhất, tức là mất đúng thứ dự án này muốn học.</p>
-
-<h3>3. Ranh giới module được ép bằng gì trong NestJS?</h3>
-<p>Hai tầng, cả hai đều là <strong>máy</strong>, không phải quy ước:</p>
-<ol>
-<li><strong>NestJS DI container</strong> — provider không nằm trong <code>exports</code> của
-module thì module khác không <em>inject</em> được. Nhưng nó chỉ chặn việc inject, không chặn
-việc import thẳng file rồi tự <code>new</code>.</li>
-<li><strong>ESLint <code>no-restricted-imports</code></strong> — chặn import sâu vào file bên
-trong module khác, đúng lỗ hổng mà tầng 1 để lọt.</li>
-</ol>
-<p>Thiếu tầng 2 thì ranh giới chỉ còn là quy ước, và nó xói mòn <strong>im lặng</strong> — không
-test nào đỏ khi ai đó phá luật.</p>
+<blockquote class="note"><p>Ba câu này là Definition of Done của phase (<code>docs/SPEC.md</code>). Đáp án dưới đây <strong>nhúng thẳng</strong> từ <a href="tech-playbook.html"><code>tech-playbook.md</code></a> — nguồn kiến thức duy nhất của repo, sửa ở đó là trang này đổi theo.</p></blockquote>
+<!--@@from docs/tech-playbook.md ### Câu hỏi bản chất của Phase 0 — và đáp án-->
+<h4 id="1-modular-monolith-khác-microservices-ở-đâu">1. Modular Monolith khác Microservices ở đâu?</h4>
+<p>Cả hai là cách <em>chia</em> hệ thống, khác ở độ tách. <strong>Monolith thường</strong>: một process, không ranh giới rõ — nhanh viết, vài tháng sau thành mớ phụ thuộc chằng chịt. <strong>Microservices</strong>: nhiều service tự deploy, tự DB — tách được thật, nhưng phải xây lại từ đầu mọi thứ mà một DB đơn lẻ vốn cho sẵn (distributed transaction, service discovery, độ trễ mạng). <strong>Modular Monolith</strong>: một process, một DB, nhưng ranh giới module được ép bằng máy — giữ được transaction/lock của một DB (thứ Phase 3 cần), mà vẫn có sẵn "đường cắt" nếu sau này thật sự phải tách.</p>
+<h4 id="2-vì-sao-dự-án-một-người-không-nên-làm-microservices">2. Vì sao dự án một người không nên làm microservices?</h4>
+<p>Thời gian hữu hạn chảy vào đâu quyết định học được gì. Microservices đòi cả một tầng hạ tầng (service discovery, distributed tracing, saga, deploy nhiều service) — toàn bộ thời gian đó <strong>không dạy gì về concurrency</strong>, mục tiêu thật của dự án. Tệ hơn: oversell trong hệ phân tán là bài toán <em>khác hẳn</em> — mất transaction và lock của một DB duy nhất, tức mất đúng thứ muốn học.</p>
+<h4 id="3-ranh-giới-module-được-ép-bằng-gì-trong-nestjs">3. Ranh giới module được ép bằng gì trong NestJS?</h4>
+<p>Hai tầng, <strong>cả hai đều là máy, không phải quy ước</strong>: (1) <strong>DI container</strong> — provider không nằm trong <code>exports</code> thì module khác không <em>inject</em> được; nhưng nó chỉ chặn inject, không chặn <code>import</code> thẳng file rồi tự <code>new</code>. (2) <strong>ESLint <code>no-restricted-imports</code></strong> — chặn import sâu vào file bên trong module khác, đúng lỗ hổng tầng 1 để lọt. Thiếu tầng 2 thì ranh giới chỉ còn là quy ước, và nó xói mòn <strong>im lặng</strong> — không test nào đỏ khi ai đó phá luật.</p>
+<!--@@end-->
 
 <p><strong>Code thật</strong> — <code>eslint.config.mjs</code>, luật chặn import sâu vào module khác:</p>
 <pre><code class="language-typescript">const DEEP_IMPORT_INTO_MODULE = {

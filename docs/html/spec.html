@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec gốc — lộ trình 8 phase</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html" class="active">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="flash-core-v2-spec-gốc">Flash-Core v2 — Spec gốc</h1>
+<blockquote class="note"><p>Nguồn: chưng cất từ quá trình thiết kế giữa Tâm và Claude (claude.ai). Đây là tài liệu định hướng cao nhất. Spec chi tiết từng tính năng nằm ở <code>docs/specs/</code>.</p>
+<p><strong>Câu hỏi bản chất</strong> ghi ở mỗi phase dưới đây là một mục Definition of Done. Đáp án của các phase đã làm nằm ở <a href="tech-playbook.html">@@SLOT0@@</a> — mục <em>Câu hỏi bản chất của Phase N — và đáp án</em>, cùng mục <em>Ôn phỏng vấn — 12 câu chốt</em>.</p></blockquote>
+<h2 id="1-mục-tiêu">1. Mục tiêu</h2>
+<ul><li>Học bản chất hệ thống lớn: concurrency, async, reliability, observability, FinOps.</li><li>Portfolio đủ mạnh cho vị trí Backend Node.js Middle: mỗi dòng CV có bằng chứng (benchmark, coverage, ADR, API live).</li><li>Luyện quy trình AI-era: Tâm viết spec/review/quyết định, AI implement.</li></ul>
+<h2 id="2-nghiệp-vụ">2. Nghiệp vụ</h2>
+<p>Săn flash sale áo thun:</p>
+<ul><li>Đợt sale mở đúng giờ, mẫu áo giảm sâu, tồn kho giới hạn <strong>theo SKU biến thể (size × màu)</strong>.</li><li>User: đăng nhập → xem sự kiện (đếm ngược + tồn kho realtime) → chọn size/màu, săn hàng → đơn Pending giữ chỗ 15 phút → thanh toán qua cổng sandbox (VNPay sandbox / Stripe test mode), webhook xác nhận → Completed; quá hạn → tự hủy, trả hàng về kho.</li></ul>
+<h2 id="3-các-module">3. Các module</h2>
+<div class="table-wrap"><table><thead><tr><th>Module</th><th>Nội dung chính</th></tr></thead><tbody><tr><td>Auth &amp; Security</td><td>Argon2, Access(15m) + Refresh(7d) qua HttpOnly Cookie, Refresh Token Rotation, rate limiting login</td></tr><tr><td>Product &amp; Inventory</td><td>Mẫu áo + biến thể size×màu (JSONB + GIN index), tồn kho theo SKU, cursor pagination</td></tr><tr><td>Order &amp; Concurrency ⭐</td><td>3 chiến lược chống oversell (bật/tắt bằng config): Optimistic (version) / Pessimistic (<code>SELECT FOR UPDATE</code> qua <code>$queryRaw</code>) / Redis atomic (Lua) + async persist. Idempotency-Key, Snapshot Price, ACID</td></tr><tr><td>Async &amp; Payment</td><td>BullMQ: email, delayed job hủy đơn quá 15 phút, retry exponential backoff, DLQ. Outbox pattern. Payment webhook: verify chữ ký, idempotent, xử lý webhook đến sau khi đơn đã hủy</td></tr><tr><td>Observability</td><td>Pino JSON log + correlationId xuyên request→queue, /health &amp; /ready, Prometheus metrics, graceful shutdown</td></tr><tr><td>Load Testing</td><td>k6 local: 1.000 VU săn 100 chiếc của 1 mẫu hot, so sánh 3 chiến lược, oversell = 0</td></tr></tbody></table></div>
+<h2 id="4-lộ-trình-8-phase">4. Lộ trình 8 Phase</h2>
+<h3 id="phase-0-nền-móng-quy-trình-ai-1-tuần">Phase 0 — Nền móng &amp; Quy trình AI (1 tuần)</h3>
+<p>Repo + Docker Compose (Postgres, Redis) + NestJS skeleton + Prisma + CI GitHub Actions (lint, test). Hoàn thiện CLAUDE.md, template spec/ADR, review checklist. <strong>Deliverable:</strong> <code>docker compose up</code> chạy toàn bộ; CI xanh. <strong>Câu hỏi bản chất:</strong> Modular Monolith vs Microservices? Vì sao dự án 1 người không nên làm microservices? Ranh giới module enforce bằng gì trong NestJS?</p>
+<h3 id="phase-1-auth-security-115-tuần">Phase 1 — Auth &amp; Security (1–1.5 tuần)</h3>
+<p>Argon2, Access + Refresh Token, HttpOnly Cookie, Refresh Token Rotation, rate limit login. <strong>Deliverable:</strong> integration test toàn luồng auth, kể cả case token bị đánh cắp và reuse. <strong>Câu hỏi bản chất:</strong> Vì sao Argon2 &gt; bcrypt? HttpOnly chống XSS thế nào, vì sao vẫn lo CSRF? Rotation phát hiện token theft ra sao?</p>
+<h3 id="phase-2-product-inventory-1-tuần">Phase 2 — Product &amp; Inventory (1 tuần)</h3>
+<p>CRUD mẫu áo với biến thể size×màu, JSONB + GIN index, tồn kho theo SKU, cursor pagination, seed 100.000 SKU. <strong>Deliverable:</strong> so sánh <code>EXPLAIN ANALYZE</code> trước/sau index. <strong>Câu hỏi bản chất:</strong> Cursor vs offset pagination khi dữ liệu lớn? GIN vs B-tree? Khi nào JSONB là lựa chọn tệ?</p>
+<h3 id="phase-3-order-concurrency-225-tuần">Phase 3 — Order &amp; Concurrency ⭐ (2–2.5 tuần)</h3>
+<p>Implement cả 3 chiến lược A/B/C chống oversell, bật/tắt bằng config. Idempotency-Key, Snapshot Price, transaction bọc đúng ranh giới. <strong>Evidence CV:</strong> báo cáo k6 1.000 VU săn 100 chiếc — throughput, p95, error rate của A/B/C, oversell = 0 ở cả ba. <strong>Câu hỏi bản chất:</strong> Vì sao read→if→write chắc chắn oversell dưới tải cao? Isolation level mặc định của Postgres và anomaly nó cho phép? Redis chết sau khi trừ kho nhưng trước khi ghi DB thì sao?</p>
+<h3 id="phase-4-async-queue-payment-webhook-reliability-2-tuần">Phase 4 — Async, Queue, Payment Webhook &amp; Reliability (2 tuần)</h3>
+<p>BullMQ (email, hủy đơn 15 phút, retry backoff, DLQ), Outbox pattern. Payment sandbox: verify chữ ký webhook, webhook idempotent, case webhook đến sau khi đơn đã bị hủy. <strong>Deliverable:</strong> demo "rút dây mạng" — kill worker giữa chừng, không mất message, không gửi email trùng. <strong>Câu hỏi bản chất:</strong> At-least-once vs exactly-once? Vì sao consumer phải idempotent? Outbox giải quyết gì mà "ghi DB rồi push queue" không giải quyết được? Vì sao phải verify chữ ký webhook, xử lý sao khi webhook thanh toán đến sau khi đơn đã hủy?</p>
+<h3 id="phase-5-ui-demo-2-buổi-tối">Phase 5 — UI demo (2 buổi tối)</h3>
+<p>Vite + React + Tailwind, polling 1–2s cho tồn kho. AI làm 100%, không test, không ADR, không tính coverage. 4 màn hình: (1) Đăng nhập/Đăng ký; (2) Sự kiện sale — lưới áo, đếm ngược, tồn kho realtime theo size/màu; (3) Chọn size/màu + "Săn ngay" → đơn giữ chỗ 15 phút + thanh toán sandbox; (4) Đơn của tôi. Quá timebox → cắt còn (2)+(3). Đặt SAU Phase 4 (không phải ngay sau Phase 3) vì màn (3) cần cả job giữ-chỗ-15-phút lẫn thanh toán sandbox — cả hai là deliverable của Phase 4, không phải Phase 3. <strong>Deliverable:</strong> demo video/GIF 2 phút — k6 chạy trong khi tồn kho trên FE rơi về 0 và dừng đúng 0. <strong>Câu hỏi bản chất:</strong> FE ở đây là công cụ trực quan hoá hay sản phẩm — khác nhau ở đâu trong cách quyết định làm tới đâu thì dừng?</p>
+<h3 id="phase-6-observability-hardening-1-tuần">Phase 6 — Observability &amp; Hardening (1 tuần)</h3>
+<p>Pino structured log, correlationId xuyên suốt, /health &amp; /ready, Prometheus metrics, graceful shutdown. <strong>Deliverable:</strong> từ 1 request lỗi bất kỳ, truy toàn bộ hành trình bằng 1 correlationId. <strong>Câu hỏi bản chất:</strong> /health vs /ready và Cloud Run dùng chúng ra sao? Graceful shutdown sai thì mất gì? Log sao để debug được mà không lộ dữ liệu nhạy cảm?</p>
+<h3 id="phase-7-deploy-finops-đóng-gói-cv-115-tuần">Phase 7 — Deploy, FinOps &amp; Đóng gói CV (1–1.5 tuần)</h3>
+<p>Cloud Run (us-central1, free tier) + Neon + Upstash, GitHub Actions auto deploy, Secret Manager, budget alert $1. README chuẩn "đọc 3 phút hiểu toàn hệ thống". <strong>Câu hỏi bản chất:</strong> Cold start ảnh hưởng flash sale thế nào, min-instances giải quyết ra sao? Connection pooling với serverless (Neon pooler)? Chi phí phát sinh đầu tiên ở đâu nếu traffic thật tăng?</p>
+<h2 id="5-ràng-buộc-finops">5. Ràng buộc FinOps</h2>
+<ul><li>Load test &amp; seed lớn: CHỈ chạy local (Docker Compose).</li><li>Cloud chỉ để demo API sống. Free tier: Cloud Run (us-central1) + Neon Free (0.5GB, scale-to-zero, hard cutoff) + Upstash Free (256MB, 500k lệnh/tháng).</li><li>Budget alert $1 ngay ngày đầu. Chấp nhận cold start để giữ 0đ (ghi ADR).</li></ul>
+<h2 id="6-definition-of-done">6. Definition of Done</h2>
+<ul><li>☐ Báo cáo benchmark k6 so sánh 3 chiến lược + kết luận khi nào dùng cái nào</li><li>☐ Coverage ≥ 70% module core (Order, Inventory), integration test trên DB thật</li><li>☐ ~10 ADR</li><li>☐ Sơ đồ kiến trúc + sequence diagram luồng đặt hàng</li><li>☐ Payment webhook: verify chữ ký, idempotent, test webhook trùng &amp; đến muộn</li><li>☐ API live trên Cloud Run, CI/CD tự động</li><li>☐ Demo video/GIF 2 phút: k6 chạy, tồn kho FE về 0 và dừng đúng 0</li></ul>
+</main>
+</div>
+</body>
+</html>

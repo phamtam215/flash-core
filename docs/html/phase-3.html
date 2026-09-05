@@ -9,7 +9,9 @@
 <body>
 <div class="layout">
 <nav class="sidebar">
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html" class="active">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@nav-->
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html" class="active">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@end-->
 </nav>
 <main class="content">
 
@@ -64,48 +66,23 @@ quá hạn là việc của Phase 4.</li>
 </table></div>
 
 <h2>Số đo thật — benchmark 1.000 VU săn 100 chiếc</h2>
-<div class="table-wrap"><table>
-<thead><tr><th>Chiến lược</th><th>Pool</th><th>Bán được</th><th>409 (hết hàng)</th><th>5xx</th><th>p95</th><th>Throughput</th></tr></thead>
-<tbody>
-<tr><td>optimistic</td><td>10</td><td><strong>100</strong></td><td>900</td><td>0</td><td>2 063 ms</td><td>476 rps</td></tr>
-<tr><td>pessimistic</td><td>10</td><td><strong>100</strong></td><td>900</td><td>0</td><td><strong>492 ms</strong></td><td><strong>1 580 rps</strong></td></tr>
-<tr><td>pessimistic</td><td>50</td><td><strong>100</strong></td><td>900</td><td>0</td><td>969 ms</td><td>993 rps</td></tr>
-<tr><td>redis</td><td>10</td><td><strong>100</strong></td><td>900</td><td>0</td><td>1 393 ms</td><td>481 rps</td></tr>
-</tbody>
-</table></div>
-<blockquote class="note"><p><strong>Kết luận cứng:</strong> bán ra đúng 100 chiếc ở cả bốn lần
-chạy, không lần nào 101. <strong>Oversell = 0.</strong> Toàn bộ 900 lần từ chối là 409 — trạng
-thái nghiệp vụ, không phải lỗi hệ thống. Không có 5xx nào.</p></blockquote>
+<!--@@from docs/tech-playbook.md ### Số thật đo được ở Phase 3 (1.000 VU săn 100 chiếc)-->
+<div class="table-wrap"><table><thead><tr><th>Chiến lược</th><th>Pool</th><th>p95 (ms)</th><th>rps</th><th>Oversell</th></tr></thead><tbody><tr><td>optimistic</td><td>10</td><td>2 063</td><td>476</td><td>0</td></tr><tr><td>pessimistic</td><td>10</td><td><strong>492</strong></td><td><strong>1 580</strong></td><td>0</td></tr><tr><td>pessimistic</td><td>50</td><td>969</td><td>993</td><td>0</td></tr><tr><td>redis</td><td>10</td><td>1 393</td><td>481</td><td>0</td></tr></tbody></table></div>
+<p>Cấu hình đo và điều kiện chạy lại: <code>@@SLOT0@@</code> <span class="unavail">(chưa có bản HTML)</span> §Bằng chứng DoD. Ba kết quả ngược trực giác:</p>
+<ol><li><strong>Pessimistic nhanh nhất</strong> — vì 900/1.000 request rơi vào "hết hàng", ca đó pessimistic chỉ tốn 1 round-trip còn optimistic tốn 2 (<code>UPDATE</code> ghi 0 dòng rồi phải hỏi thêm để tách 404 khỏi 409). Đường đi phổ biến nhất lại là đường tốn gấp đôi.</li><li><strong>Pool 50 chậm hơn pool 10</strong> — nới pool chỉ chuyển phần chờ khoá từ hàng đợi trong app (rẻ) vào bên trong Postgres (đắt). Xếp hàng bên ngoài DB, đừng dồn vào trong DB.</li><li><strong>Redis chưa nhanh hơn</strong> — vì Phase 3 vẫn ghi DB đồng bộ. Ưu thế của nó chỉ hiện ra khi có outbox + async persist ở Phase 4. Số hôm nay là mốc để so sánh sau.</li></ol>
+<!--@@end-->
 
 <h2>Kiến thức học được (Q&amp;A)</h2>
-
-<h3>1. Vì sao <code>if (stock &gt; 0) stock--</code> <em>chắc chắn</em> sai, không phải "hiếm khi" sai?</h3>
-<p>Điều kiện được kiểm tra trong <strong>RAM của Node</strong>, tại một thời điểm đã cũ. Nơi
-duy nhất biết sự thật là dòng trong Postgres. Giữa lúc "đọc" và lúc "ghi" luôn có khoảng
-trống, và dưới tải thì khoảng trống đó <em>luôn</em> có request khác chen vào — không phải
-may/rủi mà là điều tất yếu khi có đủ người bấm. Cách chữa duy nhất đúng: <strong>đưa điều kiện
-vào cùng câu lệnh ghi</strong>, để chính DB đánh giá nó tại thời điểm ghi.</p>
-
-<h3>2. Isolation level mặc định của Postgres là gì, nó cho phép anomaly nào?</h3>
-<p><strong>Read Committed.</strong> Nó chặn dirty read (không đọc được dữ liệu chưa commit),
-nhưng vẫn cho phép <em>non-repeatable read</em> (đọc cùng một dòng hai lần trong một transaction
-ra hai giá trị) và <em>phantom read</em> (chạy cùng điều kiện hai lần ra số dòng khác nhau).</p>
-<p>Điều ít người để ý: <strong>đổi lên Repeatable Read hay Serializable KHÔNG bỏ được việc phải
-retry</strong> — chúng chuyển lỗi từ "dữ liệu sai" sang "transaction bị huỷ" (mã <code>40001</code>).
-Không viết vòng retry thì đổi isolation level chỉ làm hỏng theo cách khác. Và trong dự án này
-<strong>không cần đổi</strong>: câu <code>UPDATE … WHERE stock &gt;= ?</code> đã an toàn ngay ở
-Read Committed, vì khi gặp dòng đang bị khoá, Postgres <strong>chờ rồi đánh giá lại
-<code>WHERE</code> trên phiên bản mới nhất</strong>.</p>
-
-<h3>3. Redis chết sau khi trừ kho nhưng trước khi ghi DB thì sao?</h3>
-<p>Hai kho dữ liệu lệch nhau, và <strong>không có transaction nào cứu được</strong> — Redis
-không nằm trong ACID của Postgres. Redis đã trừ 1 nhưng DB chưa trừ ⇒ hệ thống <em>tưởng</em>
-đã bán mà thực ra chưa: bán thiếu, không bán vượt (hướng lệch an toàn hơn, nhưng vẫn là lệch).</p>
-<p>Phase 3 xử lý bằng <strong>bù trừ ngược + log mức <code>error</code></strong>: nếu ghi DB
-thất bại thì <code>INCRBY</code> trả lại Redis. Nếu cả bù trừ cũng thất bại thì <strong>log rõ,
-không im lặng sửa số</strong> — để reconcile job của Phase 4 có dấu vết mà lần lại. Đường đi
-đúng về sau là <strong>Outbox pattern</strong> (Phase 4): ghi ý định vào DB trong cùng
-transaction, rồi mới đẩy ra ngoài.</p>
+<blockquote class="note"><p>Ba câu này là Definition of Done của phase (<code>docs/SPEC.md</code>). Đáp án dưới đây <strong>nhúng thẳng</strong> từ <a href="tech-playbook.html"><code>tech-playbook.md</code></a> — nguồn kiến thức duy nhất của repo, sửa ở đó là trang này đổi theo.</p></blockquote>
+<!--@@from docs/tech-playbook.md ### Câu hỏi bản chất của Phase 3 — và đáp án-->
+<blockquote class="note"><p>Đây là ba câu <code>docs/SPEC.md</code> đặt ra cho Phase 3. Đọc <strong>sau khi</strong> đã xem số đo ở trên — đáp án chỉ có nghĩa khi đã thấy con số nó giải thích.</p></blockquote>
+<h4 id="1-vì-sao-if-stock-0-stock---chắc-chắn-sai-không-phải-hiếm-khi-sai">1. Vì sao <code>if (stock &gt; 0) stock--</code> <em>chắc chắn</em> sai, không phải "hiếm khi" sai?</h4>
+<p>Điều kiện được kiểm tra trong <strong>RAM của Node</strong>, tại một thời điểm đã cũ. Nơi duy nhất biết sự thật là dòng trong Postgres. Giữa "đọc" và "ghi" luôn có một khoảng trống, và dưới tải thì khoảng trống đó <em>luôn</em> có request khác chen vào — không phải may rủi mà là điều tất yếu khi đủ người bấm. Cách chữa duy nhất đúng: <strong>đưa điều kiện vào cùng câu lệnh ghi</strong> (<code>UPDATE … WHERE stock &gt;= ?</code>), để chính DB đánh giá nó tại thời điểm ghi.</p>
+<h4 id="2-isolation-level-mặc-định-của-postgres-là-gì-nó-cho-phép-anomaly-nào">2. Isolation level mặc định của Postgres là gì, nó cho phép anomaly nào?</h4>
+<p><strong>Read Committed.</strong> Chặn được dirty read, nhưng vẫn cho phép <em>non-repeatable read</em> (đọc cùng một dòng hai lần trong một transaction ra hai giá trị) và <em>phantom read</em> (cùng điều kiện, số dòng khác nhau). Điều ít người để ý: <strong>đổi lên Repeatable Read hay Serializable KHÔNG bỏ được việc phải retry</strong> — chúng chuyển lỗi từ "dữ liệu sai" sang "transaction bị huỷ" (<code>40001</code>). Không viết vòng retry thì đổi isolation level chỉ làm hỏng theo cách khác. Và dự án này <strong>không cần đổi</strong>: câu <code>UPDATE … WHERE stock &gt;= ?</code> đã an toàn ngay ở Read Committed, vì khi gặp dòng đang bị khoá, Postgres <strong>chờ rồi đánh giá lại <code>WHERE</code> trên phiên bản mới nhất</strong>.</p>
+<h4 id="3-redis-chết-sau-khi-trừ-kho-nhưng-trước-khi-ghi-db-thì-sao">3. Redis chết sau khi trừ kho nhưng trước khi ghi DB thì sao?</h4>
+<p>Hai kho dữ liệu lệch nhau, và <strong>không transaction nào cứu được</strong> — Redis không nằm trong ACID của Postgres. Redis đã trừ mà DB chưa ⇒ hệ thống <em>tưởng</em> đã bán trong khi chưa: bán thiếu, không bán vượt (hướng lệch an toàn hơn, nhưng vẫn là lệch). Phase 3 xử lý bằng <strong>bù trừ ngược + log mức <code>error</code></strong>; nếu cả bù trừ cũng hỏng thì <strong>log rõ, không im lặng sửa số</strong>, để reconcile job của Phase 4 có dấu vết lần lại. Đường đi đúng về sau là <strong>Outbox</strong> (Phase 4): ghi ý định vào DB trong cùng transaction, rồi mới đẩy ra ngoài.</p>
+<!--@@end-->
 
 <h2>Code thật</h2>
 <p><code>src/modules/order/order.repository.ts</code> — câu quan trọng nhất của cả phase. An
@@ -128,21 +105,6 @@ xảy ra bug:</p>
 if stock == nil then return -2 end          -- chưa nạp vào Redis
 if stock &lt; tonumber(ARGV[1]) then return -1 end  -- hết hàng
 return redis.call('DECRBY', KEYS[1], ARGV[1])</code></pre>
-
-<h2>Ba điều số đo nói ra mà lý thuyết sách không nói</h2>
-<ol>
-<li><strong>Pessimistic nhanh nhất ở đây</strong> — ngược hẳn kỳ vọng. Vì hình dạng tải của
-flash sale: 900/1.000 request rơi vào SKU đã hết hàng. Ca đó pessimistic tốn <strong>một</strong>
-round-trip (<code>FOR UPDATE</code> thấy <code>stock = 0</code> → 409 ngay), optimistic tốn
-<strong>hai</strong> (<code>UPDATE</code> ghi 0 dòng, rồi phải hỏi thêm để tách 404 khỏi 409).
-Đường đi phổ biến nhất lại là đường tốn gấp đôi.</li>
-<li><strong>Pool 50 chậm hơn pool 10</strong> (993 vs 1 580 rps). Nới pool không phải nới thông
-lượng — nó chỉ chuyển phần chờ khoá từ <em>hàng đợi trong app</em> (rẻ) vào <em>bên trong
-Postgres</em> (đắt). Xếp hàng bên ngoài DB, đừng dồn vào trong DB.</li>
-<li><strong>Redis chưa nhanh hơn optimistic</strong> — và điều đó đúng như code đã dự đoán:
-Phase 3 cố tình ghi DB đồng bộ, nên mỗi request vẫn trả đủ tiền cho một round-trip Postgres,
-cộng thêm một round-trip Redis. Ưu thế chỉ hiện ra khi có Outbox ở Phase 4.</li>
-</ol>
 
 <h2>Quyết định kiến trúc của phase này</h2>
 <p><a href="adr-003-so-huu-logic-tru-ton-kho.html"><strong>ADR-003</strong></a>: module

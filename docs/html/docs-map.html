@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bản đồ tài liệu — thông tin nào ở file nào</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html" class="active">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+</nav>
+<main class="content">
+<h1 id="mục-lục-tài-liệu-flash-core">Mục lục tài liệu Flash-Core</h1>
+<blockquote class="note"><p><strong>Điểm vào của cả dự án là <a href="docs-map.html">@@SLOT0@@</a> ở thư mục gốc</strong>, không phải file này. File này chỉ trả lời hai câu: <strong>thông tin nào thuộc file nào</strong>, và <strong>khi nào mở file nào</strong>.</p></blockquote>
+<h2 id="luật-một-chủ-sở-hữu">Luật một chủ sở hữu</h2>
+<p>Mỗi loại thông tin được <strong>định nghĩa ở đúng một file</strong>. File khác chỉ được <strong>trỏ link</strong>, không chép lại. Đây là luật khiến tài liệu không lệch nhau khi code đổi.</p>
+<div class="table-wrap"><table><thead><tr><th>Thông tin</th><th>Chủ sở hữu duy nhất</th></tr></thead><tbody><tr><td>Dự án là gì, chạy thế nào</td><td><a href="docs-map.html">@@SLOT0@@</a> (gốc repo)</td></tr><tr><td><strong>Đang ở phase nào, còn nợ gì</strong></td><td><a href="claude-md.html">@@SLOT0@@</a> §Trạng thái hiện tại</td></tr><tr><td>Kế hoạch 8 phase + Definition of Done</td><td><a href="spec.html">@@SLOT0@@</a></td></tr><tr><td>Code nằm ở đâu, sửa X thì mở file nào</td><td><a href="architecture.html">@@SLOT0@@</a></td></tr><tr><td><strong>Kiến thức</strong>: cơ chế, bug thật, số đo, đáp án câu hỏi bản chất, ôn phỏng vấn</td><td><a href="tech-playbook.html">@@SLOT0@@</a></td></tr><tr><td><strong>Vì sao chọn thế này</strong>, đã loại bỏ gì</td><td><code>@@SLOT0@@</code> + <a href="project-context.html">@@SLOT1@@</a> §3</td></tr><tr><td><strong>Hợp đồng</strong> một tính năng: API, schema, edge case, test case, bằng chứng DoD</td><td><code>@@SLOT0@@</code></td></tr><tr><td><strong>Tên gọi</strong> của các bài toán (1 dòng/mục)</td><td><a href="glossary.html">@@SLOT0@@</a></td></tr><tr><td>Chuẩn commit, quy tắc nhánh, cách đóng phase</td><td><code>@@SLOT0@@</code> <span class="unavail">(chưa có bản HTML)</span></td></tr><tr><td>Checklist review code</td><td><code>@@SLOT0@@</code> <span class="unavail">(chưa có bản HTML)</span></td></tr><tr><td>Bản HTML đọc offline (<code>html/index.html</code>)</td><td>sinh từ chính các <code>.md</code> ở đây bằng <code>npm run docs:html</code></td></tr></tbody></table></div>
+<p>Ba ranh giới hay bị vi phạm nhất, ghi ra để tự kiểm khi sửa tài liệu:</p>
+<ol><li><strong>Spec không giữ kiến thức.</strong> Spec nói <em>phải làm gì</em>; playbook nói <em>vì sao và hỏng ra sao</em>. Thấy mình viết một đoạn giải thích cơ chế trong spec → chuyển sang playbook, để lại một link.</li><li><strong>Chỉ <code>CLAUDE.md</code> giữ trạng thái.</strong> Spec được giữ <em>bằng chứng</em> (số test, số đo, cấu hình để chạy lại), không giữ câu "đang làm dở đến đâu".</li><li><strong>Glossary không giải thích.</strong> Dài hơn một dòng nghĩa là nó thuộc playbook.</li></ol>
+<h2 id="mở-file-nào-khi-nào">Mở file nào khi nào</h2>
+<div class="table-wrap"><table><thead><tr><th>Thời điểm</th><th>File</th></tr></thead><tbody><tr><td>Lần đầu vào dự án</td><td><a href="docs-map.html">@@SLOT0@@</a> → <a href="architecture.html">@@SLOT1@@</a></td></tr><tr><td><strong>"Giờ tôi cần làm gì?"</strong></td><td><a href="claude-md.html">@@SLOT0@@</a> §Trạng thái hiện tại</td></tr><tr><td>Trước khi bắt đầu một phase</td><td><a href="glossary.html">@@SLOT0@@</a> (nhận tên, 20') → <a href="tech-playbook.html">@@SLOT1@@</a> §Phase N (cơ chế + bẫy, 15') → <a href="spec.html">@@SLOT2@@</a></td></tr><tr><td>Trước khi code một tính năng</td><td>gõ <code>/spec &lt;tên&gt;</code> → tạo file trong <code>@@SLOT1@@</code></td></tr><tr><td>Đang va một bug lạ</td><td><a href="tech-playbook.html">@@SLOT0@@</a> — bảng <em>Bug hay gặp</em> của phase đó</td></tr><tr><td><strong>CI đỏ</strong>, hoặc muốn hiểu test được tổ chức thế nào</td><td><a href="tech-playbook.html">@@SLOT0@@ §Xuyên suốt — CI &amp; Testing</a></td></tr><tr><td>Không biết sửa file nào</td><td><a href="architecture.html">@@SLOT0@@</a></td></tr><tr><td>Khi phải chọn giữa hai cách làm</td><td>nói "viết ADR cho X" → tạo file trong <code>@@SLOT0@@</code></td></tr><tr><td>Sau khi Claude viết code</td><td><code>@@SLOT0@@</code> <span class="unavail">(chưa có bản HTML)</span></td></tr><tr><td>Khi tạo commit / khi đóng phase</td><td>gõ <code>/commit</code> — chuẩn ở <code>@@SLOT1@@</code> <span class="unavail">(chưa có bản HTML)</span> §5</td></tr><tr><td><strong>Trước khi đi phỏng vấn</strong></td><td><a href="tech-playbook.html">@@SLOT0@@ §Ôn phỏng vấn — 12 câu chốt</a> → mục <em>Câu hỏi bản chất</em> của từng phase → <code>@@SLOT1@@</code></td></tr></tbody></table></div>
+<h2 id="thư-mục">Thư mục</h2>
+<pre><code>docs/
+├── README.md              ← mục lục này
+├── SPEC.md                kế hoạch 8 phase + Definition of Done
+├── architecture.md        bản đồ code
+├── tech-playbook.md       ★ NGUỒN KIẾN THỨC DUY NHẤT (cơ chế · bug · số đo · ôn phỏng vấn)
+├── glossary.md            từ điển: TÊN của các bài toán, 1 dòng/mục
+├── git-workflow.md        chuẩn commit, quy tắc nhánh, cách đóng phase
+├── review-checklist.md    checklist review code
+├── phase-0-checklist.md   hồ sơ Phase 0 (đã đóng — không còn việc phải làm)
+├── specs/                 hợp đồng từng tính năng + bằng chứng DoD
+├── adr/                   quyết định kiến trúc
+├── templates/             khuôn cho spec &amp; ADR
+└── html/                  bản đọc offline, sinh bằng `npm run docs:html`</code></pre>
+<h2 id="ba-nguyên-tắc-không-được-phá">Ba nguyên tắc không được phá</h2>
+<ol><li><strong>Không có spec → không code.</strong> Tính năng mới phải có file trong <code>specs/</code>.</li><li><strong>AI commit, nhưng không push trước khi Tâm review.</strong> (có hook chặn <code>git push</code>)</li><li><strong>Kiến thức mới chỉ được ghi vào <code>tech-playbook.md</code>.</strong> Viết ở chỗ khác là bắt đầu phân tán lại.</li></ol>
+</main>
+</div>
+</body>
+</html>

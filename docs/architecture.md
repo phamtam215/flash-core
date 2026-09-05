@@ -272,7 +272,9 @@ thế, nghĩa là thứ đó không phải hạ tầng dùng chung mà là nghi�
 
 | Câu hỏi | File |
 |---|---|
+| **Thông tin này thuộc file nào** | [`docs/README.md`](README.md) — bản đồ tài liệu |
 | Dự án này là gì, chạy thế nào | [`README.md`](../README.md) |
+| Cơ chế hoạt động, bug hay gặp, số đo thật | [`docs/tech-playbook.md`](tech-playbook.md) |
 | Sẽ làm gì ở 8 phase, Definition of Done | [`docs/SPEC.md`](SPEC.md) |
 | **Vì sao** chọn thế này, đã loại bỏ gì | [`project-context.md`](../project-context.md) |
 | Tên gọi của các bài toán sẽ gặp | [`docs/glossary.md`](glossary.md) |

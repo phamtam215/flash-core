@@ -152,19 +152,22 @@ Hồ sơ Phase 0 (đã đóng): [`docs/phase-0-checklist.md`](docs/phase-0-check
 
 ## Tài liệu
 
+> **Bắt đầu ở đây:** [`docs/README.md`](docs/README.md) — bản đồ tài liệu, nói rõ thông tin nào
+> thuộc file nào và mở file nào khi nào. Mỗi thông tin có **đúng một chủ sở hữu**; file khác chỉ
+> trỏ link, không chép lại. Bản đọc offline: mở [`docs/html/index.html`](docs/html/index.html).
+
 | File | Nội dung |
 |---|---|
-| [`docs/specs/phase1-auth.md`](docs/specs/phase1-auth.md) | **Spec Phase 1 — đang làm** |
+| [`docs/README.md`](docs/README.md) | **Bản đồ tài liệu — đọc trước tiên** |
 | [`docs/architecture.md`](docs/architecture.md) | **Bản đồ code: file nào làm gì, sửa X thì mở file nào** |
-| [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 7 phase, deliverable, Definition of Done |
+| [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 8 phase, deliverable, Definition of Done |
 | [`project-context.md`](project-context.md) | Nhật ký quyết định — vì sao, và **đã loại bỏ gì** |
-| [`docs/glossary.md`](docs/glossary.md) | Từ điển: tên gọi các bài toán + **12 câu phỏng vấn kèm đáp án** |
-| [`docs/tech-playbook.md`](docs/tech-playbook.md) | Kiến thức cần có trước mỗi phase: cơ chế, bug hay gặp, tình huống thật. có mục **CI & Testing** xuyên suốt |
+| [`docs/glossary.md`](docs/glossary.md) | Từ điển: **tên gọi** các bài toán (1 dòng/mục) |
+| [`docs/tech-playbook.md`](docs/tech-playbook.md) | **Nguồn kiến thức duy nhất**: cơ chế, bug hay gặp, số đo thật, đáp án câu hỏi bản chất từng phase, mục **CI & Testing** xuyên suốt, và **§Ôn phỏng vấn — 12 câu chốt** |
 | [`docs/specs/`](docs/specs/) | Spec chi tiết từng tính năng |
 | [`docs/adr/`](docs/adr/) | Các quyết định kiến trúc đã chốt |
-| [`docs/journal/`](docs/journal/) | Nhật ký học tập cuối mỗi phase |
 | [`docs/review-checklist.md`](docs/review-checklist.md) | Checklist review code |
-| [`docs/git-workflow.md`](docs/git-workflow.md) | Chuẩn commit, quy tắc nhánh |
+| [`docs/git-workflow.md`](docs/git-workflow.md) | Chuẩn commit, quy tắc nhánh, **cách đóng phase** |
 
 ## Về quy trình phát triển
 
@@ -174,7 +177,7 @@ Dự án này được phát triển theo quy trình **AI-assisted, spec-driven,
 - Claude Code implement; mọi thay đổi được review theo `docs/review-checklist.md` trước khi
   merge — có hook chặn `git push` để bước review không bị bỏ qua.
 - Mỗi quyết định kiến trúc có ADR ghi lại **cả những lựa chọn đã bị loại và vì sao**.
-- Cuối mỗi phase có nhật ký học tập trong `docs/journal/`.
+- Cuối mỗi phase, kiến thức rút ra được ghi vào `docs/tech-playbook.md` — đó là **nguồn kiến thức duy nhất** của repo.
 
 Cách làm này được ghi ra công khai vì nó là một phần của điều dự án muốn thể hiện: không
 phải "tôi tự gõ từng dòng", mà **"tôi hiểu và chịu trách nhiệm cho từng dòng"** — bằng chứng

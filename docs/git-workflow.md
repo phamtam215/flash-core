@@ -61,16 +61,19 @@ feat: thêm nhiều thứ
 4. Nếu một thay đổi lớn hơn phạm vi spec → dừng, hỏi Tâm, đề xuất ADR. Không tự mở rộng.
 5. Giữ **Co-Authored-By** minh bạch nếu Tâm muốn — xem mục 6.
 
-## 5. Nhật ký học tập (điểm khác biệt của repo này)
-Mỗi khi kết thúc một phase, tạo commit `docs:` thêm file
-`docs/journal/phase-N.md` gồm:
-- Đã build gì, mất bao lâu
-- **Đã va vào vấn đề gì** (deadlock, flaky test, oversell lọt...) và cách sửa
-- Trả lời các "câu hỏi bản chất" của phase bằng lời của Tâm
-- Điều sẽ làm khác nếu làm lại
+## 5. Đóng phase — cập nhật đúng ba chỗ, không thêm file
+Kết thúc một phase, tạo commit `docs:` sửa **đúng ba chỗ**, mỗi chỗ có một chủ rõ ràng:
 
-> Đây là thứ khiến repo trông như dự án của người đang tư duy, không phải bản
-> generate một lần. Cũng là kho nguyên liệu trả lời phỏng vấn.
+| Chỗ | Ghi gì |
+|---|---|
+| `CLAUDE.md` §Trạng thái hiện tại | phase đã xong, còn nợ gì — **chủ sở hữu duy nhất của trạng thái** |
+| `docs/specs/phaseN-*.md` §Bằng chứng DoD | số test, số đo, cấu hình để chạy lại |
+| `docs/tech-playbook.md` §Phase N | **kiến thức mới**: cơ chế vừa hiểu ra, bug thật đã va, con số đo được và vì sao nó như vậy |
+
+> Trước đây repo có thêm `docs/journal/phase-N.md`; đã bỏ vì nó chép lại trạng thái từ spec và
+> chỉ tồn tại cho 2 trong 4 phase — đúng kiểu phân tán mà tài liệu dự án này muốn tránh. Nội
+> dung đáng giữ (bug thật, số đo, "nếu làm lại") giờ nằm ở playbook; lịch sử vẫn còn trong
+> `git log -- docs/journal/`.
 
 ## 6. Minh bạch về việc dùng AI
 Có hai lựa chọn, Tâm chọn một và ghi vào ADR-001:

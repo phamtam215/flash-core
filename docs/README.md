@@ -1,29 +1,34 @@
 # Mục lục tài liệu Flash-Core
 
 > **Điểm vào của cả dự án là [`README.md`](../README.md) ở thư mục gốc**, không phải file này.
-> File này chỉ là mục lục: mỗi tài liệu **sở hữu** thông tin gì, và khi nào thì mở nó.
+> File này chỉ trả lời hai câu: **thông tin nào thuộc file nào**, và **khi nào mở file nào**.
 
-## Nguyên tắc: mỗi thông tin có đúng một chủ
+## Luật một chủ sở hữu
 
-Để tài liệu không lệch nhau, mỗi loại thông tin chỉ được **định nghĩa ở một file**; các file
-khác chỉ được **trỏ link tới**, không chép lại.
+Mỗi loại thông tin được **định nghĩa ở đúng một file**. File khác chỉ được **trỏ link**, không
+chép lại. Đây là luật khiến tài liệu không lệch nhau khi code đổi.
 
-| Thông tin | Chủ sở hữu duy nhất | Ai được trỏ tới |
-|---|---|---|
-| Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) | mọi nơi |
-| **Đang ở phase nào, việc tiếp theo là gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại | README, spec |
-| Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) | README |
-| Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) | README |
-| **Vì sao** chọn thế này, đã loại bỏ gì | [`../project-context.md`](../project-context.md) §3 + [`adr/`](adr/) | mọi nơi |
-| Chi tiết một tính năng (API, edge case, test) | [`specs/<tên>.md`](specs/) | — |
-| Tên gọi của các bài toán | [`glossary.md`](glossary.md) | — |
-| **Cơ chế / bug / tình huống thật của từng phase**, và **CI + Testing** (xuyên suốt) | [`tech-playbook.md`](tech-playbook.md) | glossary |
-| Chuẩn commit, quy tắc nhánh | [`git-workflow.md`](git-workflow.md) | — |
-| **Bản HTML đọc offline** (`docs/html/index.html`) | sinh từ chính các file `.md` ở đây bằng `npm run docs:html` | — |
-| Checklist review code | [`review-checklist.md`](review-checklist.md) | — |
+| Thông tin | Chủ sở hữu duy nhất |
+|---|---|
+| Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) |
+| **Đang ở phase nào, còn nợ gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
+| Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) |
+| Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) |
+| **Kiến thức**: cơ chế, bug thật, số đo, đáp án câu hỏi bản chất, ôn phỏng vấn | [`tech-playbook.md`](tech-playbook.md) |
+| **Vì sao chọn thế này**, đã loại bỏ gì | [`adr/`](adr/) + [`../project-context.md`](../project-context.md) §3 |
+| **Hợp đồng** một tính năng: API, schema, edge case, test case, bằng chứng DoD | [`specs/`](specs/) |
+| **Tên gọi** của các bài toán (1 dòng/mục) | [`glossary.md`](glossary.md) |
+| Chuẩn commit, quy tắc nhánh, cách đóng phase | [`git-workflow.md`](git-workflow.md) |
+| Checklist review code | [`review-checklist.md`](review-checklist.md) |
+| Bản HTML đọc offline (`html/index.html`) | sinh từ chính các `.md` ở đây bằng `npm run docs:html` |
 
-Bộ công cụ Claude Code (2 lệnh + 3 hook) được mô tả gọn ngay trong `CLAUDE.md` §Bộ công cụ,
-vì file đó được nạp tự động mỗi phiên.
+Ba ranh giới hay bị vi phạm nhất, ghi ra để tự kiểm khi sửa tài liệu:
+
+1. **Spec không giữ kiến thức.** Spec nói *phải làm gì*; playbook nói *vì sao và hỏng ra sao*.
+   Thấy mình viết một đoạn giải thích cơ chế trong spec → chuyển sang playbook, để lại một link.
+2. **Chỉ `CLAUDE.md` giữ trạng thái.** Spec được giữ *bằng chứng* (số test, số đo, cấu hình để
+   chạy lại), không giữ câu "đang làm dở đến đâu".
+3. **Glossary không giải thích.** Dài hơn một dòng nghĩa là nó thuộc playbook.
 
 ## Mở file nào khi nào
 
@@ -31,36 +36,36 @@ vì file đó được nạp tự động mỗi phiên.
 |---|---|
 | Lần đầu vào dự án | [`README.md`](../README.md) → [`architecture.md`](architecture.md) |
 | **"Giờ tôi cần làm gì?"** | [`../CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
-| Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận diện tên) → [`tech-playbook.md`](tech-playbook.md) (cơ chế + bẫy) → [`SPEC.md`](SPEC.md) |
-| Đang va một bug lạ | [`tech-playbook.md`](tech-playbook.md) — bảng "Bug hay gặp" của phase đó |
-| **CI đỏ**, hoặc muốn hiểu test được tổ chức thế nào | [`tech-playbook.md` §Xuyên suốt](tech-playbook.md) — CI & Testing (xuyên suốt mọi phase) |
-| Không biết sửa file nào | [`architecture.md`](architecture.md) |
+| Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận tên, 20') → [`tech-playbook.md`](tech-playbook.md) §Phase N (cơ chế + bẫy, 15') → [`SPEC.md`](SPEC.md) |
 | Trước khi code một tính năng | gõ `/spec <tên>` → tạo file trong [`specs/`](specs/) |
+| Đang va một bug lạ | [`tech-playbook.md`](tech-playbook.md) — bảng *Bug hay gặp* của phase đó |
+| **CI đỏ**, hoặc muốn hiểu test được tổ chức thế nào | [`tech-playbook.md` §Xuyên suốt — CI & Testing](tech-playbook.md) |
+| Không biết sửa file nào | [`architecture.md`](architecture.md) |
 | Khi phải chọn giữa hai cách làm | nói "viết ADR cho X" → tạo file trong [`adr/`](adr/) |
 | Sau khi Claude viết code | [`review-checklist.md`](review-checklist.md) |
-| Khi tạo commit | gõ `/commit` (chuẩn ở [`git-workflow.md`](git-workflow.md)) |
-| Trước khi đi phỏng vấn | [`glossary.md`](glossary.md) §12 câu **kèm đáp án** + [`adr/`](adr/) + [`journal/`](journal/) |
+| Khi tạo commit / khi đóng phase | gõ `/commit` — chuẩn ở [`git-workflow.md`](git-workflow.md) §5 |
+| **Trước khi đi phỏng vấn** | [`tech-playbook.md` §Ôn phỏng vấn — 12 câu chốt](tech-playbook.md) → mục *Câu hỏi bản chất* của từng phase → [`adr/`](adr/) |
 
 ## Thư mục
 
 ```
 docs/
 ├── README.md              ← mục lục này
-├── phase-0-checklist.md   hồ sơ Phase 0 (đã đóng)
-├── architecture.md        bản đồ code
 ├── SPEC.md                kế hoạch 8 phase + Definition of Done
-├── glossary.md            từ điển: TÊN của các bài toán (nhận diện, 1 dòng/mục)
-├── tech-playbook.md       cơ chế + bug hay gặp + tình huống thật (theo phase, + CI & Testing)
-├── git-workflow.md        chuẩn commit, quy tắc nhánh, AI không tự push
+├── architecture.md        bản đồ code
+├── tech-playbook.md       ★ NGUỒN KIẾN THỨC DUY NHẤT (cơ chế · bug · số đo · ôn phỏng vấn)
+├── glossary.md            từ điển: TÊN của các bài toán, 1 dòng/mục
+├── git-workflow.md        chuẩn commit, quy tắc nhánh, cách đóng phase
 ├── review-checklist.md    checklist review code
-├── templates/             khuôn cho spec tính năng & ADR
-├── specs/                 spec chi tiết từng tính năng   (thêm dần)
-├── adr/                   quyết định kiến trúc            (thêm dần)
-└── journal/               nhật ký học tập cuối phase      (thêm dần)
+├── phase-0-checklist.md   hồ sơ Phase 0 (đã đóng — không còn việc phải làm)
+├── specs/                 hợp đồng từng tính năng + bằng chứng DoD
+├── adr/                   quyết định kiến trúc
+├── templates/             khuôn cho spec & ADR
+└── html/                  bản đọc offline, sinh bằng `npm run docs:html`
 ```
 
 ## Ba nguyên tắc không được phá
 
 1. **Không có spec → không code.** Tính năng mới phải có file trong `specs/`.
 2. **AI commit, nhưng không push trước khi Tâm review.** (có hook chặn `git push`)
-3. **Cuối mỗi phase, đọc mục "câu hỏi bản chất + đáp án" của phase đó.** Đọc thôi, không phải thi.
+3. **Kiến thức mới chỉ được ghi vào `tech-playbook.md`.** Viết ở chỗ khác là bắt đầu phân tán lại.

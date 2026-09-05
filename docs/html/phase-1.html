@@ -9,7 +9,9 @@
 <body>
 <div class="layout">
 <nav class="sidebar">
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html" class="active">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@nav-->
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html" class="active">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@end-->
 </nav>
 <main class="content">
 
@@ -50,34 +52,15 @@ phải đếm trong RAM của từng process.</li>
 </table></div>
 
 <h2>Kiến thức học được (Q&amp;A)</h2>
-
-<h3>1. Vì sao Argon2 tốt hơn bcrypt?</h3>
-<p>Bcrypt chỉ tốn <strong>CPU</strong> để hash — GPU/ASIC hiện đại chạy song song hàng triệu
-lần hash/giây, làm bcrypt ngày càng rẻ để brute-force theo thời gian phần cứng tiến bộ. Argon2
-(biến thể <code>argon2id</code>) là thuật toán <strong>memory-hard</strong>: mỗi lần hash bắt
-buộc cấp một lượng RAM cố định (dự án dùng 19 MiB) — GPU có hàng nghìn lõi tính nhưng không
-nhiều RAM bằng, nên không song song hoá được kiểu bcrypt bị. <code>argon2id</code> còn trộn cả
-<code>argon2i</code> (chống side-channel) và <code>argon2d</code> (chống GPU) — bcrypt không có
-khái niệm đó. Đánh đổi: Argon2 tốn RAM+CPU thật của server mỗi lần login — dưới flash sale hàng
-nghìn lượt đăng nhập cùng lúc là chi phí thật phải tính.</p>
-
-<h3>2. <code>HttpOnly</code> chống XSS thế nào, vì sao vẫn phải lo CSRF?</h3>
-<p>Cờ <code>HttpOnly</code> nói với browser: "JavaScript không được đọc cookie này". XSS (kẻ
-tấn công chèn được script vào trang) chỉ có thể <em>đọc</em> những gì <code>document.cookie</code>
-cho phép — <code>HttpOnly</code> loại bỏ hẳn con đường đó. Nhưng CSRF là chuyện khác: cookie
-được browser <strong>tự động gửi kèm</strong> mọi request tới đúng domain, kể cả khi request đó
-do một trang web khác âm thầm kích hoạt (một <code>&lt;form&gt;</code> ẩn tự submit chẳng hạn).
-<code>HttpOnly</code> không ngăn việc <em>gửi</em> cookie, chỉ ngăn việc <em>đọc</em> nó — hai
-chuyện độc lập, cần cờ khác (<code>SameSite</code>) hoặc CSRF token riêng để chặn CSRF.</p>
-
-<h3>3. Rotation phát hiện token bị đánh cắp (theft) ra sao?</h3>
-<p>Mỗi refresh token chỉ dùng được <strong>đúng một lần</strong>. Dùng xong, token cũ bị đánh
-dấu <code>revokedAt</code>, cấp token mới cùng <code>familyId</code>. Nếu kẻ trộm copy được
-token và dùng trước, người dùng thật sẽ dùng lại token <em>cũ</em> đó sau — hệ thống thấy
-<code>revokedAt</code> đã có mà vẫn bị dùng lại → phát hiện reuse → thu hồi
-<strong>toàn bộ family</strong>, cả chủ thật lẫn kẻ trộm đều bị đăng xuất. Nếu người dùng thật
-dùng trước, kẻ trộm dùng token cũ sau — cùng cơ chế bắt được. <strong>Dù ai dùng trước, lần
-dùng thứ hai luôn lộ</strong> — đó là toàn bộ ý tưởng.</p>
+<blockquote class="note"><p>Ba câu này là Definition of Done của phase (<code>docs/SPEC.md</code>). Đáp án dưới đây <strong>nhúng thẳng</strong> từ <a href="tech-playbook.html"><code>tech-playbook.md</code></a> — nguồn kiến thức duy nhất của repo, sửa ở đó là trang này đổi theo.</p></blockquote>
+<!--@@from docs/tech-playbook.md ### Câu hỏi bản chất của Phase 1 — và đáp án-->
+<h4 id="1-vì-sao-argon2-tốt-hơn-bcrypt">1. Vì sao Argon2 tốt hơn bcrypt?</h4>
+<p>Bcrypt chỉ tốn <strong>CPU</strong>. GPU/ASIC chạy song song hàng triệu lần hash/giây nên bcrypt ngày càng rẻ để dò theo đà tiến của phần cứng. Argon2 (biến thể <code>argon2id</code>) là <strong>memory-hard</strong>: mỗi lần hash bắt buộc cấp một lượng RAM cố định (dự án dùng 19 MiB) — GPU nhiều lõi tính nhưng không nhiều RAM bằng, nên không song song hoá được kiểu bcrypt bị. <code>argon2id</code> còn trộn <code>argon2i</code> (chống side-channel) với <code>argon2d</code> (chống GPU). Đánh đổi: tốn RAM+CPU <strong>thật của server</strong> mỗi lần login — dưới flash sale, hàng nghìn lượt đăng nhập × 19 MiB là con số phải tính.</p>
+<h4 id="2-httponly-chống-xss-thế-nào-vì-sao-vẫn-phải-lo-csrf">2. <code>HttpOnly</code> chống XSS thế nào, vì sao vẫn phải lo CSRF?</h4>
+<p><code>HttpOnly</code> nói với browser: "JavaScript không được đọc cookie này". XSS chỉ <strong>đọc</strong> được những gì <code>document.cookie</code> cho phép, nên cờ này cắt hẳn con đường đó. Nhưng CSRF là chuyện khác: cookie được browser <strong>tự động gửi kèm</strong> mọi request tới đúng domain, kể cả request do một trang web khác âm thầm kích hoạt. <code>HttpOnly</code> không ngăn việc <strong>gửi</strong>, chỉ ngăn việc <strong>đọc</strong> — hai chuyện độc lập. Chặn CSRF cần <code>SameSite</code> hoặc CSRF token riêng.</p>
+<h4 id="3-refresh-token-rotation-phát-hiện-token-bị-đánh-cắp-ra-sao">3. Refresh Token Rotation phát hiện token bị đánh cắp ra sao?</h4>
+<p>Mỗi refresh token dùng được <strong>đúng một lần</strong>: dùng xong bị đánh dấu <code>revokedAt</code>, cấp token mới cùng <code>familyId</code>. Kẻ trộm dùng trước → chủ thật dùng lại token cũ sau → hệ thống thấy token đã thu hồi mà vẫn bị dùng ⇒ <strong>reuse detection</strong> → thu hồi cả family. Chủ thật dùng trước thì kẻ trộm dính bẫy đó. <strong>Dù ai dùng trước, lần thứ hai luôn lộ</strong> — đó là toàn bộ ý tưởng. Cái giá: cả hai bên bị đăng xuất, vì lúc đó không có cách nào biết ai là chủ thật.</p>
+<!--@@end-->
 
 <p><strong>Code thật</strong> — <code>src/modules/auth/auth.service.ts</code>, đúng nhánh reuse
 detection vừa giải thích ở trên:</p>

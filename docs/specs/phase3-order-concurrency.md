@@ -351,105 +351,53 @@ Khuyến nghị: **không ở phase này**. Rate limit login (Phase 1) chống d
 ngay" nhiều lần là hành vi bình thường của flash sale, và `Idempotency-Key` + tồn kho đã là
 giới hạn tự nhiên. Thêm rate limit lúc này sẽ làm nhiễu số đo k6.
 
-## Câu hỏi bản chất của phase
+## Kiến thức của phase này nằm ở đâu
 
-(copy từ `docs/SPEC.md`, Tâm tự trả lời sau khi implement + đo)
+Spec này là **hợp đồng** (API, schema, ba chiến lược, edge case, test case). Phần *vì sao* —
+lost update, Read Committed đủ hay không, deadlock, đọc số benchmark — và **đáp án 3 câu hỏi
+bản chất của Phase 3** nằm ở [`tech-playbook.md` §Phase 3](../tech-playbook.md).
 
-- Vì sao read→if→write **chắc chắn** oversell dưới tải cao?
-- Isolation level mặc định của Postgres là gì, và nó cho phép anomaly nào?
-- Redis chết sau khi trừ kho nhưng trước khi ghi DB thì sao?
+## Bằng chứng Definition of Done (2026-09-03)
 
-## Trạng thái thật (2026-09-03)
+> Trạng thái tổng của dự án do [`CLAUDE.md` §Trạng thái hiện tại](../../CLAUDE.md) sở hữu.
+> Mục này chỉ giữ **bằng chứng thô** cho các mục DoD ở trên.
 
-**Đã xong, tự kiểm chứng được (không cần Docker):**
-- Module `order` đủ 11 file: controller/service/repository/dto/errors + `inventory-reserver.ts`
-  (hợp đồng + token) + 3 strategy + module/index
-- Schema + migration `20260901120000_add_order_concurrency` (viết tay — Docker tắt lúc code):
-  `Order`, `OrderItem`, enum `OrderStatus`, cột `ProductSku.version`, 3 `CHECK` constraint
-- **ADR-003** đã chốt: `order` sở hữu logic trừ kho, kèm giới hạn tự đặt (chỉ ghi 2 cột
-  `stock`/`version`, và chỉ trong `order.repository.ts`) để nợ không lan
-- Cả 6 câu hỏi mở đã quyết theo khuyến nghị trong spec (Tâm chốt câu #1 trực tiếp)
-- **52/52 unit test pass** (43 cũ + 9 mới cho `order.dto`), lint/typecheck/build sạch
-- Cursor pagination chuyển từ `modules/product/product.cursor.ts` ra
-  `common/pagination/cursor.ts` — đúng luật `architecture.md`: `common/` chỉ chứa thứ **≥2
-  module** dùng, và Phase 3 là lúc điều kiện đó thành đúng
+**Test:** `npm run test:int` **49/49 xanh** (xác nhận 5 lần chạy liên tiếp), unit **54/54**,
+lint/typecheck/build sạch.
+- **Test #8 — cổng chính của phase: 200 request song song → đúng 100 đơn, 100 lần 409,
+  `stock` = 0, không lỗi 5xx nào. Đúng ở CẢ BA chiến lược.** Oversell = 0.
+- Test #13 (stock=1, 2 request → đúng 1 thắng), #14 (Redis khớp DB sau 50 reserve),
+  #15 (Redis lệch DB → 409 + hoàn lại Redis, có log error).
+- Migration viết tay chạy đúng ngay lần đầu qua `prisma migrate deploy`.
 
-**Đã xác nhận trên Postgres/Redis thật — `npm run test:int` 49/49 XANH:**
-- [x] Test #1–15 tất cả pass, xác nhận 5 lần chạy liên tiếp (1 lần trên máy Tâm + 4 lần sau
-      khi dọn container rác)
-- [x] **Test #8 — cổng chính của phase: 200 request song song → đúng 100 đơn, 100 lần 409,
-      `stock` = 0, không lỗi 5xx nào. Đúng ở CẢ BA chiến lược.** Oversell = 0.
-- [x] Test #13 (stock=1, 2 request → đúng 1 thắng), #14 (Redis khớp DB sau 50 reserve),
-      #15 (Redis lệch DB → 409 + hoàn lại Redis, có log error)
-- [x] Migration viết tay chạy đúng ngay lần đầu qua `prisma migrate deploy`
+Ba lần đỏ trên đường tới đó **đều là lỗi của test, không phải của code** (400 hash Argon2 làm
+tắc Node; supertest tự `listen()`/đóng server mỗi request; container rác làm Docker daemon
+chậm hơn timeout dò của Testcontainers) — chi tiết và cách chặn đã ghi ở
+[`tech-playbook.md` §Xuyên suốt → Testing → Bug hay gặp](../tech-playbook.md).
 
-**Ba lần đỏ trên đường tới đó — đều là lỗi của TEST, không phải của code:**
-1. 200 user riêng ⇒ 400 lần hash Argon2 (19 MiB/lần, threadpool 4 luồng) làm Node tắc trước
-   khi kịp tranh chấp tồn kho → `ECONNRESET`.
-2. Sau khi bỏ Argon2 vẫn đỏ: **supertest tự `listen()` rồi đóng server mỗi request**, request
-   này bị cắt socket vì request khác vừa xong. Bằng chứng chốt: test #14 (trước đó XANH với 50
-   agent) lại đỏ với 1 agent ⇒ số agent mới là biến quyết định. Sửa bằng `app.listen(0)` +
-   `fetch`.
-3. `Could not find a working container runtime strategy` chập chờn: container rác dồn tới 14
-   cái làm Docker daemon trả lời chậm hơn timeout dò của Testcontainers. `docker container
-   prune -f` xong thì 4/4 lần xanh.
+### Test #16 — benchmark 3 chiến lược
 
-Cả ba đã ghi vào `docs/tech-playbook.md` §Xuyên suốt → Testing → Bug hay gặp.
-- [x] Test #16: benchmark k6 — **đã chạy**, xem §Bằng chứng test #16 bên dưới.
-      Script cố tình đếm RIÊNG 201 / 409 / 4xx khác / 5xx, vì nhìn `http_req_failed` chung sẽ
-      thấy "error rate 90%" trong khi 409 (hết hàng) là kết quả ĐÚNG kỳ vọng.
-      Không thêm npm script kiểu `npm run bench`: hook `guard_cloud_cost.py` nhận diện chuỗi
-      `k6 run`, gói nó vào npm script sẽ làm hook mất tác dụng.
+**Cấu hình đo (để chạy lại được):** 1.000 VU, mỗi VU 1 request, SKU `stock = 100`, k6 v2.2.0
+bắn vào app chạy từ `dist/` (không qua ts-node); Postgres 16 + Redis 7 trong Docker trên
+**cùng máy** với app và k6 — số tuyệt đối vì thế không phải số production, nhưng so sánh
+GIỮA ba chiến lược vẫn công bằng vì mọi thứ khác giữ nguyên. Script: `k6/flash-sale.js`
+(cố tình đếm RIÊNG 201 / 409 / 4xx khác / 5xx, vì `http_req_failed` chung sẽ báo "error rate
+90%" trong khi 409 mới là kết quả ĐÚNG kỳ vọng).
 
-**Việc kế tiếp:** `npm run up` → `npm run test:int` → sửa nếu đỏ → viết script k6 → chạy
-benchmark 3 chiến lược → dán số vào đây.
+Không thêm npm script kiểu `npm run bench`: hook `guard_cloud_cost.py` nhận diện chuỗi
+`k6 run`, gói nó vào npm script sẽ làm hook mất tác dụng.
 
-## Bằng chứng test #16 — benchmark 3 chiến lược (2026-09-03)
+**Kết quả — cả bốn lần chạy: bán ra đúng 100 chiếc, không lần nào 101. Oversell = 0. Không có
+5xx nào**; toàn bộ 900 lần từ chối là 409, tức trạng thái nghiệp vụ, không phải lỗi hệ thống.
 
-**Cấu hình đo:** 1.000 VU, mỗi VU 1 request, SKU `stock = 100`, k6 v2.2.0 bắn vào app chạy từ
-`dist/` (không qua ts-node). Postgres 16 + Redis 7 trong Docker trên **cùng máy** với app và
-k6 — số tuyệt đối vì thế không phải số production, nhưng so sánh GIỮA ba chiến lược thì vẫn
-công bằng vì mọi thứ khác giữ nguyên.
+Bảng số (p95, rps) và **ba kết quả ngược trực giác** cùng lời giải thích:
+[`tech-playbook.md` §Phase 3 → Số thật đo được](../tech-playbook.md).
 
-| Chiến lược | Pool | 201 | 409 | 4xx khác | 5xx | p95 (ms) | Throughput (rps) |
-|---|---|---|---|---|---|---|---|
-| optimistic | 10 | **100** | 900 | 0 | 0 | 2 063 | 476 |
-| pessimistic | 10 | **100** | 900 | 0 | 0 | **492** | **1 580** |
-| pessimistic | 50 | **100** | 900 | 0 | 0 | 969 | 993 |
-| redis | 10 | **100** | 900 | 0 | 0 | 1 393 | 481 |
+**Việc cần làm tiếp (đã biết, chưa làm trong Phase 3):** gộp `UPDATE` + `isSkuOnSale` của
+optimistic thành một câu (CTE hoặc `UPDATE … RETURNING` kèm nhánh kiểm tra tồn tại) rồi đo
+lại — nó đổi hành vi nên phải benchmark lại, để sang sau.
 
-**Kết luận cứng, đúng ở cả bốn lần chạy: bán ra đúng 100 chiếc, không lần nào 101. Oversell =
-0. Không có 5xx nào** — toàn bộ 900 lần từ chối là 409, tức trạng thái nghiệp vụ, không phải
-lỗi hệ thống.
-
-### Ba điều số đo nói ra mà lý thuyết sách không nói
-
-**1. Pessimistic NHANH NHẤT ở đây — ngược hẳn kỳ vọng thông thường.** Lý do nằm ở *hình dạng
-tải* của flash sale: 900/1.000 request rơi vào SKU đã hết hàng. Pessimistic xử lý ca đó bằng
-**một** round-trip (`SELECT … FOR UPDATE` thấy `stock = 0` → trả 409 ngay). Optimistic cần
-**hai**: câu `UPDATE` ghi 0 dòng, rồi phải hỏi thêm `isSkuOnSale` để biết là "hết hàng" (409)
-hay "không tồn tại" (404). Đường đi phổ biến nhất lại là đường tốn gấp đôi.
-→ **Việc cần làm tiếp:** gộp hai câu đó thành một (CTE hoặc `UPDATE … RETURNING` kèm nhánh
-kiểm tra tồn tại) rồi đo lại. Chưa làm trong Phase 3 vì nó đổi hành vi và phải benchmark lại.
-
-**2. Pool 50 CHẬM HƠN pool 10 (993 vs 1 580 rps).** Nới pool không phải nới thông lượng: 50
-transaction cùng lúc tranh một dòng thì phần chờ khoá chuyển từ *hàng đợi trong app* (rẻ) vào
-*bên trong Postgres* (đắt — mỗi transaction chờ vẫn giữ một connection, thêm context switch,
-thêm việc cho DB). Bài học: **xếp hàng bên ngoài DB, đừng dồn vào trong DB.** Đây cũng là lý
-do `DATABASE_POOL_MAX` phải được coi là một phần của kết quả benchmark, không phải hằng số.
-
-**3. Redis atomic không nhanh hơn optimistic (481 vs 476 rps) — và điều đó ĐÚNG như dự
-đoán.** Phase 3 cố tình ghi DB **đồng bộ** ngay trong request, nên mỗi request vẫn trả đủ tiền
-cho một round-trip Postgres, cộng thêm một round-trip Redis. Ưu thế của cách này chỉ xuất hiện
-khi phần ghi DB thành **bất đồng bộ** (outbox + async persist, Phase 4). Số đo hôm nay là mốc
-để so sánh sau khi Phase 4 xong.
-
-### Bug thật tìm thấy khi chạy benchmark
-
-`POST /products` trả 500 ở mọi lần seed thứ hai trở đi: `generateSkuCode` cắt slug còn 16 ký
-tự đầu, mà slug của script seed là `ao-benchmark-<timestamp>` — 16 ký tự đầu cắt đúng chỗ
-timestamp nên hai product khác nhau ra **cùng một** `sku_code`, vỡ `UNIQUE`. Comment trong
-`product.slug.ts` từng ghi ca này là "cực hiếm"; thực tế nó xảy ra ở **mọi** lần chạy. Đã sửa
-bằng cách thêm 4 ký tự băm (FNV-1a) của slug đầy đủ vào cuối mã, và thêm test cho đúng ca đó.
-**Bài học: "cực hiếm" là phỏng đoán về tần suất, mà phỏng đoán thì phải kiểm bằng cách dùng
-thật.**
+**Bug thật tìm được khi benchmark:** `generateSkuCode` cắt slug 16 ký tự làm hai product khác
+nhau ra cùng `sku_code` → vỡ `UNIQUE` → 500 ở **mọi** lần seed thứ hai, dù comment trong code
+ghi ca này là "cực hiếm". Đã sửa bằng 4 ký tự băm FNV-1a + test cho đúng ca đó. **Bài học:
+"cực hiếm" là phỏng đoán về tần suất, mà phỏng đoán thì phải kiểm bằng cách dùng thật.**

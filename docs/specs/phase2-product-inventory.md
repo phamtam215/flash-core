@@ -153,15 +153,10 @@ ALTER TABLE product_skus ADD CONSTRAINT price_positive CHECK (price_vnd > 0);
 nên CHECK là thứ duy nhất đảm bảo `stock` không bao giờ xuống âm trong DB dù tầng ứng dụng
 có bug.
 
-## Cursor pagination — vì sao không offset
+## Cursor pagination — hợp đồng
 
-`GET /skus` phải chạy ổn định trên 100.000 dòng. Offset (`LIMIT/OFFSET`) buộc Postgres **tạo
-và bỏ đi** toàn bộ dòng đứng trước offset mỗi lần gọi — trang càng sâu càng chậm tuyến tính.
-Trang gần cuối (`OFFSET 80000`) chậm hơn hẳn trang đầu dù cùng `LIMIT 20`.
-
-Keyset (cursor) pagination dùng giá trị của dòng cuối trang trước làm mốc `WHERE`, tận dụng
-index để **nhảy thẳng** tới vị trí, không đếm số dòng đã bỏ qua — chi phí gần như hằng số bất
-kể trang thứ mấy.
+> *Vì sao keyset chứ không offset* (kèm số đo): [`tech-playbook.md` §Phase 2](../tech-playbook.md).
+> Mục này chỉ định nghĩa **hình dạng** của cursor mà API phải tuân theo.
 
 Cột mốc: `(created_at, id)` — không dùng `id` (UUID) một mình vì UUID v4 không mang nghĩa thời
 gian, không dùng `created_at` một mình vì nhiều SKU seed cùng lúc có thể trùng timestamp đến
@@ -337,54 +332,19 @@ Khuyến nghị: Zod validate shape tối thiểu (`record(string, string|number
 nested object/array) — đủ để tránh rác hoàn toàn tự do, nhưng vẫn giữ đúng bản chất JSONB
 (không ép enum cứng, DB không CHECK được nội dung).
 
-## Câu hỏi bản chất của phase
+## Kiến thức của phase này nằm ở đâu
 
-(copy từ `docs/SPEC.md`. Trả lời dưới đây do Tâm **yêu cầu Claude trả lời trực tiếp**
-2026-09-01, không phải Tâm tự suy ra — ghi rõ để biết nguồn, không tính là "đã tự kiểm tra
-hiểu bài" theo đúng tinh thần `project-context.md` §5.)
+Spec này là **hợp đồng** (API, schema, edge case, test case). Phần *vì sao* — B-tree vs GIN,
+`ANALYZE` sau seed, cách đọc `EXPLAIN`, và **đáp án 3 câu hỏi bản chất của Phase 2** — nằm ở
+[`tech-playbook.md` §Phase 2](../tech-playbook.md). Đọc ~10 phút trước khi code.
 
-**1. Cursor vs offset pagination khi dữ liệu lớn?**
-`OFFSET N` bắt Postgres đi qua index/bảng, đếm bỏ qua N dòng rồi mới lấy — chi phí tăng
-**tuyến tính** theo N. Keyset dùng `WHERE (created_at, id) < (mốc)` để index **nhảy thẳng**
-tới vị trí — chi phí gần như hằng số bất kể đang ở trang mấy. Số thật đo được (test #14):
-cùng vị trí dòng 80.000/100.000, offset đọc 78.563 block/88ms, keyset đọc 22 block/1,8ms —
-cùng một index, khác nhau ở **cách dùng** index. Đánh đổi: offset cho nhảy tới trang bất kỳ
-(trang 47) trực tiếp; keyset chỉ đi tiếp/lùi tuần tự từ một mốc, không nhảy được tới "trang
-47" nếu chưa đi qua — hợp với kiểu cuộn vô hạn (infinite scroll), không hợp với UI có số
-trang bấm được.
 
-**2. GIN vs B-tree hợp cho loại truy vấn nào?**
-B-tree: mỗi dòng ứng với **một** giá trị trong cây, hợp `=`, `<`, `>`, `BETWEEN`,
-`ORDER BY` — đúng kiểu cột `size`, `price_vnd`, `created_at`. GIN (Generalized Inverted
-iNdex): hợp giá trị **nhiều phần tử trong một ô** — mỗi phần tử (một key JSONB, một từ
-trong văn bản, một phần tử mảng) trỏ ngược lại danh sách dòng chứa nó, giống mục lục cuối
-sách ("từ X" → trang 12, 45, 90). Hợp cho `@>` (containment), `&&`/`@>` trên mảng, `@@`
-full-text — **không** hợp thay B-tree cho so sánh scalar thường. Có GIN không có nghĩa nó
-luôn thắng: test #15 cho thấy trên 10.000 dòng, Seq Scan (1,65ms) nhỉnh hơn cả truy vấn có
-GIN (1,92ms) — GIN phải tra cấu trúc RỒI đọc lại dòng thật (`Recheck Cond`), chỉ đáng giá
-khi việc đó giúp **bỏ qua** phần lớn dữ liệu.
+## Bằng chứng Definition of Done (đo 2026-09-01, Postgres thật trong Docker)
 
-**3. Khi nào JSONB là lựa chọn tệ?**
-- Cần ràng buộc tập giá trị đóng: JSONB không `CHECK` được nội dung bên trong (gõ nhầm
-  `"coton"` DB vẫn nhận) — đây là lý do `size`/`color` là cột `enum`/`string` thật, không
-  nhét vào `attributes`.
-- Cần join/filter cao tần trên đúng field đó: so sánh containment JSONB luôn tốn hơn so
-  sánh bằng trên cột index thẳng, và JSONB không làm khoá ngoại được.
-- Bảng nhỏ hoặc field ít khi bị lọc: GIN có phí ghi (mỗi `INSERT`/`UPDATE` phải cập nhật
-  cấu trúc index) — trả phí đó mỗi lần ghi mà ít khi query theo field ấy là lỗ.
-- Cần đổi cấu trúc dữ liệu về sau: JSONB "linh hoạt" đổi lại là im lặng — không có migration
-  tự động kiểu đổi kiểu cột; đổi shape JSON đang dùng thật thì phải tự viết script backfill.
+> Trạng thái tổng của dự án do [`CLAUDE.md` §Trạng thái hiện tại](../../CLAUDE.md) sở hữu.
+> Mục này chỉ giữ **bằng chứng thô** cho các mục DoD ở trên.
 
-## Kiến thức cần có trước khi code
-
-Đọc [`tech-playbook.md` §Phase 2 — Database & hiệu năng](../tech-playbook.md) — B-tree vs
-GIN, vì sao phải `ANALYZE` sau seed, cách đọc `rows` ước lượng vs `actual rows` trong
-`EXPLAIN`, và tình huống thật "8ms máy dev → 900ms 100k dòng, thủ phạm là statistics cũ chứ
-không phải thiếu index". Khoảng 10 phút.
-
-## Trạng thái thật (2026-09-01, cập nhật sau khi seed + đo `EXPLAIN` thật)
-
-**Đã xong, xác nhận trên Postgres/Redis thật (Docker):**
+**Kết quả chạy:**
 - **28/28 integration test xanh** (`npm run test:int`: 5 health + 12 auth + 11 product) —
   migration viết tay chạy đúng ngay lần đầu qua `prisma migrate deploy`, không lỗi SQL
 - **43/43 unit test xanh**, lint/typecheck/build sạch
@@ -435,10 +395,8 @@ Limit  (cost=0.42..4.59 rows=20 width=92) (actual time=0.412..1.726 rows=20 loop
         Buffers: shared hit=20 read=2
 ```
 
-**Số thô:** offset đọc **78.563 block** (76.754 hit + 1.809 read) và mất **88ms**; keyset đọc
-**22 block** (20 hit + 2 read) và mất **1,8ms** — ở CÙNG một vị trí trong tập 100k dòng. Cả
-hai đều dùng chung một index (`product_skus_created_at_id_idx`); khác biệt là offset phải
-quét-rồi-bỏ 80.000 dòng đứng trước để tới vị trí, còn keyset nhảy thẳng tới bằng `Index Cond`.
+**Số thô:** offset **78.563 block / 88 ms** — keyset **22 block / 1,8 ms**, cùng vị trí, cùng
+index. Diễn giải: [`tech-playbook.md` §Phase 2 → Số thật đo được](../tech-playbook.md).
 
 ### Bằng chứng test #15 — GIN index trên `products.attributes`, 10.000 dòng
 
@@ -467,23 +425,13 @@ Seq Scan on products  (cost=0.00..325.00 rows=5000 width=161) (actual time=0.004
   Buffers: shared hit=200
 ```
 
-**Số thô:** có GIN → 207 block, 1.9ms. Không GIN (Seq Scan) → 200 block, 1.6ms —
-**Seq Scan nhỉnh hơn** trên 10.000 dòng, đúng bài học đã ghi ở `tech-playbook.md`: bảng còn
-nhỏ thì chi phí mở bitmap index + recheck > chi phí quét thẳng toàn bảng (10.000 dòng vừa
-đủ nằm gọn trong vài trăm block, đọc hết cũng rẻ). GIN chỉ thắng rõ khi bảng lớn hơn nhiều
-hoặc điều kiện lọc chọn lọc hơn (khớp ít dòng hơn hẳn 5.000/10.000 = 50% như ở đây). Index
-đã được tạo lại đúng như migration (`CREATE INDEX ... USING GIN`) + `ANALYZE` ngay sau khi đo
-xong, không để DB lệch với migration.
+**Số thô:** có GIN **207 block / 1,9 ms** — không GIN (Seq Scan) **200 block / 1,6 ms**:
+Seq Scan nhỉnh hơn trên 10.000 dòng. Diễn giải:
+[`tech-playbook.md` §Phase 2 → Số thật đo được](../tech-playbook.md).
+Index đã được tạo lại đúng như migration + `ANALYZE` ngay sau khi đo, DB không lệch migration.
 
-Câu hỏi bản chất "khi nào JSONB/GIN là lựa chọn tệ" ở dưới — số liệu này là dữ kiện để tự trả
-lời, không phải đáp án có sẵn.
-
-**Một chỗ spec không nói rõ, tôi tự quyết khi code:** cách sinh `sku_code` (client không gửi,
-spec chỉ ghi ví dụ `"AOTHUN-DEN-M"`). Đã viết `product.slug.ts#generateSkuCode`: bỏ dấu tiếng
-Việt, viết hoa, ghép `${productCode}-${colorCode}-${size}`, trần 16/12 ký tự. Trùng mã (hiếm)
-rơi vào lỗi `UNIQUE` thật của cột, trả 500 kèm `correlationId` — chưa map thành lỗi nghiệp vụ
-riêng vì không có trong 14 test case bắt buộc.
-
-**Việc kế tiếp:** `npm run up` → `npm run test:int` → nếu xanh, `npm run seed` → chạy
-`EXPLAIN (ANALYZE, BUFFERS)` cho 2 câu ở test #14/#15 → dán kết quả vào đây → Definition of
-Done mới coi là đủ.
+**Một chỗ spec không nói rõ, tôi tự quyết khi code:** cách sinh `sku_code` (client không gửi).
+`product.slug.ts#generateSkuCode`: bỏ dấu tiếng Việt, viết hoa, ghép
+`${productCode}-${colorCode}-${size}-${hash4}`. Bốn ký tự băm FNV-1a ở cuối là **sửa sau khi
+bug thật xảy ra** ở Phase 3: bản đầu cắt slug 16 ký tự nên hai slug dài khác nhau sinh cùng
+một mã → `UNIQUE` nổ → 500. Ghi lại vì đó là ví dụ rõ nhất của "cực hiếm" hoá ra không hiếm.

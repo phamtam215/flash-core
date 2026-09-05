@@ -2,6 +2,10 @@
 
 > Nguồn: chưng cất từ quá trình thiết kế giữa Tâm và Claude (claude.ai).
 > Đây là tài liệu định hướng cao nhất. Spec chi tiết từng tính năng nằm ở `docs/specs/`.
+>
+> **Câu hỏi bản chất** ghi ở mỗi phase dưới đây là một mục Definition of Done. Đáp án của các
+> phase đã làm nằm ở [`tech-playbook.md`](tech-playbook.md) — mục *Câu hỏi bản chất của
+> Phase N — và đáp án*, cùng mục *Ôn phỏng vấn — 12 câu chốt*.
 
 ## 1. Mục tiêu
 - Học bản chất hệ thống lớn: concurrency, async, reliability, observability, FinOps.

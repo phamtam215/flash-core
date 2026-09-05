@@ -5,7 +5,7 @@
 >
 > **Cách dùng:** đọc mục của phase **trước khi bắt đầu phase đó** (~15 phút/phase). Không
 > đọc hết một lượt. Quay lại khi va vấn đề.
-> Ngoại lệ: hai mục **Phần 0** (thuật ngữ) và **Xuyên suốt** (CI & Testing) dùng ở cả 7 phase
+> Ngoại lệ: hai mục **Phần 0** (thuật ngữ) và **Xuyên suốt** (CI & Testing) dùng ở cả 8 phase
 > — đọc một lần ngay từ đầu.
 >
 > **Chủ trương:** mỗi mục nêu *cơ chế* đủ để tự suy ra hệ quả, rồi dừng. Muốn đào sâu thì
@@ -458,6 +458,34 @@ trông vào việc từng người nhớ đừng log. Cách sau chắc chắn h�
 
 ---
 
+
+### Câu hỏi bản chất của Phase 0 — và đáp án
+
+#### 1. Modular Monolith khác Microservices ở đâu?
+Cả hai là cách *chia* hệ thống, khác ở độ tách. **Monolith thường**: một process, không ranh
+giới rõ — nhanh viết, vài tháng sau thành mớ phụ thuộc chằng chịt. **Microservices**: nhiều
+service tự deploy, tự DB — tách được thật, nhưng phải xây lại từ đầu mọi thứ mà một DB đơn lẻ
+vốn cho sẵn (distributed transaction, service discovery, độ trễ mạng). **Modular Monolith**:
+một process, một DB, nhưng ranh giới module được ép bằng máy — giữ được transaction/lock của
+một DB (thứ Phase 3 cần), mà vẫn có sẵn "đường cắt" nếu sau này thật sự phải tách.
+
+#### 2. Vì sao dự án một người không nên làm microservices?
+Thời gian hữu hạn chảy vào đâu quyết định học được gì. Microservices đòi cả một tầng hạ tầng
+(service discovery, distributed tracing, saga, deploy nhiều service) — toàn bộ thời gian đó
+**không dạy gì về concurrency**, mục tiêu thật của dự án. Tệ hơn: oversell trong hệ phân tán là
+bài toán *khác hẳn* — mất transaction và lock của một DB duy nhất, tức mất đúng thứ muốn học.
+
+#### 3. Ranh giới module được ép bằng gì trong NestJS?
+Hai tầng, **cả hai đều là máy, không phải quy ước**:
+(1) **DI container** — provider không nằm trong `exports` thì module khác không *inject* được;
+nhưng nó chỉ chặn inject, không chặn `import` thẳng file rồi tự `new`.
+(2) **ESLint `no-restricted-imports`** — chặn import sâu vào file bên trong module khác, đúng
+lỗ hổng tầng 1 để lọt.
+Thiếu tầng 2 thì ranh giới chỉ còn là quy ước, và nó xói mòn **im lặng** — không test nào đỏ
+khi ai đó phá luật.
+
+---
+
 # Phase 1 — Auth & Security
 
 ## Cookie, HttpOnly và Redis — giải thích từ đầu
@@ -615,6 +643,33 @@ công mất quyền. Đó là đánh đổi có chủ đích, không phải bug.
 
 ---
 
+
+### Câu hỏi bản chất của Phase 1 — và đáp án
+
+#### 1. Vì sao Argon2 tốt hơn bcrypt?
+Bcrypt chỉ tốn **CPU**. GPU/ASIC chạy song song hàng triệu lần hash/giây nên bcrypt ngày càng
+rẻ để dò theo đà tiến của phần cứng. Argon2 (biến thể `argon2id`) là **memory-hard**: mỗi lần
+hash bắt buộc cấp một lượng RAM cố định (dự án dùng 19 MiB) — GPU nhiều lõi tính nhưng không
+nhiều RAM bằng, nên không song song hoá được kiểu bcrypt bị. `argon2id` còn trộn `argon2i`
+(chống side-channel) với `argon2d` (chống GPU). Đánh đổi: tốn RAM+CPU **thật của server** mỗi
+lần login — dưới flash sale, hàng nghìn lượt đăng nhập × 19 MiB là con số phải tính.
+
+#### 2. `HttpOnly` chống XSS thế nào, vì sao vẫn phải lo CSRF?
+`HttpOnly` nói với browser: "JavaScript không được đọc cookie này". XSS chỉ **đọc** được những
+gì `document.cookie` cho phép, nên cờ này cắt hẳn con đường đó. Nhưng CSRF là chuyện khác:
+cookie được browser **tự động gửi kèm** mọi request tới đúng domain, kể cả request do một
+trang web khác âm thầm kích hoạt. `HttpOnly` không ngăn việc **gửi**, chỉ ngăn việc **đọc** —
+hai chuyện độc lập. Chặn CSRF cần `SameSite` hoặc CSRF token riêng.
+
+#### 3. Refresh Token Rotation phát hiện token bị đánh cắp ra sao?
+Mỗi refresh token dùng được **đúng một lần**: dùng xong bị đánh dấu `revokedAt`, cấp token mới
+cùng `familyId`. Kẻ trộm dùng trước → chủ thật dùng lại token cũ sau → hệ thống thấy token đã
+thu hồi mà vẫn bị dùng ⇒ **reuse detection** → thu hồi cả family. Chủ thật dùng trước thì kẻ
+trộm dính bẫy đó. **Dù ai dùng trước, lần thứ hai luôn lộ** — đó là toàn bộ ý tưởng. Cái giá:
+cả hai bên bị đăng xuất, vì lúc đó không có cách nào biết ai là chủ thật.
+
+---
+
 # Phase 2 — Database & hiệu năng
 
 ### Cần rõ
@@ -661,7 +716,7 @@ Nguyên nhân không phải "thiếu index" mà là **planner chọn Seq Scan v�
 `ANALYZE` xong còn 12ms — chưa cần thêm index nào. Bài học: đo trước, đừng thêm index theo
 phản xạ.
 
-### Số thật đo được trong Flash-Core (không phải ví dụ minh hoạ)
+### Số thật đo được ở Phase 2 (không phải ví dụ minh hoạ)
 
 Hai bằng chứng dưới đây là kết quả `EXPLAIN` thật, chạy trên 100.000 dòng seed trong chính
 repo này — plan đầy đủ nằm ở `docs/specs/phase2-product-inventory.md` §Trạng thái thật, ở đây
@@ -711,6 +766,43 @@ khi đo): index (bất kỳ loại nào, không riêng GIN) đáng giá khi nó 
 liệu — bảng càng lớn, hoặc điều kiện lọc càng "hiếm" (khớp một tỉ lệ nhỏ số dòng), index càng
 thắng đậm. Bảng nhỏ hoặc điều kiện khớp một nửa dữ liệu thì Seq Scan thường đủ tốt, đôi khi
 còn nhanh hơn. **Luôn `EXPLAIN` để biết, đừng suy đoán.**
+
+---
+
+
+### Câu hỏi bản chất của Phase 2 — và đáp án
+
+#### 1. Cursor vs offset pagination khi dữ liệu lớn?
+`OFFSET N` bắt Postgres đi qua index/bảng, đếm bỏ qua N dòng rồi mới lấy — chi phí tăng
+**tuyến tính** theo N. Keyset dùng `WHERE (created_at, id) < (mốc)` để index **nhảy thẳng**
+tới vị trí — chi phí gần như hằng số bất kể đang ở trang mấy. Số thật đo được (test #14):
+cùng vị trí dòng 80.000/100.000, offset đọc 78.563 block/88ms, keyset đọc 22 block/1,8ms —
+cùng một index, khác nhau ở **cách dùng** index. Đánh đổi: offset cho nhảy tới trang bất kỳ
+(trang 47) trực tiếp; keyset chỉ đi tiếp/lùi tuần tự từ một mốc, không nhảy được tới "trang
+47" nếu chưa đi qua — hợp với kiểu cuộn vô hạn (infinite scroll), không hợp với UI có số
+trang bấm được.
+
+#### 2. GIN vs B-tree hợp cho loại truy vấn nào?
+B-tree: mỗi dòng ứng với **một** giá trị trong cây, hợp `=`, `<`, `>`, `BETWEEN`,
+`ORDER BY` — đúng kiểu cột `size`, `price_vnd`, `created_at`. GIN (Generalized Inverted
+iNdex): hợp giá trị **nhiều phần tử trong một ô** — mỗi phần tử (một key JSONB, một từ
+trong văn bản, một phần tử mảng) trỏ ngược lại danh sách dòng chứa nó, giống mục lục cuối
+sách ("từ X" → trang 12, 45, 90). Hợp cho `@>` (containment), `&&`/`@>` trên mảng, `@@`
+full-text — **không** hợp thay B-tree cho so sánh scalar thường. Có GIN không có nghĩa nó
+luôn thắng: test #15 cho thấy trên 10.000 dòng, Seq Scan (1,65ms) nhỉnh hơn cả truy vấn có
+GIN (1,92ms) — GIN phải tra cấu trúc RỒI đọc lại dòng thật (`Recheck Cond`), chỉ đáng giá
+khi việc đó giúp **bỏ qua** phần lớn dữ liệu.
+
+#### 3. Khi nào JSONB là lựa chọn tệ?
+- Cần ràng buộc tập giá trị đóng: JSONB không `CHECK` được nội dung bên trong (gõ nhầm
+  `"coton"` DB vẫn nhận) — đây là lý do `size`/`color` là cột `enum`/`string` thật, không
+  nhét vào `attributes`.
+- Cần join/filter cao tần trên đúng field đó: so sánh containment JSONB luôn tốn hơn so
+  sánh bằng trên cột index thẳng, và JSONB không làm khoá ngoại được.
+- Bảng nhỏ hoặc field ít khi bị lọc: GIN có phí ghi (mỗi `INSERT`/`UPDATE` phải cập nhật
+  cấu trúc index) — trả phí đó mỗi lần ghi mà ít khi query theo field ấy là lỗ.
+- Cần đổi cấu trúc dữ liệu về sau: JSONB "linh hoạt" đổi lại là im lặng — không có migration
+  tự động kiểu đổi kiểu cột; đổi shape JSON đang dùng thật thì phải tự viết script backfill.
 
 ---
 
@@ -795,7 +887,7 @@ trong khi 200 transaction đang xếp hàng chờ khoá.
 Hai bài học: **luôn tách 4xx khỏi 5xx trước khi kết luận**, và **pool size là một phần của
 kết quả benchmark, không phải hằng số**.
 
-### Số thật đo được trong Flash-Core (Phase 3, 1.000 VU săn 100 chiếc)
+### Số thật đo được ở Phase 3 (1.000 VU săn 100 chiếc)
 
 | Chiến lược | Pool | p95 (ms) | rps | Oversell |
 |---|---|---|---|---|
@@ -804,8 +896,8 @@ kết quả benchmark, không phải hằng số**.
 | pessimistic | 50 | 969 | 993 | 0 |
 | redis | 10 | 1 393 | 481 | 0 |
 
-Ba kết quả ngược trực giác, giải thích đầy đủ ở `docs/specs/phase3-order-concurrency.md`
-§Bằng chứng test #16:
+Cấu hình đo và điều kiện chạy lại: [`specs/phase3-order-concurrency.md`](specs/phase3-order-concurrency.md)
+§Bằng chứng DoD. Ba kết quả ngược trực giác:
 
 1. **Pessimistic nhanh nhất** — vì 900/1.000 request rơi vào "hết hàng", ca đó pessimistic chỉ
    tốn 1 round-trip còn optimistic tốn 2 (`UPDATE` ghi 0 dòng rồi phải hỏi thêm để tách 404
@@ -814,6 +906,39 @@ Ba kết quả ngược trực giác, giải thích đầy đủ ở `docs/specs
    (rẻ) vào bên trong Postgres (đắt). Xếp hàng bên ngoài DB, đừng dồn vào trong DB.
 3. **Redis chưa nhanh hơn** — vì Phase 3 vẫn ghi DB đồng bộ. Ưu thế của nó chỉ hiện ra khi có
    outbox + async persist ở Phase 4. Số hôm nay là mốc để so sánh sau.
+
+---
+
+
+### Câu hỏi bản chất của Phase 3 — và đáp án
+
+> Đây là ba câu `docs/SPEC.md` đặt ra cho Phase 3. Đọc **sau khi** đã xem số đo ở trên —
+> đáp án chỉ có nghĩa khi đã thấy con số nó giải thích.
+
+#### 1. Vì sao `if (stock > 0) stock--` *chắc chắn* sai, không phải "hiếm khi" sai?
+Điều kiện được kiểm tra trong **RAM của Node**, tại một thời điểm đã cũ. Nơi duy nhất biết sự
+thật là dòng trong Postgres. Giữa "đọc" và "ghi" luôn có một khoảng trống, và dưới tải thì
+khoảng trống đó *luôn* có request khác chen vào — không phải may rủi mà là điều tất yếu khi đủ
+người bấm. Cách chữa duy nhất đúng: **đưa điều kiện vào cùng câu lệnh ghi**
+(`UPDATE … WHERE stock >= ?`), để chính DB đánh giá nó tại thời điểm ghi.
+
+#### 2. Isolation level mặc định của Postgres là gì, nó cho phép anomaly nào?
+**Read Committed.** Chặn được dirty read, nhưng vẫn cho phép *non-repeatable read* (đọc cùng
+một dòng hai lần trong một transaction ra hai giá trị) và *phantom read* (cùng điều kiện, số
+dòng khác nhau).
+Điều ít người để ý: **đổi lên Repeatable Read hay Serializable KHÔNG bỏ được việc phải retry**
+— chúng chuyển lỗi từ "dữ liệu sai" sang "transaction bị huỷ" (`40001`). Không viết vòng retry
+thì đổi isolation level chỉ làm hỏng theo cách khác. Và dự án này **không cần đổi**: câu
+`UPDATE … WHERE stock >= ?` đã an toàn ngay ở Read Committed, vì khi gặp dòng đang bị khoá,
+Postgres **chờ rồi đánh giá lại `WHERE` trên phiên bản mới nhất**.
+
+#### 3. Redis chết sau khi trừ kho nhưng trước khi ghi DB thì sao?
+Hai kho dữ liệu lệch nhau, và **không transaction nào cứu được** — Redis không nằm trong ACID
+của Postgres. Redis đã trừ mà DB chưa ⇒ hệ thống *tưởng* đã bán trong khi chưa: bán thiếu,
+không bán vượt (hướng lệch an toàn hơn, nhưng vẫn là lệch). Phase 3 xử lý bằng **bù trừ ngược
++ log mức `error`**; nếu cả bù trừ cũng hỏng thì **log rõ, không im lặng sửa số**, để reconcile
+job của Phase 4 có dấu vết lần lại. Đường đi đúng về sau là **Outbox** (Phase 4): ghi ý định
+vào DB trong cùng transaction, rồi mới đẩy ra ngoài.
 
 ---
 
@@ -880,6 +1005,34 @@ oversell ở đường sau; (3) tự động hoàn tiền mà không ghi lại �
 Cách đúng: ghi một bản ghi `refund_required` đầy đủ thông tin, log mức error kèm
 `correlationId`, rồi để quy trình nghiệp vụ (tự động hoặc thủ công) xử lý. **Tiền thật đã
 chuyển thì không được để hệ thống im lặng.**
+
+---
+
+# Phase 5 — UI tối thiểu
+
+> Phase duy nhất không phải backend. Mục tiêu **không** phải làm giao diện đẹp, mà là có
+> một màn hình bấm được để *nhìn thấy* concurrency xảy ra: nhiều tab cùng bấm "Săn ngay",
+> một tab được 201, các tab còn lại nhận 409 kèm thông báo "hết hàng".
+
+### Cần rõ
+
+Một trang tĩnh gọi thẳng API là đủ. Thêm framework (React/Next) ở đây là **đổi mục tiêu học**:
+thời gian đổ vào build tool, không đổ vào hệ thống. Nếu sau này thật sự cần thì viết ADR.
+
+### Cơ chế phải nắm
+
+**CORS** — browser chặn JS ở origin A gọi API ở origin B trừ khi API tự nói ra là cho phép
+(`Access-Control-Allow-Origin`). Đây là quy tắc của **browser**, không phải của server: cùng
+request đó gọi bằng `curl` vẫn chạy bình thường. Khi cookie tham gia (dự án dùng refresh token
+trong HttpOnly cookie) thì phải bật `credentials` ở cả hai phía, và `Allow-Origin` **không
+được** để `*`.
+
+### Bug hay gặp
+
+| Triệu chứng | Nguyên nhân thật |
+|---|---|
+| Gọi API từ trang web lỗi CORS, `curl` thì được | Thiếu `Access-Control-Allow-Origin`, hoặc để `*` trong khi request có cookie |
+| Cookie không được gửi kèm | Thiếu `credentials: 'include'` ở `fetch` hoặc `Allow-Credentials` ở server |
 
 ---
 
@@ -978,6 +1131,35 @@ Free tier chỉ áp dụng ở một số region cụ thể — chọn region g�
 mất free tier. Chấp nhận độ trễ ~200ms từ VN để giữ chi phí 0đ là một **đánh đổi có ý thức**,
 và giải thích được đánh đổi đó chính là câu chuyện FinOps đáng kể khi phỏng vấn — đáng giá
 hơn nhiều so với việc chỉ nói "em đã deploy lên cloud".
+
+---
+
+# Ôn phỏng vấn — 12 câu chốt
+
+> **Đây là bản đúc kết, không phải bài học.** Mỗi câu chỉ ghi **một câu phải nói được** —
+> phần "vì sao" nằm ở mục phase tương ứng, bấm link để đọc. Ôn trước buổi phỏng vấn thì đọc
+> cột giữa; thấy câu nào nói ra mà không tự giải thích nổi thì mở link.
+>
+> Câu 6–8 và 10–11 thuộc phase chưa làm — đọc để biết trước, chưa cần kể như kinh nghiệm thật.
+
+| # | Câu hỏi | Câu phải nói được | Đọc kỹ ở |
+|---|---|---|---|
+| 1 | Vì sao `if (stock > 0) stock--` oversell? | Đọc–kiểm tra–ghi là **ba** thao tác rời nhau; khe giữa đọc và ghi bị request khác chen (*lost update*). Chữa bằng cách đưa điều kiện vào chính câu ghi. | [Phase 3](#phase-3--concurrency--phần-quan-trọng-nhất) |
+| 2 | Optimistic hay pessimistic? | **Đo, đừng đoán.** Ít tranh chấp → optimistic (không ai chờ); tranh chấp gắt → pessimistic có thể thắng vì optimistic thua rồi phải làm lại. Dự án đo được pessimistic nhanh nhất ở kịch bản 90% "hết hàng". | [Phase 3](#phase-3--concurrency--phần-quan-trọng-nhất) |
+| 3 | Isolation mặc định của Postgres? | **Read Committed** — chặn dirty read, vẫn cho non-repeatable + phantom read. Nâng lên không bỏ được retry, chỉ đổi lỗi thành `40001`. | [Phase 3](#phase-3--concurrency--phần-quan-trọng-nhất) |
+| 4 | Deadlock xảy ra thế nào? | Hai transaction khoá hai dòng theo **thứ tự ngược nhau** rồi chờ nhau. Chữa: luôn khoá theo một thứ tự cố định (vd. sắp xếp theo `id`). | [Phase 3](#phase-3--concurrency--phần-quan-trọng-nhất) |
+| 5 | Idempotency-Key kiểm tra ở đâu? | Ở **DB**, bằng ràng buộc `UNIQUE` — `INSERT` rồi bắt lỗi trùng, **không** SELECT-rồi-INSERT (chính nó cũng là read-modify-write). | [Phase 3](#phase-3--concurrency--phần-quan-trọng-nhất) |
+| 6 | Dual write problem? Outbox? | Ghi hai nơi (DB + queue) không thể nguyên tử. Outbox: ghi **ý định** vào DB **cùng transaction**, tiến trình riêng đọc ra rồi mới đẩy đi. | [Phase 4](#phase-4--async-queue--payment) |
+| 7 | Vì sao exactly-once gần như không có? | Mạng không cho biết "chưa gửi" khác "gửi rồi mất phản hồi". Thực tế làm **at-least-once + xử lý idempotent** — hiệu ứng cuối cùng đúng một lần. | [Phase 4](#phase-4--async-queue--payment) |
+| 8 | Webhook "đã trả tiền" đến sau khi đơn tự huỷ? | Không bỏ qua, không hồi sinh đơn. Ghi `refund_required` + log `error` kèm `correlationId`. **Tiền thật đã chuyển thì hệ thống không được im lặng.** | [Phase 4](#phase-4--async-queue--payment) |
+| 9 | Truy lại hành trình một request lỗi? | `correlationId` sinh ở middleware đầu vào, đi kèm mọi log **và** truyền qua job trong queue; tìm log theo id đó ra đủ chuỗi. | [Phase 0](#logging-và-correlationid--đọc-kỹ-code-đã-dùng-từ-phase-0) |
+| 10 | Graceful shutdown làm sai thì mất gì? | Container bị giết giữa chừng → request đang xử lý đứt, job đang chạy mất. Phải ngừng nhận việc mới, chờ việc đang chạy xong, rồi mới thoát. | [Phase 6](#phase-6--observability) |
+| 11 | Cold start ảnh hưởng flash sale? | Scale-to-zero = request **đầu tiên** chờ vài giây, mà nó rơi đúng lúc mở bán. `min-instances=1` chữa được nhưng mất free tier — dự án **chọn chịu** cold start. | [Phase 7](#phase-7--deploy--finops) |
+| 12 | Nếu làm lại, đổi quyết định nào? | **Không có đáp án sẵn — đây là câu duy nhất chỉ anh trả lời được**, và là câu đáng giá nhất. Nguyên liệu nằm ở [`adr/`](adr/) và [`project-context.md` §3](../project-context.md) (những gì đã cố ý loại bỏ). | — |
+
+Ngoài 12 câu này, mỗi phase có **3 câu hỏi bản chất** riêng (mục *Câu hỏi bản chất của phase*
+trong từng phase ở trên) — đó là phần gắn với quyết định thật của dự án, kể ra được thì có
+sức thuyết phục hơn kiến thức chung.
 
 ---
 

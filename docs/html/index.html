@@ -9,7 +9,9 @@
 <body>
 <div class="layout">
 <nav class="sidebar">
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@nav-->
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<!--@@end-->
 </nav>
 <main class="content">
 
@@ -23,7 +25,7 @@ bản đọc tĩnh (offline) của toàn bộ tài liệu Markdown trong repo, �
 duyệt — bấm vào thẻ hoặc sidebar bên trái để đi tới từng trang.</p>
 
 <blockquote class="note">
-<p><strong>Bắt đầu từ đâu.</strong> Sidebar có 13 trang — đừng đọc hết một lượt, dễ ngợp. Theo
+<p><strong>Bắt đầu từ đâu.</strong> Sidebar có 15 trang — đừng đọc hết một lượt, dễ ngợp. Theo
 đúng thứ tự này:</p>
 <ol>
 <li>Đọc 2 đoạn ngay trên đây (30 giây) — biết dự án làm gì.</li>
@@ -32,8 +34,10 @@ phase trước — nhảy cóc sẽ thấy code "tự nhiên xuất hiện" mà 
 <li>Mỗi trang Phase đã có sẵn <strong>API</strong> + <strong>code thật</strong> ngay trong bài —
 không cần mở source để hiểu ý tưởng.</li>
 <li>Xong cả 4 phase mới đọc "Tham khảo" ở sidebar — đó là chỗ để <em>tra cứu</em> khi cần
-(gặp từ lạ → glossary; muốn biết "vì sao" → ADR; vướng bug → tech-playbook), không phải đọc
-tuần tự từ đầu.</li>
+(gặp từ lạ → glossary; muốn biết "vì sao" → ADR; vướng bug hoặc muốn hiểu sâu → sổ tay kỹ
+thuật), không phải đọc tuần tự từ đầu.</li>
+<li>Sắp đi phỏng vấn? Vào thẳng
+<a href="tech-playbook.html">Sổ tay kỹ thuật</a> → mục <em>Ôn phỏng vấn — 12 câu chốt</em>.</li>
 </ol>
 <p>Chỉ có 5 phút? Đọc riêng <a href="phase-3.html">Phase 3</a> ⭐ — đó là phần cốt lõi của cả
 dự án (1.000 người bấm, 100 chiếc áo, bán ra đúng 100), và có số đo thật của ba chiến lược.</p>
@@ -43,6 +47,11 @@ dự án (1.000 người bấm, 100 chiếc áo, bán ra đúng 100), và có s�
 <p>Mỗi trang phase chỉ có 3 phần: <strong>Business</strong> (bài toán gì), <strong>Technical</strong>
 (xây gì), <strong>Kiến thức học được</strong> (câu hỏi bản chất + trả lời). Không có checklist,
 không có bảng test case — muốn xem chi tiết đó thì mở file spec gốc trong <code>docs/specs/</code>.</p>
+<blockquote class="note"><p><strong>Một nguồn cho kiến thức.</strong> Phần Q&amp;A và số đo trong
+các trang phase <em>không</em> được gõ lại ở đây — chúng được <strong>nhúng thẳng</strong> từ
+<a href="tech-playbook.html"><code>tech-playbook.md</code></a> lúc chạy
+<code>npm run docs:html</code>. Sửa kiến thức thì sửa đúng một chỗ, mọi trang đổi theo. Xem
+<a href="docs-map.html">Bản đồ tài liệu</a> để biết thông tin nào thuộc file nào.</p></blockquote>
 <div class="cards">
   <div class="card">
     <h3>Phase 0 — Nền móng &amp; Quy trình AI</h3>
@@ -76,9 +85,11 @@ không có bảng test case — muốn xem chi tiết đó thì mở file spec g
 
 <h2>Tham khảo xuyên phase</h2>
 <ul>
+  <li><a href="docs-map.html">Bản đồ tài liệu</a> — <strong>thông tin nào thuộc file nào</strong>, và mở file nào khi nào</li>
+  <li><a href="spec.html">SPEC.md</a> — lộ trình 8 phase + Definition of Done của cả dự án</li>
   <li><a href="architecture.html">architecture.md</a> — bản đồ code: file nào làm gì, định nghĩa ở đâu</li>
-  <li><a href="tech-playbook.html">tech-playbook.md</a> — cơ chế, bug hay gặp, tình huống thật của từng phase</li>
-  <li><a href="glossary.html">glossary.md</a> — từ điển nhận diện các bài toán hệ thống lớn</li>
+  <li><a href="tech-playbook.html">tech-playbook.md</a> — <strong>nguồn kiến thức duy nhất</strong>: cơ chế, bug hay gặp, số đo thật, đáp án câu hỏi bản chất, ôn phỏng vấn</li>
+  <li><a href="glossary.html">glossary.md</a> — từ điển nhận diện: <em>tên</em> của các bài toán, 1 dòng/mục</li>
   <li><a href="project-context.html">project-context.md</a> — vì sao chọn thế này, những gì đã bị loại bỏ có chủ đích</li>
   <li><a href="claude-md.html">CLAUDE.md</a> — quy tắc &amp; hướng dẫn làm việc với AI trong repo này</li>
 </ul>

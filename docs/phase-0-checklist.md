@@ -2,7 +2,8 @@
 
 > # ✅ PHASE 0 ĐÃ ĐÓNG — 2026-08-08
 >
-> File này giữ lại làm **hồ sơ Phase 0**, không còn việc nào phải làm.
+> File này là **bằng chứng Definition of Done của Phase 0** (vai trò tương đương mục
+> *Bằng chứng DoD* ở cuối các spec sau này) — hồ sơ đóng, không còn việc nào phải làm.
 > Việc đang làm bây giờ: `CLAUDE.md` §Trạng thái hiện tại và
 > [`specs/phase1-auth.md`](specs/phase1-auth.md).
 

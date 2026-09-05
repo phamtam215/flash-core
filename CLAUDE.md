@@ -11,21 +11,34 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
 **code phải dễ đọc, dễ giải thích — ưu tiên rõ ràng hơn thông minh.**
 
 ## Tài liệu bắt buộc đọc
+
+`docs/README.md` là **bản đồ tài liệu**: thông tin nào thuộc file nào, mở file nào khi nào.
+Luật cứng của cả hệ tài liệu: **mỗi thông tin có đúng một chủ sở hữu; file khác chỉ trỏ link,
+không chép lại.** Ba ranh giới quan trọng nhất:
+
+| Loại thông tin | Chủ sở hữu duy nhất |
+|---|---|
+| **Kiến thức** (cơ chế, bug thật, số đo, đáp án câu hỏi bản chất, ôn phỏng vấn) | `docs/tech-playbook.md` |
+| **Hợp đồng** một tính năng (API, schema, edge case, test case, bằng chứng DoD) | `docs/specs/` |
+| **Trạng thái** (đang ở phase nào, còn nợ gì) | §Trạng thái hiện tại của chính file này |
+
+Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, không viết vào spec; spec chỉ
+được giữ *bằng chứng* (số test, số đo, cấu hình chạy lại), không giữ trạng thái.
+
 - `docs/architecture.md` — bản đồ code: file nào làm gì, định nghĩa ở đâu, ba quy tắc
   cấu trúc. Đọc trước khi thêm/sửa file trong `src/`.
 - `docs/SPEC.md` — spec gốc: 8 phase, deliverable, Definition of Done
-- `docs/specs/` — spec chi tiết từng tính năng (viết trước khi code)
 - `docs/adr/` — các quyết định kiến trúc đã chốt
 - `docs/review-checklist.md` — checklist Tâm dùng để review code của bạn
-- `docs/glossary.md` — từ điển khái niệm của dự án. Khi giải thích, ưu tiên dùng
-  đúng các thuật ngữ trong file này để Tâm quen dần với từ vựng chuẩn.
-- `docs/tech-playbook.md` — cơ chế, bug hay gặp và tình huống thật của từng phase. Mục
-  **§Xuyên suốt — CI & Testing** là phần Tâm tự nhận còn yếu nhất (GitHub Actions và
-  testing): khi chạm tới CI hoặc test thì giải thích kỹ hơn mức mặc định, và cập nhật mục
-  đó khi CI/bộ test đổi. Khi giải thích "vì sao", bám sát cách diễn đạt ở file này để Tâm
-  không phải học hai phiên bản.
-- `docs/git-workflow.md` — quy chuẩn nhánh, commit message, và **quy tắc AI không
-  push trước khi Tâm review**. Dùng `/commit` để tạo commit đúng chuẩn.
+- `docs/glossary.md` — từ điển **tên gọi**, một dòng mỗi mục. Khi giải thích, ưu tiên dùng
+  đúng các thuật ngữ trong file này để Tâm quen dần với từ vựng chuẩn. Dài hơn một dòng thì
+  nó thuộc `tech-playbook.md`, không thuộc đây.
+- `docs/tech-playbook.md` — **nguồn kiến thức duy nhất**. Mục **§Xuyên suốt — CI & Testing**
+  là phần Tâm tự nhận còn yếu nhất (GitHub Actions và testing): khi chạm tới CI hoặc test thì
+  giải thích kỹ hơn mức mặc định, và cập nhật mục đó khi CI/bộ test đổi. Khi giải thích
+  "vì sao", bám sát cách diễn đạt ở file này để Tâm không phải học hai phiên bản.
+- `docs/git-workflow.md` — quy chuẩn nhánh, commit message, **cách đóng phase (đúng 3 chỗ
+  phải sửa)**, và **quy tắc AI không push trước khi Tâm review**. Dùng `/commit`.
 - `project-context.md` — nhật ký quyết định: **vì sao** chọn thế này và **những gì đã
   bị loại bỏ có chủ đích**. Đọc trước khi đề xuất bất cứ thay đổi kiến trúc nào.
 
@@ -46,8 +59,8 @@ và làm portfolio. AI viết code, Tâm viết spec + review + ra quyết đị
    cùng lúc với implement. Mọi test phải pass trước khi coi là xong.
 3. **Quyết định kiến trúc → tạo ADR** trong `docs/adr/` theo template (5–10 dòng).
 4. **Tài liệu phải đúng ở mỗi commit.** Sửa code làm lệch tài liệu nào thì sửa luôn trong
-   cùng commit. Ba chỗ hay lệch: `docs/architecture.md`, `docs/phase-0-checklist.md`,
-   §Trạng thái hiện tại của file này.
+   cùng commit. Ba chỗ hay lệch: `docs/architecture.md`, `README.md` (gốc repo),
+   §Trạng thái hiện tại của file này. Bản HTML sinh lại bằng `npm run docs:html`.
 5. **Giải thích khi được hỏi**, ở mức bản chất (cơ chế + trade-off).
 
 ### Cách nói chuyện với Tâm (chốt 2026-08-07)
@@ -133,8 +146,7 @@ Muốn xem lại thì `git log -- .claude/`.
   NestJS + config Zod + Pino/correlationId + exception filter + Prisma 7 (pg adapter) +
   module `health` + Docker Compose + CI xanh + ESLint chặn import sâu. **16/16 test pass**.
   2 ADR (`docs/adr/001`, `002`).
-- **Phase 1 — code + test xong**, chưa đóng chính thức (chờ Tâm review + push, xem
-  `docs/journal/phase-1.md`): module `auth` (register/login/refresh/logout/me), `infra/
+- **Phase 1 — code + test xong**, chưa đóng chính thức (chờ Tâm review + push): module `auth` (register/login/refresh/logout/me), `infra/
   redis`, migration đầu tiên. **14/14 test case pass** — 21 unit + 12 integration
   (`test/auth.e2e-spec.ts`), kể cả test số 8 (reuse detection).
 - **Phase 2 — HOÀN TẤT theo Definition of Done**, xác nhận trên Postgres/Redis thật, theo
@@ -157,7 +169,7 @@ Muốn xem lại thì `git log -- .claude/`.
   snapshot price, cursor pagination đơn), **3 chiến lược chống oversell** đổi bằng
   `INVENTORY_STRATEGY` (optimistic / pessimistic `SELECT FOR UPDATE` / Redis Lua), migration
   `Order`/`OrderItem` + cột `ProductSku.version`, ADR-003 chốt module nào sở hữu logic trừ kho.
-  **52/52 unit test pass**, lint/typecheck/build sạch. Cursor pagination chuyển từ
+  **54/54 unit test pass**, lint/typecheck/build sạch. Cursor pagination chuyển từ
   `modules/product/` ra `common/pagination/` vì đã có 2 module dùng.
   **Test #8 (cổng chính) xanh ở cả ba chiến lược**: 200 request song song → đúng 100 đơn,
   100 lần 409, `stock` = 0, không 5xx. Oversell = 0.

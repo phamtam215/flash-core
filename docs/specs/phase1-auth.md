@@ -158,8 +158,8 @@ copy từ `infra/prisma/`. Dùng biến `REDIS_URL` đã có sẵn trong `env.sc
 
 **2. Access token đọc từ HttpOnly Cookie**, không dùng header `Authorization: Bearer`.
 
-`docs/SPEC.md` đã chốt HttpOnly Cookie, và Phase 3 có frontend thật nên browser tự gửi
-cookie là đường đi tự nhiên. Đổi lại: **test bằng curl/Postman phiền hơn** vì phải giữ
+`docs/SPEC.md` đã chốt HttpOnly Cookie, và Phase 5 có UI thật nên browser tự gửi cookie là
+đường đi tự nhiên. Đổi lại: **test bằng curl/Postman phiền hơn** vì phải giữ
 cookie jar — chấp nhận, vì integration test dùng `supertest` giữ cookie tự động.
 
 Ghi chú bảo mật: HttpOnly chặn JavaScript đọc token (chống XSS lấy token), nhưng **không**
@@ -168,7 +168,14 @@ chặn CSRF — browser vẫn tự gửi cookie kèm request từ trang khác. P
 
 ---
 
-## Kiến thức cần có trước khi code
+## Kiến thức của phase này nằm ở đâu
 
-Đọc [`tech-playbook.md` §Phase 1](../tech-playbook.md) — Argon2 vs bcrypt, XSS vs CSRF,
-vì sao HttpOnly chưa đủ. Khoảng 15 phút.
+Spec này là **hợp đồng**. Phần *vì sao* — Argon2 vs bcrypt, XSS vs CSRF, vì sao HttpOnly chưa
+đủ — và **đáp án 3 câu hỏi bản chất của Phase 1** nằm ở
+[`tech-playbook.md` §Phase 1](../tech-playbook.md). Khoảng 15 phút.
+
+## Bằng chứng Definition of Done
+
+**14/14 test case pass** — 21 unit + 12 integration (`test/auth.e2e-spec.ts`), kể cả test #8
+(reuse detection: dùng lại refresh token đã xoay → thu hồi cả family). Trạng thái tổng:
+[`CLAUDE.md` §Trạng thái hiện tại](../../CLAUDE.md).

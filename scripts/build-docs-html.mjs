@@ -14,13 +14,15 @@
  * bold/italic (kể cả bold LỒNG italic — chỗ bản convert tay từng làm sai), blockquote, hr,
  * link nội bộ.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const OUT_DIR = `${ROOT}docs/html/`;
 
 /** Trang tham khảo + ADR: sinh từ Markdown. */
 const PAGES = [
+  { src: 'docs/README.md', out: 'docs-map.html', title: 'Bản đồ tài liệu — thông tin nào ở file nào' },
+  { src: 'docs/SPEC.md', out: 'spec.html', title: 'Spec gốc — lộ trình 8 phase' },
   { src: 'docs/architecture.md', out: 'architecture.html', title: 'Bản đồ code — cái gì nằm ở đâu' },
   { src: 'docs/tech-playbook.md', out: 'tech-playbook.html', title: 'Sổ tay kỹ thuật' },
   { src: 'docs/glossary.md', out: 'glossary.html', title: 'Từ điển nhận diện' },
@@ -44,6 +46,8 @@ const NAV = [
     ['adr-003-so-huu-logic-tru-ton-kho.html', 'ADR-003: Ai sở hữu tồn kho'],
   ]],
   ['Tham khảo', [
+    ['docs-map.html', 'Bản đồ tài liệu (docs/README.md)'],
+    ['spec.html', 'Spec gốc — 8 phase (SPEC.md)'],
     ['architecture.html', 'Bản đồ code (architecture.md)'],
     ['tech-playbook.html', 'Sổ tay kỹ thuật (tech-playbook.md)'],
     ['glossary.html', 'Từ điển (glossary.md)'],
@@ -54,6 +58,8 @@ const NAV = [
 
 /** Link `.md` → trang HTML tương ứng. Cái nào không có ở đây thì BỎ link, giữ chữ. */
 const LINK_MAP = new Map([
+  ['readme.md', 'docs-map.html'],
+  ['spec.md', 'spec.html'],
   ['architecture.md', 'architecture.html'],
   ['tech-playbook.md', 'tech-playbook.html'],
   ['glossary.md', 'glossary.html'],
@@ -259,4 +265,47 @@ for (const page of PAGES) {
   writeFileSync(`${OUT_DIR}${page.out}`, shell(page.title, page.out, toHtml(markdown)), 'utf8');
   console.log(`${page.src}  →  docs/html/${page.out}`);
 }
-console.log(`\nSinh lại ${PAGES.length} trang. index.html và phase-*.html viết tay, không sinh.`);
+
+/**
+ * Cắt đúng một mục của file Markdown: từ dòng heading khớp `heading` cho tới heading kế tiếp
+ * có cấp BẰNG HOẶC CAO HƠN. Dùng để các trang phase (viết tay) **nhúng** kiến thức từ
+ * `tech-playbook.md` thay vì chép lại — nguồn kiến thức vẫn chỉ có một.
+ */
+function section(srcFile, heading) {
+  const lines = readFileSync(`${ROOT}${srcFile}`, 'utf8').split('\n');
+  const start = lines.findIndex((line) => line.trim() === heading);
+  if (start === -1) throw new Error(`Không tìm thấy mục "${heading}" trong ${srcFile}`);
+  const level = /^#+/.exec(heading)[0].length;
+  let end = start + 1;
+  while (end < lines.length) {
+    const next = /^(#+)\s/.exec(lines[end]);
+    if (next && next[1].length <= level) break;
+    end += 1;
+  }
+  return lines.slice(start + 1, end).join('\n').trim().replace(/\n?-{3,}$/, '').trim();
+}
+
+/**
+ * Trang phase là bản đọc có dẫn dắt, viết tay — nhưng những đoạn đã có chủ ở Markdown thì
+ * được NHÚNG vào giữa hai mốc, không chép:
+ *
+ *   <!--@@from docs/tech-playbook.md ### Tiêu đề-->  …nội dung sinh ra…  <!--@@end-->
+ */
+const MARKER = /<!--@@from (\S+) (#{1,6} [^>]*?)-->[\s\S]*?<!--@@end-->/g;
+let embedded = 0;
+for (const file of readdirSync(OUT_DIR).filter((name) => /^(phase-\d+|index)\.html$/.test(name))) {
+  const before = readFileSync(`${OUT_DIR}${file}`, 'utf8');
+  const after = before
+    .replace(MARKER, (_, src, heading) => {
+      embedded += 1;
+      return `<!--@@from ${src} ${heading}-->\n${toHtml(section(src, heading.trim()))}\n<!--@@end-->`;
+    })
+    // Sidebar cũng chỉ có một nguồn (hằng NAV ở trên), trang phase không giữ bản chép riêng.
+    .replace(/<!--@@nav-->[\s\S]*?<!--@@end-->/, `<!--@@nav-->\n${sidebar(file)}\n<!--@@end-->`);
+  if (after !== before) {
+    writeFileSync(`${OUT_DIR}${file}`, after, 'utf8');
+    console.log(`${file}  ←  nhúng lại từ Markdown`);
+  }
+}
+console.log(`\nSinh lại ${PAGES.length} trang + nhúng ${embedded} mục vào trang phase.`);
+console.log('Phần dẫn dắt của index.html và phase-*.html viết tay; sidebar + mục kiến thức thì nhúng.');
