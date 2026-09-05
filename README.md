@@ -174,7 +174,8 @@ Hồ sơ Phase 0 (đã đóng): [`docs/phase-0-checklist.md`](docs/phase-0-check
 
 | File | Nội dung |
 |---|---|
-| [`docs/README.md`](docs/README.md) | **Bản đồ tài liệu — đọc trước tiên** |
+| [`docs/onboarding.md`](docs/onboarding.md) | ★ **Người mới bắt đầu ở đây** — lộ trình 6 buổi, tự tay gây ra lỗi rồi sửa |
+| [`docs/README.md`](docs/README.md) | Bản đồ tài liệu: thông tin nào thuộc file nào |
 | [`docs/architecture.md`](docs/architecture.md) | **Bản đồ code: file nào làm gì, sửa X thì mở file nào** |
 | [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 8 phase, deliverable, Definition of Done |
 | [`project-context.md`](project-context.md) | Nhật ký quyết định — vì sao, và **đã loại bỏ gì** |

@@ -25,6 +25,9 @@ không chép lại.** Ba ranh giới quan trọng nhất:
 Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, không viết vào spec; spec chỉ
 được giữ *bằng chứng* (số test, số đo, cấu hình chạy lại), không giữ trạng thái.
 
+- `docs/onboarding.md` — **lộ trình cho người mới** (6 buổi, có bài thực hành phá code rồi
+  sửa). Nó KHÔNG chứa kiến thức — nó sở hữu *thứ tự học* và các bài thực hành, còn kiến thức
+  vẫn trỏ về `tech-playbook.md`. Khi Tâm hỏi "học lại từ đâu", trỏ vào file này.
 - `docs/architecture.md` — bản đồ code: file nào làm gì, định nghĩa ở đâu, ba quy tắc
   cấu trúc. Đọc trước khi thêm/sửa file trong `src/`.
 - `docs/SPEC.md` — spec gốc: 8 phase, deliverable, Definition of Done

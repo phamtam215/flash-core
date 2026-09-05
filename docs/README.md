@@ -11,6 +11,7 @@ chép lại. Đây là luật khiến tài liệu không lệch nhau khi code đ
 | Thông tin | Chủ sở hữu duy nhất |
 |---|---|
 | Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) |
+| **Thứ tự học** cho người mới: học gì trước, phá cái gì để thấy | [`onboarding.md`](onboarding.md) |
 | **Đang ở phase nào, còn nợ gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
 | Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) |
 | Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) |
@@ -34,7 +35,7 @@ Ba ranh giới hay bị vi phạm nhất, ghi ra để tự kiểm khi sửa tà
 
 | Thời điểm | File |
 |---|---|
-| Lần đầu vào dự án | [`README.md`](../README.md) → [`architecture.md`](architecture.md) |
+| **Lần đầu vào dự án** | [`onboarding.md`](onboarding.md) — lộ trình 6 buổi có thực hành, làm theo thứ tự |
 | **"Giờ tôi cần làm gì?"** | [`../CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
 | Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận tên, 20') → [`tech-playbook.md`](tech-playbook.md) §Phase N (cơ chế + bẫy, 15') → [`SPEC.md`](SPEC.md) |
 | Trước khi code một tính năng | gõ `/spec <tên>` → tạo file trong [`specs/`](specs/) |
@@ -53,6 +54,7 @@ Ba ranh giới hay bị vi phạm nhất, ghi ra để tự kiểm khi sửa tà
 docs/
 ├── README.md              ← mục lục này
 ├── SPEC.md                kế hoạch 8 phase + Definition of Done
+├── onboarding.md          ★ LỘ TRÌNH CHO NGƯỜI MỚI — 6 buổi, có thực hành
 ├── architecture.md        bản đồ code
 ├── tech-playbook.md       ★ NGUỒN KIẾN THỨC DUY NHẤT (cơ chế · bug · số đo · ôn phỏng vấn)
 ├── glossary.md            từ điển: TÊN của các bài toán, 1 dòng/mục

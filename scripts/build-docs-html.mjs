@@ -21,6 +21,7 @@ const OUT_DIR = `${ROOT}docs/html/`;
 
 /** Trang tham khảo + ADR: sinh từ Markdown. */
 const PAGES = [
+  { src: 'docs/onboarding.md', out: 'onboarding.html', title: 'Lộ trình cho người mới — 6 buổi có thực hành' },
   { src: 'docs/README.md', out: 'docs-map.html', title: 'Bản đồ tài liệu — thông tin nào ở file nào' },
   { src: 'docs/SPEC.md', out: 'spec.html', title: 'Spec gốc — lộ trình 8 phase' },
   { src: 'docs/architecture.md', out: 'architecture.html', title: 'Bản đồ code — cái gì nằm ở đâu' },
@@ -56,6 +57,7 @@ const NAV = [
     ['adr-007-ui-la-trang-tinh-mot-file.html', 'ADR-007: UI là trang tĩnh'],
   ]],
   ['Tham khảo', [
+    ['onboarding.html', '★ Lộ trình người mới (onboarding.md)'],
     ['docs-map.html', 'Bản đồ tài liệu (docs/README.md)'],
     ['spec.html', 'Spec gốc — 8 phase (SPEC.md)'],
     ['architecture.html', 'Bản đồ code (architecture.md)'],
@@ -68,6 +70,7 @@ const NAV = [
 
 /** Link `.md` → trang HTML tương ứng. Cái nào không có ở đây thì BỎ link, giữ chữ. */
 const LINK_MAP = new Map([
+  ['onboarding.md', 'onboarding.html'],
   ['readme.md', 'docs-map.html'],
   ['spec.md', 'spec.html'],
   ['architecture.md', 'architecture.html'],

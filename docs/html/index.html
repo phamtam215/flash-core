@@ -10,7 +10,7 @@
 <div class="layout">
 <nav class="sidebar">
 <!--@@nav-->
-<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Phase</h3><a href="phase-0.html">Phase 0 — Nền móng</a><a href="phase-1.html">Phase 1 — Auth</a><a href="phase-2.html">Phase 2 — Product</a><a href="phase-3.html">Phase 3 — Order ⭐</a><a href="phase-4.html">Phase 4 — Async &amp; Payment</a><a href="phase-5.html">Phase 5 — UI demo</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a></div>
 <!--@@end-->
 </nav>
 <main class="content">
@@ -23,6 +23,13 @@ observability.</p>
 <p>Tâm (chủ repo) làm chủ spec, review và ra quyết định kiến trúc; AI viết phần lớn code. Đây là
 bản đọc tĩnh (offline) của toàn bộ tài liệu Markdown trong repo, để mở trực tiếp bằng trình
 duyệt — bấm vào thẻ hoặc sidebar bên trái để đi tới từng trang.</p>
+
+<blockquote class="note" style="border-left-color:#ff5a3c">
+<p><strong>Người mới hoàn toàn?</strong> Đừng đọc trang này —
+<a href="onboarding.html"><strong>mở Lộ trình 6 buổi</strong></a>. Nó bắt bạn tự tay gây ra một
+vụ bán vượt hàng rồi sửa nó, thay vì đọc mô tả về việc đó. Trang này hợp hơn khi bạn cần
+<em>tra cứu</em>.</p>
+</blockquote>
 
 <blockquote class="note">
 <p><strong>Bắt đầu từ đâu.</strong> Sidebar có 21 trang — đừng đọc hết một lượt, dễ ngợp. Theo
@@ -105,6 +112,7 @@ các trang phase <em>không</em> được gõ lại ở đây — chúng đượ
 
 <h2>Tham khảo xuyên phase</h2>
 <ul>
+  <li><a href="onboarding.html">★ Lộ trình người mới</a> — 6 buổi có bài thực hành, làm theo thứ tự</li>
   <li><a href="docs-map.html">Bản đồ tài liệu</a> — <strong>thông tin nào thuộc file nào</strong>, và mở file nào khi nào</li>
   <li><a href="spec.html">SPEC.md</a> — lộ trình 8 phase + Definition of Done của cả dự án</li>
   <li><a href="architecture.html">architecture.md</a> — bản đồ code: file nào làm gì, định nghĩa ở đâu</li>
