@@ -41,8 +41,10 @@ async function main() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: `access_token=${accessToken}` },
     body: JSON.stringify({
-      name: `Áo benchmark ${suffix}`,
-      slug: `ao-benchmark-${suffix}`,
+      // Tên đọc được như hàng thật: mẫu này sẽ hiện trên UI lúc demo cảnh 1.000 người bấm,
+      // nên không đặt tên kiểu `Áo benchmark 1757...`. Chỉ `slug` mới cần hậu tố cho khỏi trùng.
+      name: 'Áo thun Flash Sale 20:00 — 100 chiếc',
+      slug: `ao-thun-flash-sale-2000-${suffix}`,
       skus: [{ size: 'M', color: 'Đen', priceVnd: 199000, stock: 100 }],
     }),
   });

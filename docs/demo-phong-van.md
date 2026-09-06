@@ -152,7 +152,29 @@ lên thành hàng không có thật**. Ảnh trên cho thấy `8`, không phải
 
 #### Bước 7 · Cảnh đáng giá nhất — 1.000 người bấm cùng lúc
 
-Đây là lý do cả dự án tồn tại. Chọn một mẫu có `stock = 100`:
+Đây là lý do cả dự án tồn tại.
+
+**Cách dựng cảnh này (4 bước, mất chưa tới một phút):**
+
+1. `npm run dev` — app phải đang chạy, vì bước 2 gọi API thật chứ không ghi thẳng DB.
+2. `node k6/seed-target.js` → tạo một user + một mẫu `Áo thun Flash Sale 20:00 — 100 chiếc`
+   có đúng `stock = 100`, rồi **in sẵn lệnh k6 kèm `SKU_ID` và `TOKEN`**. Copy lệnh đó.
+3. Mở trình duyệt ở tab **Sự kiện sale**, bấm vào **đúng mẫu vừa tạo** (nó nằm ở đầu danh
+   sách), để nguyên bảng SKU trên màn hình. Trang tự gọi lại API mỗi **1,5 giây** — đây chính
+   là thứ khiến số tồn kho tự đổi mà không cần bấm F5.
+4. Dán lệnh k6 vào terminal, đổi `k6` thành `.tools/k6`, rồi Enter. Nhìn sang trình duyệt.
+
+> **Bẫy hay vấp:** `seed-target.js` tạo một mẫu **mới** mỗi lần chạy. Bắn k6 vào SKU của lần
+> chạy này mà mắt lại nhìn card của lần chạy trước thì tồn kho đứng yên ở 100 — trông y hệt
+> "demo hỏng". Luôn bấm vào card trên cùng, ngay sau khi seed.
+>
+> **Cảnh diễn ra trong ~1–2 giây**, còn UI polling 1,5 giây — nên anh sẽ thấy số **nhảy thẳng**
+> từ 100 xuống 0, không rơi dần. Đó là kết quả đúng, không phải trang bị treo. Muốn thấy nó
+> rơi dần thì hạ `vus` trong `k6/flash-sale.js` xuống ~100 và thêm `sleep`, nhưng như vậy là
+> demo một cảnh nhẹ hơn thực tế — thà để nó nhảy thẳng rồi nói ra vì sao.
+>
+> **Điểm đáng chỉ tay vào không phải lúc số rơi, mà là 30 giây sau đó:** số đứng im ở **0**,
+> không có nhịp polling nào hiện số âm. Bán vượt (oversell) mà xảy ra thì nó lộ ra đúng ở đây.
 
 ![Tồn kho 100 trước khi chạy k6](html/assets/img/ui-6-truoc-k6.png)
 *Một mẫu riêng dựng sẵn cho benchmark: `Áo thun Flash Sale 20:00 — 100 chiếc`. Trước khi bắn:
