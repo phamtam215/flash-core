@@ -37,6 +37,26 @@ const PAGES = [
   { src: 'docs/adr/005-worker-chay-process-rieng.md', out: 'adr-005-worker-chay-process-rieng.html', title: 'ADR-005: Worker chạy process riêng' },
   { src: 'docs/adr/006-relay-giu-transaction-khi-day-queue.md', out: 'adr-006-relay-giu-transaction-khi-day-queue.html', title: 'ADR-006: Relay giữ transaction khi đẩy queue' },
   { src: 'docs/adr/007-ui-la-trang-tinh-mot-file.md', out: 'adr-007-ui-la-trang-tinh-mot-file.html', title: 'ADR-007: UI là trang tĩnh một file' },
+  { src: 'docs/adr/008-correlationid-dung-asynclocalstorage.md', out: 'adr-008-correlationid-dung-asynclocalstorage.html', title: 'ADR-008: correlationId dùng AsyncLocalStorage' },
+
+  { src: 'README.md', out: 'readme-goc.html', title: 'README gốc — dự án là gì, chạy thế nào' },
+  { src: 'docs/git-workflow.md', out: 'git-workflow.html', title: 'Quy chuẩn commit & cách đóng phase' },
+  { src: 'docs/review-checklist.md', out: 'review-checklist.html', title: 'Checklist review code' },
+  { src: 'docs/phase-0-checklist.md', out: 'phase-0-checklist.html', title: 'Hồ sơ Phase 0 (đã đóng)' },
+
+  // Spec = HỢP ĐỒNG từng tính năng (API, schema, edge case, test case, bằng chứng DoD).
+  // Giáo trình `hoc/` trỏ link sang đây chứ không chép lại, nên chúng phải có bản HTML thì
+  // link đó mới mở được khi đọc offline.
+  { src: 'docs/specs/phase0-nen-mong.md', out: 'spec-phase-0.html', title: 'Spec Phase 0 — Nền móng' },
+  { src: 'docs/specs/phase1-auth.md', out: 'spec-phase-1.html', title: 'Spec Phase 1 — Auth' },
+  { src: 'docs/specs/phase2-product-inventory.md', out: 'spec-phase-2.html', title: 'Spec Phase 2 — Product & Inventory' },
+  { src: 'docs/specs/phase3-order-concurrency.md', out: 'spec-phase-3.html', title: 'Spec Phase 3 — Order & Concurrency' },
+  { src: 'docs/specs/phase4-async-queue-payment.md', out: 'spec-phase-4.html', title: 'Spec Phase 4 — Async, Queue & Payment' },
+  { src: 'docs/specs/phase5-ui-demo.md', out: 'spec-phase-5.html', title: 'Spec Phase 5 — UI demo' },
+  { src: 'docs/specs/phase6-observability.md', out: 'spec-phase-6.html', title: 'Spec Phase 6 — Observability' },
+
+  { src: 'docs/templates/feature-spec-template.md', out: 'template-spec.html', title: 'Khuôn spec tính năng' },
+  { src: 'docs/templates/adr-template.md', out: 'template-adr.html', title: 'Khuôn ADR' },
 ];
 
 const NAV = [
@@ -53,6 +73,16 @@ const NAV = [
     ['adr-005-worker-chay-process-rieng.html', 'ADR-005: Worker process riêng'],
     ['adr-006-relay-giu-transaction-khi-day-queue.html', 'ADR-006: Relay giữ transaction'],
     ['adr-007-ui-la-trang-tinh-mot-file.html', 'ADR-007: UI là trang tĩnh'],
+    ['adr-008-correlationid-dung-asynclocalstorage.html', 'ADR-008: correlationId &amp; ALS'],
+  ]],
+  ['Spec — hợp đồng từng phase', [
+    ['spec-phase-0.html', 'Phase 0 — Nền móng'],
+    ['spec-phase-1.html', 'Phase 1 — Auth'],
+    ['spec-phase-2.html', 'Phase 2 — Product'],
+    ['spec-phase-3.html', 'Phase 3 — Order ⭐'],
+    ['spec-phase-4.html', 'Phase 4 — Async ⭐'],
+    ['spec-phase-5.html', 'Phase 5 — UI demo'],
+    ['spec-phase-6.html', 'Phase 6 — Observability'],
   ]],
   ['Tham khảo', [
     ['onboarding.html', '★ Lộ trình người mới (onboarding.md)'],
@@ -64,6 +94,14 @@ const NAV = [
     ['glossary.html', 'Từ điển (glossary.md)'],
     ['project-context.html', 'Bối cảnh &amp; quyết định (project-context.md)'],
     ['claude-md.html', 'Hướng dẫn AI (CLAUDE.md)'],
+    ['readme-goc.html', 'README gốc (README.md)'],
+  ]],
+  ['Quy trình', [
+    ['git-workflow.html', 'Commit &amp; đóng phase'],
+    ['review-checklist.html', 'Checklist review code'],
+    ['phase-0-checklist.html', 'Hồ sơ Phase 0 (đã đóng)'],
+    ['template-spec.html', 'Khuôn spec tính năng'],
+    ['template-adr.html', 'Khuôn ADR'],
   ]],
 ];
 
@@ -81,6 +119,19 @@ const LINK_MAP = new Map([
   ['001-modular-monolith.md', 'adr-001-modular-monolith.html'],
   ['002-nen-mong-ky-thuat-phase-0.md', 'adr-002-nen-mong-ky-thuat-phase-0.html'],
   ['003-so-huu-logic-tru-ton-kho.md', 'adr-003-so-huu-logic-tru-ton-kho.html'],
+  ['008-correlationid-dung-asynclocalstorage.md', 'adr-008-correlationid-dung-asynclocalstorage.html'],
+  ['git-workflow.md', 'git-workflow.html'],
+  ['review-checklist.md', 'review-checklist.html'],
+  ['phase-0-checklist.md', 'phase-0-checklist.html'],
+  ['phase0-nen-mong.md', 'spec-phase-0.html'],
+  ['phase1-auth.md', 'spec-phase-1.html'],
+  ['phase2-product-inventory.md', 'spec-phase-2.html'],
+  ['phase3-order-concurrency.md', 'spec-phase-3.html'],
+  ['phase4-async-queue-payment.md', 'spec-phase-4.html'],
+  ['phase5-ui-demo.md', 'spec-phase-5.html'],
+  ['phase6-observability.md', 'spec-phase-6.html'],
+  ['feature-spec-template.md', 'template-spec.html'],
+  ['adr-template.md', 'template-adr.html'],
   ['007-ui-la-trang-tinh-mot-file.md', 'adr-007-ui-la-trang-tinh-mot-file.html'],
   ['006-relay-giu-transaction-khi-day-queue.md', 'adr-006-relay-giu-transaction-khi-day-queue.html'],
   ['005-worker-chay-process-rieng.md', 'adr-005-worker-chay-process-rieng.html'],

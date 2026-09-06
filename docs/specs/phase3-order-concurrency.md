@@ -2,7 +2,7 @@
 
 - **Phase:** 3
 - **Ngày:** 2026-09-01
-- **Trạng thái:** Draft — chờ duyệt (chưa code)
+- **Trạng thái:** **Đã implement** (2026-09-03) — 49/49 integration, benchmark k6 1.000 VU, oversell = 0 ở cả ba chiến lược
 
 > Đây là phase **quan trọng nhất** của dự án (`project-context.md` quyết định #6). Hai phase
 > trước là chuẩn bị: Phase 1 cho biết *ai* đang mua, Phase 2 cho biết *cái gì* còn hàng. Phase

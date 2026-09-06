@@ -2,7 +2,7 @@
 
 - **Phase:** 1
 - **Ngày:** 2026-08-08
-- **Trạng thái:** **Đã implement** 2026-08-08 — unit test xanh, integration test **chưa chạy**
+- **Trạng thái:** **Đã implement** 2026-08-08 — 14/14 test case xanh (21 unit + 12 integration), kể cả test #8 reuse detection
   (Docker đang tắt lúc code xong; cần `npm run test:int` để xác nhận)
 
 ## Mục tiêu

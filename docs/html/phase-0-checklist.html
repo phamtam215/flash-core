@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hồ sơ Phase 0 (đã đóng)</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html" class="active">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="checklist-phase-0-nền-móng">Checklist Phase 0 — Nền móng</h1>
+<blockquote class="note"><h1 id="phase-0-đã-đóng-2026-08-08">✅ PHASE 0 ĐÃ ĐÓNG — 2026-08-08</h1>
+<p>File này là <strong>bằng chứng Definition of Done của Phase 0</strong> (vai trò tương đương mục <em>Bằng chứng DoD</em> ở cuối các spec sau này) — hồ sơ đóng, không còn việc nào phải làm. Việc đang làm bây giờ: <code>CLAUDE.md</code> §Trạng thái hiện tại và <a href="spec-phase-1.html"><code>specs/phase1-auth.md</code></a>.</p></blockquote>
+<hr>
+<h2 id="các-việc-đã-hoàn-thành">Các việc đã hoàn thành</h2>
+<hr>
+<h3 id="1-xác-nhận-ci-xanh-xong-2026-08-08">☑ 1. Xác nhận CI xanh — <strong>XONG 2026-08-08</strong></h3>
+<p>Toàn bộ 7 commit đã lên <code>origin/main</code>. Bản vá <code>5593dcd</code> cho lần CI đỏ (<code>Cannot find module './internal/class.js'</code>) đã được xác nhận trên GitHub Actions.</p>
+<hr>
+<h3 id="2-chốt-2-câu-hỏi-đang-treo-xong-2026-08-07">☑ 2. Chốt 2 câu hỏi đang treo — <strong>XONG 2026-08-07</strong></h3>
+<ul><li><strong>2a. Minh bạch về AI</strong> → <strong>cả hai</strong>: giữ <code>Co-Authored-By: Claude</code> trong commit <strong>và</strong> nói rõ quy trình AI-assisted trong README. → nội dung ADR-001</li><li><strong>2b. Gộp hay tách ADR</strong> → <strong>gộp</strong> 5 quyết định kỹ thuật vào một file. → ADR-002</li></ul>
+<hr>
+<h3 id="3-viết-adr-xong-2026-08-07-22-tâm-cần-đọc-duyệt">☑ 3. Viết ADR — <strong>XONG 2026-08-07 (2/2, Tâm cần đọc duyệt)</strong></h3>
+<ul><li><a href="adr-001-modular-monolith.html"><code>adr/001-modular-monolith.md</code></a> — quyết định kiến trúc gốc, và là câu hỏi bản chất của Phase 0. Ghi rõ <strong>hai tầng enforce</strong>: NestJS DI chặn <em>inject</em>, ESLint chặn <em>import sâu</em>.</li><li><a href="adr-002-nen-mong-ky-thuat-phase-0.html"><code>adr/002-nen-mong-ky-thuat-phase-0.md</code></a> — gộp 5 quyết định: Prisma 7 + adapter <code>pg</code> · TypeScript 6 · không path alias · tự viết ConfigModule · <code>@Global</code> đúng hai chỗ.</li></ul>
+<p>ADR về minh bạch AI <strong>đã bỏ</strong> → 3 dòng trong <a href="docs-map.html"><code>README.md</code></a> §Về quy trình phát triển. Lý do: đó là quyết định trình bày portfolio, không phải quyết định kỹ thuật.</p>
+<p><strong>Không ép cho đủ 10 ADR.</strong> Mục tiêu ~10 ở <a href="spec.html"><code>SPEC.md</code> §7</a> là của <strong>cả dự án</strong> — Phase 3 (chọn chiến lược lock sau benchmark) và Phase 4 (chọn cổng thanh toán) sẽ tự sinh ra nhiều ADR thật. Viết ADR cho quyết định chưa xảy ra là ADR rỗng.</p>
+<blockquote class="note"><p>Ghi chú lệch: thân commit <code>e9c5ad5</code> trỏ tới "ADR-003" — sau khi bỏ ADR minh bạch AI thì file đó thành <code>001</code>. Lịch sử commit không sửa được; số đúng là <strong>ADR-001</strong>.</p></blockquote>
+<hr>
+<h3 id="4-ba-câu-hỏi-bản-chất-đáp-án-xong-2026-08-08">☑ 4. Ba câu hỏi bản chất + đáp án — <strong>XONG 2026-08-08</strong></h3>
+<p>Ba câu của Phase 0 (<a href="spec.html"><code>SPEC.md</code></a> dòng 35–36) — đọc câu hỏi, nghĩ vài giây, rồi đọc đáp án:</p>
+<p><strong>1. Modular Monolith khác Microservices ở đâu?</strong></p>
+<p>Microservices = nhiều chương trình chạy riêng, mỗi cái database riêng, nói chuyện qua mạng. Modular Monolith = <strong>một</strong> chương trình, <strong>một</strong> database, nhưng bên trong chia thành module có ranh giới rõ và chỉ gọi nhau qua cửa chính thức (<code>index.ts</code>).</p>
+<p>Điểm mấu chốt: khác biệt <strong>không nằm ở cách chia thư mục</strong> — monolith thường cũng chia thư mục. Nó nằm ở chỗ có thứ gì <strong>chặn</strong> anh đi cửa sau hay không.</p>
+<p><strong>2. Vì sao dự án một người không nên làm microservices?</strong></p>
+<p>Lý do hay được nói: tốn thời gian vào hạ tầng (service discovery, tracing, deploy nhiều service) thay vì vào nghiệp vụ. Đúng, nhưng chưa phải lý do mạnh nhất.</p>
+<p>Lý do thật với dự án này: <strong>chống oversell trong hệ phân tán là bài toán khác hẳn.</strong> Khi tồn kho và đơn hàng nằm ở hai database riêng, anh mất transaction và mất <code>SELECT FOR UPDATE</code> — tức là mất đúng những công cụ mà cả dự án sinh ra để học. Bài toán sẽ biến thành saga và đền bù, khó hơn nhiều và không phải thứ anh đang muốn học.</p>
+<p><strong>3. Ranh giới module được enforce bằng cái gì?</strong></p>
+<p>Bằng <strong>hai tầng, cả hai đều là máy chứ không phải người</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>Tầng</th><th>Chặn cái gì</th><th>Lúc nào</th></tr></thead><tbody><tr><td><strong>NestJS DI container</strong></td><td>Service không nằm trong <code>exports</code> của module thì module khác <strong>không inject được</strong> → <code>Nest can't resolve dependencies</code></td><td>Lúc app khởi động</td></tr><tr><td><strong>ESLint <code>no-restricted-imports</code></strong></td><td><code>import</code> thẳng vào file bên trong module khác → lint đỏ → CI đỏ</td><td>Lúc chạy <code>npm run lint</code></td></tr></tbody></table></div>
+<p>Vì sao cần cả hai: DI container chỉ chặn việc <strong>inject</strong>. Nó không ngăn anh import class rồi tự <code>new</code>, hay import kiểu dữ liệu nội bộ. Không có tầng ESLint thì ranh giới chỉ là quy ước, và quy ước xói mòn <strong>im lặng</strong> — không test nào đỏ khi ai đó import sai.</p>
+<p>Xem: <code><code>health.module.ts</code></code> (không export <code>HealthService</code> vì chưa ai cần) và <code><code>eslint.config.mjs</code></code>.</p>
+<hr>
+<p>Bốn câu về CI &amp; test — cũng đã có đáp án đầy đủ ở <a href="tech-playbook.html#bốn-câu-hay-bị-hỏi--và-câu-trả-lời"><code>tech-playbook.md</code> §Xuyên suốt</a>.</p>
+<hr>
+<h3 id="5-viết-nhật-ký-học-tập-đã-bỏ-2026-08-07"><del>5. Viết nhật ký học tập</del> — <strong>ĐÃ BỎ 2026-08-07</strong></h3>
+<p>Phase 0 là dựng config; không có đủ chất để chiêm nghiệm. Journal bắt đầu từ <strong>Phase 3</strong>, nơi có benchmark và ba chiến lược để so sánh — lúc đó mới có gì đáng ghi.</p>
+<p>Hai bài học kỹ thuật thật của Phase 0 <strong>đã được ghi ở nơi có người đọc</strong> rồi, nên không mất: Prisma 7 sinh import <code>.js</code> → <a href="tech-playbook.html"><code>tech-playbook.md</code> §Xuyên suốt</a> và <a href="architecture.html"><code>architecture.md</code> §Những chỗ dễ vấp</a>.</p>
+<hr>
+<h3 id="5-đóng-phase-xong-2026-08-08">☑ 5. Đóng phase — <strong>XONG 2026-08-08</strong></h3>
+<p><code>CLAUDE.md</code> §Trạng thái → Phase 1 · <code>README.md</code> §Lộ trình → Phase 0 ✅ · file này đã đóng.</p>
+<hr>
+<h2 id="đã-xong-không-cần-hỏi-lại">Đã xong — không cần hỏi lại</h2>
+<div class="table-wrap"><table><thead><tr><th></th><th>Bằng chứng</th></tr></thead><tbody><tr><td>✅ Docker Compose: Postgres 16 + Redis 7</td><td><code>npm run up</code></td></tr><tr><td>✅ NestJS skeleton + module mẫu <code>health</code></td><td><code><code>src/modules/health/</code></code></td></tr><tr><td>✅ Config validate bằng Zod, chết lúc boot nếu thiếu biến</td><td><code><code>src/config/env.schema.ts</code></code></td></tr><tr><td>✅ Pino + <code>correlationId</code> + redact</td><td><code><code>src/common/logger/</code></code></td></tr><tr><td>✅ Exception filter thống nhất, phân loại 4xx/5xx</td><td><code><code>src/common/filters/</code></code></td></tr><tr><td>✅ Prisma 7 + <code>pg</code> driver adapter, đóng pool khi SIGTERM</td><td><code><code>src/infra/prisma/</code></code></td></tr><tr><td>✅ <strong>16/16 test xanh</strong> (11 unit + 5 integration Testcontainers)</td><td><code>npm run check</code> · <code>npm run test:int</code></td></tr><tr><td>✅ CI GitHub Actions: generate → lint → typecheck → test → build</td><td><code><code>.github/workflows/ci.yml</code></code></td></tr><tr><td>✅ <strong>Ranh giới module enforce bằng máy</strong>: ESLint chặn import sâu, đã thử bằng file vi phạm</td><td><code><code>eslint.config.mjs</code></code> <code>no-restricted-imports</code></td></tr><tr><td>✅ Spec Phase 0, template spec/ADR, review checklist</td><td><a href="spec-phase-0.html"><code>specs/phase0-nen-mong.md</code></a></td></tr><tr><td>✅ Bộ công cụ Claude (đã tinh gọn còn 2 lệnh + 3 hook)</td><td><a href="claude-md.html"><code>CLAUDE.md</code></a> §Bộ công cụ</td></tr><tr><td>✅ Tài liệu: bản đồ code, sổ tay kỹ thuật, từ điển, mục lục</td><td><a href="docs-map.html"><code>docs/README.md</code></a></td></tr></tbody></table></div>
+<hr>
+<h2 id="cố-tình-không-làm-ở-phase-0">Cố tình KHÔNG làm ở Phase 0</h2>
+<p>Ghi ra để anh <strong>không phải lo</strong> khi thấy thiếu — đây là nợ có chủ đích, đã có chỗ trả:</p>
+<div class="table-wrap"><table><thead><tr><th>Chưa có</th><th>Trả ở</th></tr></thead><tbody><tr><td>Model nghiệp vụ (sản phẩm, SKU, tồn kho, đơn) + migration đầu tiên</td><td>Phase 2–3</td></tr><tr><td>Auth, rate limit</td><td>Phase 1</td></tr><tr><td>Redis client, BullMQ (Compose đã dựng Redis nhưng app chưa nối)</td><td>Phase 3–4</td></tr><tr><td><strong>Integration test chạy trên CI</strong></td><td>Phase 3 — lý do ghi ở đầu <code>ci.yml</code></td></tr><tr><td>Metrics, graceful shutdown cho job đang chạy</td><td>Phase 6</td></tr><tr><td>Dockerfile, deploy Cloud Run</td><td>Phase 7</td></tr></tbody></table></div>
+<hr>
+<h2 id="phase-0-đóng-góp-gì-vào-definition-of-done">Phase 0 đóng góp gì vào Definition of Done</h2>
+<p><a href="spec.html"><code>SPEC.md</code> §7</a> có 7 mục cho <strong>cả dự án</strong>. Phase 0 chỉ chạm 2 mục, và chỉ một phần:</p>
+<ul><li><strong>~10 ADR</strong> → hiện <strong>2/10</strong></li><li><strong>Integration test trên DB thật</strong> → hạ tầng Testcontainers đã chạy được; phần "coverage ≥ 70% module core" phải chờ có module Order/Inventory (Phase 2–3)</li></ul>
+<p>5 mục còn lại (benchmark k6, sơ đồ, webhook, deploy, demo video) <strong>không thuộc Phase 0</strong>.</p>
+<hr>
+<h2 id="ba-điều-kiện-đóng-phase-đã-đủ-cả-ba">Ba điều kiện đóng phase — đã đủ cả ba</h2>
+<ol><li>✅ <strong>CI xanh</strong> trên <code>main</code></li><li>✅ <strong>Đã đọc 3 câu hỏi bản chất + đáp án</strong></li><li>✅ <strong>Mọi quyết định hạ tầng đều có chỗ ghi lại</strong> — 2 ADR</li></ol>
+<p>Điều kiện 3 mới là tiêu chí thật của phase này. Code chạy chỉ là điều kiện cần: đây là phần nền, sai ở đây thì 6 phase sau phải chịu. Điều đáng giá không phải là <em>nhớ được</em> các quyết định, mà là <strong>chúng đã được viết ra ở nơi tra lại được</strong> — sáu tháng sau không ai nhớ nổi, kể cả người ra quyết định.</p>
+</main>
+</div>
+</body>
+</html>

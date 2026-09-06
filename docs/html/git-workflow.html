@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quy chuẩn commit & cách đóng phase</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html" class="active">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="git-workflow-flash-core">Git Workflow — Flash-Core</h1>
+<blockquote class="note"><p>Mục tiêu: git history của repo này phải <strong>tự kể được câu chuyện phát triển dự án</strong>. Người tuyển dụng đọc <code>git log</code> là hiểu được tư duy, không chỉ đọc code cuối cùng.</p></blockquote>
+<h2 id="1-nhánh">1. Nhánh</h2>
+<ul><li><code>main</code> — luôn xanh (CI pass). Không commit trực tiếp.</li><li><code>phase-N/&lt;tên-tính-năng&gt;</code> — nhánh làm việc, ví dụ <code>phase-3/optimistic-locking</code>.</li><li>Xong tính năng → PR vào <code>main</code>, tự review, merge (squash nếu commit lộn xộn).</li></ul>
+<h2 id="2-commit-message-conventional-commits">2. Commit message — Conventional Commits</h2>
+<pre><code>&lt;type&gt;(&lt;scope&gt;): &lt;mô tả ngắn, thể mệnh lệnh, &lt; 50 ký tự&gt;
+
+&lt;thân: VÌ SAO làm thế này, không phải LÀM GÌ — code đã nói "làm gì" rồi&gt;
+&lt;trade-off đã chấp nhận, nếu có&gt;
+
+Refs: docs/specs/&lt;file&gt;.md, ADR-&lt;số&gt;</code></pre>
+<p><strong>Types:</strong> <code>feat</code> (tính năng mới) · <code>fix</code> (sửa lỗi) · <code>refactor</code> · <code>test</code> · <code>docs</code> · <code>perf</code> (cải thiện hiệu năng) · <code>chore</code> (cấu hình, CI, deps)</p>
+<p><strong>Scope:</strong> tên module — <code>auth</code>, <code>product</code>, <code>order</code>, <code>queue</code>, <code>payment</code>, <code>obs</code>, <code>infra</code>, <code>fe</code></p>
+<h3 id="ví-dụ-tốt-chuẩn-của-dự-án-này">Ví dụ tốt (chuẩn của dự án này)</h3>
+<pre><code>feat(order): thêm optimistic locking cho trừ tồn kho SKU
+
+Dùng cột version trên bảng inventory, update kèm điều kiện version
+để phát hiện xung đột, retry tối đa 3 lần với backoff nhẹ.
+
+Chọn optimistic thay pessimistic ở bước này vì muốn đo baseline
+throughput khi chưa có lock chờ nhau — sẽ so sánh với FOR UPDATE
+ở commit sau. Trade-off: dưới tranh chấp gắt tỷ lệ retry sẽ cao,
+đo bằng k6 ở Phase 3.
+
+Refs: docs/specs/order-create.md, ADR-004</code></pre>
+<h3 id="ví-dụ-tệ-cấm">Ví dụ tệ (cấm)</h3>
+<pre><code>update code
+fix bug
+feat: thêm nhiều thứ</code></pre>
+<h2 id="3-nguyên-tắc-commit">3. Nguyên tắc commit</h2>
+<ul><li><strong>Một commit = một ý.</strong> Đổi 3 việc khác nhau → 3 commit.</li><li><strong>Commit phải xanh:</strong> không commit code làm test fail (trừ commit <code>test:</code> cố tình thêm test đỏ trước khi implement — ghi rõ trong thân).</li><li><strong>Không commit secret.</strong> <code>.env</code> phải nằm trong <code>.gitignore</code> ngay commit đầu tiên.</li><li><strong>Không push khi test chưa pass local.</strong> CI chỉ là lưới an toàn cuối.</li></ul>
+<h2 id="4-quy-tắc-dành-cho-ai-claude-code">4. Quy tắc dành cho AI (Claude Code)</h2>
+<ol><li><strong>AI được commit, nhưng KHÔNG được push trước khi Tâm review.</strong> Luồng chuẩn: AI code → AI chạy test → AI commit → <strong>Tâm review theo <code>docs/review-checklist.md</code></strong> → Tâm ra lệnh push.</li><li>Mỗi commit AI tạo phải có <strong>thân giải thích vì sao</strong>, và tham chiếu spec/ADR liên quan.</li><li>Trước khi mở PR, AI viết <strong>PR description</strong> gồm: tính năng gì, các quyết định chính, test nào đã thêm, phần nào cần Tâm chú ý khi review.</li><li>Nếu một thay đổi lớn hơn phạm vi spec → dừng, hỏi Tâm, đề xuất ADR. Không tự mở rộng.</li><li>Giữ <strong>Co-Authored-By</strong> minh bạch nếu Tâm muốn — xem mục 6.</li></ol>
+<h2 id="5-đóng-phase-cập-nhật-đúng-ba-chỗ-không-thêm-file">5. Đóng phase — cập nhật đúng ba chỗ, không thêm file</h2>
+<p>Kết thúc một phase, tạo commit <code>docs:</code> sửa <strong>đúng ba chỗ</strong>, mỗi chỗ có một chủ rõ ràng:</p>
+<div class="table-wrap"><table><thead><tr><th>Chỗ</th><th>Ghi gì</th></tr></thead><tbody><tr><td><code>CLAUDE.md</code> §Trạng thái hiện tại</td><td>phase đã xong, còn nợ gì — <strong>chủ sở hữu duy nhất của trạng thái</strong></td></tr><tr><td><code>docs/specs/phaseN-*.md</code> §Bằng chứng DoD</td><td>số test, số đo, cấu hình để chạy lại</td></tr><tr><td><code>docs/tech-playbook.md</code> §Phase N</td><td><strong>kiến thức mới</strong>: cơ chế vừa hiểu ra, bug thật đã va, con số đo được và vì sao nó như vậy</td></tr></tbody></table></div>
+<blockquote class="note"><p>Trước đây repo có thêm <code>docs/journal/phase-N.md</code>; đã bỏ vì nó chép lại trạng thái từ spec và chỉ tồn tại cho 2 trong 4 phase — đúng kiểu phân tán mà tài liệu dự án này muốn tránh. Nội dung đáng giữ (bug thật, số đo, "nếu làm lại") giờ nằm ở playbook; lịch sử vẫn còn trong <code>git log -- docs/journal/</code>.</p></blockquote>
+<h2 id="6-minh-bạch-về-việc-dùng-ai">6. Minh bạch về việc dùng AI</h2>
+<p>Có hai lựa chọn, Tâm chọn một và ghi vào ADR-001:</p>
+<ul><li><strong>(a) Giữ <code>Co-Authored-By: Claude</code></strong> trong commit — minh bạch tuyệt đối.</li><li><strong>(b) Không ghi trong commit, nhưng nói rõ trong README</strong> rằng dự án được phát triển theo quy trình AI-assisted (spec-driven, human review), kèm link <code>docs/review-checklist.md</code> và <code>docs/adr/</code>.</li></ul>
+<p><strong>Khuyến nghị: chọn (b), hoặc (a)+(b).</strong> Che giấu là rủi ro lớn nhất — bị phát hiện thì mất uy tín; còn chủ động trình bày quy trình kiểm soát AI thì đó là <strong>năng lực đáng giá năm 2026</strong>, không phải điểm yếu. Điều Tâm cần bảo vệ không phải là "tôi tự gõ từng dòng", mà là <strong>"tôi hiểu và chịu trách nhiệm cho từng dòng"</strong> — bằng chứng là ADR, test, benchmark và nhật ký học tập.</p>
+<h2 id="7-vài-lệnh-hay-dùng-khi-review-code-ai">7. Vài lệnh hay dùng khi review code AI</h2>
+<pre><code class="language-bash">git log --oneline --graph          # xem lịch sử gọn
+git show &lt;hash&gt;                    # xem 1 commit làm gì
+git diff main...HEAD               # xem toàn bộ thay đổi của nhánh
+git diff --staged                  # xem đúng thứ sắp commit
+git log -S "SELECT FOR UPDATE"     # tìm commit nào đưa đoạn code này vào</code></pre>
+</main>
+</div>
+</body>
+</html>

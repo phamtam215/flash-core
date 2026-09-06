@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec Phase 3 — Order & Concurrency</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html" class="active">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="spec-order-concurrency-3-chiến-lược-chống-oversell-phase-3">Spec: Order &amp; Concurrency — 3 chiến lược chống oversell (Phase 3) ⭐</h1>
+<ul><li><strong>Phase:</strong> 3</li><li><strong>Ngày:</strong> 2026-09-01</li><li><strong>Trạng thái:</strong> <strong>Đã implement</strong> (2026-09-03) — 49/49 integration, benchmark k6 1.000 VU, oversell = 0 ở cả ba chiến lược</li></ul>
+<blockquote class="note"><p>Đây là phase <strong>quan trọng nhất</strong> của dự án (<code>project-context.md</code> quyết định #6). Hai phase trước là chuẩn bị: Phase 1 cho biết <em>ai</em> đang mua, Phase 2 cho biết <em>cái gì</em> còn hàng. Phase này trả lời câu hỏi khó: <strong>1.000 người bấm cùng lúc vào 100 chiếc áo thì bán ra đúng 100, không phải 101.</strong></p>
+<p>Kiến thức nền cần đọc TRƯỚC khi code: <a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 3</a> — 6 cơ chế (vì sao <code>if (stock &gt; 0) stock--</code> <em>chắc chắn</em> sai, 3 mức isolation, vì sao <code>UPDATE ... WHERE stock &gt;= 1</code> an toàn ngay ở Read Committed, 3 chiến lược và đánh đổi, vì sao Redis phải dùng Lua, vì sao Idempotency-Key phải để DB làm trọng tài). Khoảng 20 phút.</p></blockquote>
+<h2 id="mục-tiêu">Mục tiêu</h2>
+<p>Cho user "săn" một SKU: tạo đơn giữ chỗ, trừ tồn kho <strong>chính xác tuyệt đối</strong> dưới tải cao. Deliverable học tập không phải "có API đặt hàng chạy được", mà là <strong>so sánh được ba cách chống oversell bằng số đo thật</strong>, và giải thích được cách nào thắng ở hoàn cảnh nào.</p>
+<p>Ba tính chất bắt buộc, không thương lượng:</p>
+<ol><li><strong>Oversell = 0</strong> ở cả ba chiến lược, dưới 1.000 VU.</li><li><strong>Idempotent</strong>: cùng một <code>Idempotency-Key</code> gọi 10 lần → đúng 1 đơn.</li><li><strong>Snapshot price</strong>: đơn giữ giá tại thời điểm đặt, giá SKU đổi sau đó không ảnh hưởng.</li></ol>
+<h2 id="api">API</h2>
+<p>Module đề xuất: <code>src/modules/order/</code> — sở hữu <code>Order</code>, <code>OrderItem</code>, và <strong>cả ba chiến lược reserve</strong> (xem Câu hỏi mở #1 về lý do không đặt ở module <code>product</code>).</p>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>Path</th><th>Việc</th><th>Auth</th><th>Response</th></tr></thead><tbody><tr><td>POST</td><td><code>/orders</code></td><td><strong>"Săn ngay"</strong> — trừ kho + tạo đơn giữ chỗ</td><td><code>AccessTokenGuard</code></td><td><code>201 { order }</code></td></tr><tr><td>GET</td><td><code>/orders</code></td><td>Đơn của tôi, cursor pagination</td><td><code>AccessTokenGuard</code></td><td><code>200 { items, nextCursor }</code></td></tr><tr><td>GET</td><td><code>/orders/:id</code></td><td>Chi tiết đơn kèm item</td><td><code>AccessTokenGuard</code></td><td><code>200 { order, items }</code></td></tr></tbody></table></div>
+<p><code>POST /orders</code> <strong>bắt buộc</strong> header <code>Idempotency-Key</code> (luật trong <code>CLAUDE.md</code>: mọi API ghi liên quan đơn hàng). Thiếu header → <code>400 IDEMPOTENCY_KEY_REQUIRED</code>, chưa chạm DB.</p>
+<p><strong>Request schema (Zod):</strong></p>
+<pre><code class="language-ts">const createOrder = z.object({
+  skuId: z.string().uuid(),
+  quantity: z.number().int().positive().max(5), // xem Câu hỏi mở #3
+});
+// KHÔNG có field `price`. Client không được gửi giá — giá lấy từ DB tại thời điểm đặt
+// (snapshot price). `ZodValidationPipe` tự loại field lạ, đã có test từ Phase 0.</code></pre>
+<p><code>GET /orders</code> dùng lại đúng <code>listQuerySchema</code> (cursor + limit) của Phase 2 — cùng cơ chế keyset <code>(createdAt, id)</code>, không phát minh lại.</p>
+<h2 id="schema-db">Schema DB</h2>
+<pre><code class="language-prisma">enum OrderStatus {
+  PENDING   // đã giữ chỗ, chờ thanh toán
+  PAID      // Phase 4 chuyển sang trạng thái này khi webhook xác nhận
+  CANCELLED // Phase 4: hết 15 phút tự hủy, hoặc user tự hủy
+}
+
+/// Đơn hàng. `idempotencyKey` là khoá UNIQUE — đó là cơ chế chống double-submit, và
+/// DB là trọng tài duy nhất (xem tech-playbook §Phase 3 cơ chế #6).
+model Order {
+  id             String      @id @default(uuid()) @db.Uuid
+  userId         String      @map("user_id") @db.Uuid
+  status         OrderStatus @default(PENDING)
+  /// Tổng tiền = tổng (unitPriceVnd × quantity) của item, chốt tại thời điểm đặt.
+  totalVnd       Int         @map("total_vnd")
+  /// Client tự sinh, gửi qua header. UNIQUE theo user để hai user tình cờ dùng cùng chuỗi
+  /// không chặn nhau.
+  idempotencyKey String      @map("idempotency_key")
+  /// Mốc hết hạn giữ chỗ (createdAt + 15 phút). Phase 3 chỉ GHI cột này; job tự hủy khi
+  /// quá hạn là deliverable của Phase 4 (BullMQ delayed job).
+  expiresAt      DateTime    @map("expires_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, expiresAt]) // Phase 4 quét đơn PENDING quá hạn
+  @@map("orders")
+}
+
+/// Một dòng trong đơn. `unitPriceVnd` là SNAPSHOT — copy giá SKU lúc đặt, KHÔNG join lấy
+/// giá hiện tại khi đọc đơn. Lý do: giá SKU đổi (kết thúc sale) không được làm đổi số tiền
+/// trên đơn đã chốt.
+model OrderItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  orderId      String   @map("order_id") @db.Uuid
+  skuId        String   @map("sku_id") @db.Uuid
+  quantity     Int
+  unitPriceVnd Int      @map("unit_price_vnd")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  order Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku   ProductSku @relation(fields: [skuId], references: [id])
+
+  @@index([orderId])
+  @@index([skuId])
+  @@map("order_items")
+}</code></pre>
+<p><strong>Quan hệ ngược bắt buộc thêm</strong> (Prisma không validate nếu thiếu):</p>
+<pre><code class="language-prisma">model User       { orders     Order[]      }  // thêm vào model User đã có
+model ProductSku { orderItems OrderItem[]  }  // thêm vào model ProductSku đã có</code></pre>
+<p><strong>Thêm vào <code>ProductSku</code> (migration riêng, đúng như Phase 2 đã hẹn):</strong></p>
+<pre><code class="language-prisma">  /// Tăng 1 mỗi lần tồn kho đổi. Dùng cho chiến lược optimistic.
+  /// Ghi chú quan trọng: cột này KHÔNG cần thiết để chống oversell — `UPDATE ... WHERE
+  /// stock &gt;= ?` đã đủ an toàn ngay ở Read Committed. Nó có mặt để (a) so sánh đúng nghĩa
+  /// "optimistic locking" trong benchmark, (b) chuẩn bị cho trường hợp update nhiều field
+  /// phụ thuộc nhau. Xem tech-playbook §Phase 3 cơ chế #3.
+  version Int @default(0)</code></pre>
+<h2 id="ba-chiến-lược-một-interface">Ba chiến lược, một interface</h2>
+<p>Cả ba implement cùng interface, đổi bằng <code>INVENTORY_STRATEGY</code> (biến này <strong>đã có sẵn</strong> trong <code>env.schema.ts</code> từ Phase 0 — đúng chỗ nó được chuẩn bị cho).</p>
+<pre><code class="language-ts">/** Kết quả reserve — service tầng trên không cần biết chiến lược nào đang chạy. */
+type ReserveResult =
+  | { ok: true; unitPriceVnd: number; attempts: number }
+  | { ok: false; reason: 'OUT_OF_STOCK' | 'SKU_NOT_FOUND' };
+
+interface InventoryReserver {
+  /** Trừ `quantity` khỏi tồn kho của `skuId`, trả về giá đơn vị để snapshot vào đơn. */
+  reserve(skuId: string, quantity: number): Promise&lt;ReserveResult&gt;;
+  readonly name: 'optimistic' | 'pessimistic' | 'redis';
+}</code></pre>
+<p>Đăng ký qua DI token <code>INVENTORY_RESERVER</code> + factory đọc <code>env.INVENTORY_STRATEGY</code>. Không dùng <code>if/else</code> rải trong service — service chỉ biết interface.</p>
+<h3 id="a-optimistic-ghi-kèm-điều-kiện-thua-thì-retry">A. Optimistic — ghi kèm điều kiện, thua thì retry</h3>
+<pre><code class="language-sql">UPDATE product_skus
+SET stock = stock - $2, version = version + 1, updated_at = now()
+WHERE id = $1 AND stock &gt;= $2 AND is_active = true
+RETURNING price_vnd, version;</code></pre>
+<ul><li><code>UPDATE</code> trả <strong>0 dòng</strong> → chưa biết vì sao. Phải <code>SELECT</code> lại để <strong>tách hai nhánh</strong>: không tồn tại → <code>SKU_NOT_FOUND</code> (404); tồn tại nhưng <code>stock &lt; quantity</code> → <code>OUT_OF_STOCK</code> (409, <strong>không retry</strong> — retry cho SKU hết hàng là bug ghi trong tech-playbook).</li><li>Retry chỉ dành cho xung đột thật (deadlock/serialization failure <code>40001</code>): tối đa 3 lần, backoff nhỏ có jitter (xem Câu hỏi mở #4).</li><li><strong>Điểm học:</strong> câu <code>UPDATE</code> này an toàn ngay ở Read Committed, không cần đổi isolation level. Khi nó gặp dòng đang bị khoá, Postgres <strong>chờ rồi đánh giá lại <code>WHERE</code> trên phiên bản mới</strong>.</li></ul>
+<h3 id="b-pessimistic-select-for-update-người-sau-chờ">B. Pessimistic — <code>SELECT FOR UPDATE</code>, người sau chờ</h3>
+<pre><code class="language-ts">await this.prisma.$transaction(async (tx) =&gt; {
+  // Prisma không có API cho FOR UPDATE → phải $queryRaw. Đây chính là "chạm giới hạn của
+  // ORM" mà project-context.md quyết định #5 muốn học.
+  const rows = await tx.$queryRaw`
+    SELECT id, stock, price_vnd FROM product_skus
+    WHERE id = ${skuId}::uuid AND is_active = true
+    FOR UPDATE`;
+  // ... kiểm tra stock trong RAM Ở ĐÂY LÀ AN TOÀN, vì dòng đang bị khoá độc quyền ...
+  await tx.$executeRaw`UPDATE product_skus SET stock = stock - ${quantity} ...`;
+});</code></pre>
+<ul><li><strong>Bắt buộc</strong> bọc trong <code>$transaction</code> interactive. Chạy <code>FOR UPDATE</code> ngoài transaction thì khoá nhả ngay khi câu lệnh xong → vô tác dụng (bug #2 trong bảng tech-playbook).</li><li>Khoá nhiều dòng thì luôn <code>ORDER BY id</code> để tránh deadlock. Phase 3 chỉ khoá 1 SKU/đơn nên chưa gặp, nhưng ghi ra để không quên khi giỏ hàng nhiều SKU xuất hiện.</li><li><strong>Điểm học dự kiến:</strong> đây là chiến lược sẽ <strong>cạn pool</strong> trước tiên — mỗi transaction đang chờ khoá vẫn giữ một connection. <code>DATABASE_POOL_MAX</code> là <strong>một phần của kết quả benchmark</strong>, không phải hằng số.</li></ul>
+<h3 id="c-redis-atomic-lua-kiểm-tra-và-trừ-trong-một-lệnh">C. Redis atomic — Lua kiểm-tra-và-trừ trong một lệnh</h3>
+<pre><code class="language-lua">-- KEYS[1] = stock:{skuId}, ARGV[1] = quantity
+local stock = tonumber(redis.call('GET', KEYS[1]))
+if stock == nil then return -2 end          -- chưa nạp vào Redis
+if stock &lt; tonumber(ARGV[1]) then return -1 end  -- hết hàng
+return redis.call('DECRBY', KEYS[1], ARGV[1])</code></pre>
+<ul><li><strong>Vì sao phải Lua:</strong> Redis chạy lệnh tuần tự một luồng, một script Lua chạy trọn vẹn không bị chen ngang. <code>GET</code> rồi <code>DECRBY</code> từ Node lại là read-modify-write — chỉ đổi chỗ xảy ra bug.</li><li>Nạp tồn kho vào Redis: lazy khi miss (<code>-2</code>) → đọc DB, <code>SET</code> bằng <code>NX</code> để hai request cùng nạp không ghi đè nhau (xem Câu hỏi mở #2).</li><li>Sau khi Redis trừ thành công → ghi DB (Phase 3 ghi <strong>đồng bộ</strong> ngay trong request; outbox + async persist là Phase 4).</li><li><strong>Failure mode phải xử lý tường minh:</strong> Redis đã trừ mà ghi DB thất bại → <strong>bù trừ ngược</strong> (<code>INCRBY</code>) và log mức <code>error</code> kèm <code>correlationId</code>. Nếu cả bù trừ cũng thất bại → tồn kho lệch, <strong>log rõ ràng chứ không im lặng sửa số</strong>; reconcile job là Phase 4.</li></ul>
+<h2 id="luồng-xử-lý-post-orders">Luồng xử lý <code>POST /orders</code></h2>
+<pre><code>1. Guard: AccessTokenGuard → có userId
+2. Đọc header Idempotency-Key → thiếu thì 400 (chưa chạm DB)
+3. Zod validate body (skuId, quantity) → sai thì 400 (chưa chạm DB)
+4. reserve(skuId, quantity) qua INVENTORY_RESERVER
+   ├─ ok: false → 404 SKU_NOT_FOUND hoặc 409 OUT_OF_STOCK
+   └─ ok: true → có unitPriceVnd (snapshot)
+5. Transaction (HẸP — chỉ 2 lệnh ghi, không gọi mạng bên trong):
+   ├─ INSERT orders (userId, idempotencyKey, totalVnd, expiresAt = now + 15')
+   │   └─ vi phạm UNIQUE(userId, idempotencyKey) → đây là lần gọi lặp:
+   │       hoàn tồn kho vừa trừ, SELECT đơn cũ, trả 200 + đơn cũ
+   └─ INSERT order_items (skuId, quantity, unitPriceVnd)
+6. 201 { order }</code></pre>
+<p><strong>Thứ tự bước 4 và 5 là một đánh đổi có chủ đích, phải nói rõ:</strong> reserve TRƯỚC rồi insert đơn sau nghĩa là lần gọi lặp (trùng Idempotency-Key) sẽ trừ kho rồi mới phát hiện và phải <strong>hoàn lại</strong>. Cách ngược lại (insert đơn trước) tránh được việc hoàn kho, nhưng với chiến lược Redis thì reserve nằm ngoài transaction DB nên vẫn phải bù trừ ở nhánh lỗi — không có cách nào tránh hoàn toàn. Chọn "reserve trước" để cả ba chiến lược đi cùng một luồng, dễ so sánh benchmark. Xem Câu hỏi mở #5.</p>
+<h2 id="edge-cases-bắt-buộc-xử-lý">Edge cases bắt buộc xử lý</h2>
+<ul><li>☐ Thiếu header <code>Idempotency-Key</code> → <code>400</code>, chưa chạm DB</li><li>☐ Cùng <code>Idempotency-Key</code> gọi 2 lần → <strong>1 đơn</strong>, lần 2 trả <code>200</code> + đúng đơn cũ, tồn kho chỉ trừ <strong>một lần</strong></li><li>☐ Hai user tình cờ dùng cùng chuỗi Idempotency-Key → 2 đơn độc lập (UNIQUE theo <code>userId</code>)</li><li>☐ <code>quantity = 0</code> / âm / &gt; 5 → <code>400</code> ở Zod, chưa chạm DB</li><li>☐ <code>skuId</code> không tồn tại → <code>404</code></li><li>☐ <code>is_active = false</code> (SKU đã ngừng bán) → <code>404</code>, không cho đặt</li><li>☐ <code>stock = 0</code> → <code>409 OUT_OF_STOCK</code>, <strong>không phải 500</strong> (trạng thái nghiệp vụ, không phải lỗi hệ thống — trộn hai loại làm error rate benchmark vô nghĩa)</li><li>☐ <strong>200 request song song vào SKU có <code>stock = 100</code></strong> → đúng 100 đơn <code>201</code>, 100 lần <code>409</code>, <code>stock</code> cuối = 0, <strong>không bao giờ âm</strong>. Chạy cho <strong>cả ba</strong> chiến lược</li><li>☐ <code>UPDATE product_skus SET stock = -1</code> bằng SQL thẳng → DB từ chối (<code>CHECK stock &gt;= 0</code>, lưới an toàn cuối đã có từ Phase 2)</li><li>☐ Client gửi kèm <code>price</code> trong body → bị Zod loại, đơn dùng giá từ DB</li><li>☐ Giá SKU đổi SAU khi đặt → <code>unitPriceVnd</code> trên <code>order_items</code> không đổi</li><li>☐ <code>GET /orders</code> của user A không thấy đơn của user B</li><li>☐ <code>GET /orders/:id</code> với id của user khác → <code>404</code> (không phải <code>403</code> — không tiết lộ đơn đó có tồn tại)</li><li>☐ (Redis) Redis trừ xong nhưng DB ghi lỗi → bù trừ ngược + log <code>error</code>, tồn kho không lệch</li><li>☐ (Redis) Key chưa nạp → nạp lazy từ DB, hai request cùng nạp không ghi đè nhau</li></ul>
+<h2 id="test-cases-phải-pass">Test cases phải pass</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Test</th><th>Loại</th></tr></thead><tbody><tr><td>1</td><td>Đặt hàng hợp lệ → <code>201</code>, <code>stock</code> giảm đúng <code>quantity</code>, <code>order_items</code> có 1 dòng</td><td>integration</td></tr><tr><td>2</td><td>Cùng <code>Idempotency-Key</code> 2 lần → 1 đơn, lần 2 trả <code>200</code> + cùng <code>order.id</code>, <code>stock</code> trừ 1 lần</td><td>integration</td></tr><tr><td>3</td><td>Khác <code>Idempotency-Key</code>, cùng user + SKU → 2 đơn</td><td>integration</td></tr><tr><td>4</td><td>Thiếu header <code>Idempotency-Key</code> → <code>400</code></td><td>integration</td></tr><tr><td>5</td><td><code>quantity</code> = 0 / -1 / 6 → <code>400</code></td><td>unit (Zod)</td></tr><tr><td>6</td><td><code>skuId</code> lạ → <code>404</code>; SKU <code>is_active = false</code> → <code>404</code></td><td>integration</td></tr><tr><td>7</td><td><code>stock = 0</code> → <code>409 OUT_OF_STOCK</code></td><td>integration</td></tr><tr><td>8</td><td>⭐ <strong>200 request <code>Promise.all</code> vào SKU <code>stock = 100</code> → đúng 100×<code>201</code> + 100×<code>409</code>, <code>stock</code> = 0</strong> — chạy <strong>3 lần, mỗi lần một <code>INVENTORY_STRATEGY</code></strong></td><td>integration</td></tr><tr><td>9</td><td>Snapshot price: đặt xong đổi <code>price_vnd</code> của SKU → <code>order_items.unit_price_vnd</code> không đổi</td><td>integration</td></tr><tr><td>10</td><td>Client gửi <code>price</code> trong body → bị loại, đơn dùng giá DB</td><td>integration</td></tr><tr><td>11</td><td><code>GET /orders</code> chỉ trả đơn của chính user (tạo đơn bằng 2 user khác nhau)</td><td>integration</td></tr><tr><td>12</td><td><code>GET /orders/:id</code> của user khác → <code>404</code></td><td>integration</td></tr><tr><td>13</td><td>Pessimistic khoá thật: 2 transaction song song, cái sau <strong>chờ</strong> cái trước (assert bằng thứ tự <code>updatedAt</code> / không có lost update)</td><td>integration</td></tr><tr><td>14</td><td>Redis: sau 200 reserve song song, <code>GET stock:{skuId}</code> khớp <code>product_skus.stock</code> trong DB</td><td>integration</td></tr><tr><td>15</td><td>Redis bù trừ: mock DB ghi lỗi sau khi Redis trừ → Redis được <code>INCRBY</code> trả lại, có log <code>error</code></td><td>integration</td></tr><tr><td>16</td><td>⭐ <strong>k6 1.000 VU săn 100 chiếc, chạy 3 lần cho 3 chiến lược</strong>: ghi lại throughput, p95, error rate (tách 4xx/5xx), khẳng định oversell = 0 ở cả ba</td><td>manual (evidence)</td></tr></tbody></table></div>
+<p>Test #8 là <strong>cổng chính</strong> của phase: chưa xanh ở cả ba chiến lược thì chưa có gì để nói. Test #16 là <strong>Evidence CV</strong> theo <code>docs/SPEC.md</code>.</p>
+<h2 id="definition-of-done">Definition of Done</h2>
+<ul><li>☑ Test #1–15 xanh (unit + integration qua Testcontainers), test #8 xanh với <strong>cả ba</strong> <code>INVENTORY_STRATEGY</code></li><li>☑ Test #16: báo cáo k6 cho 3 chiến lược — bảng throughput / p95 / error rate (tách 4xx vs 5xx) + kết luận <strong>khi nào dùng cái nào</strong>, dán vào §Trạng thái thật của spec này</li><li>☑ <code>DATABASE_POOL_MAX</code> được thử ở ≥2 giá trị khi benchmark pessimistic, ghi lại ảnh hưởng (chứng minh hiểu "pool exhaustion khác lock contention")</li><li>☑ <code>npm run check</code> xanh</li><li>☑ <strong>ADR-003</strong>: chốt module nào sở hữu logic trừ kho (xem Câu hỏi mở #1) — quyết định này ảnh hưởng ranh giới module nên bắt buộc có ADR</li><li>☑ <code>docs/architecture.md</code> cập nhật module <code>order/</code></li><li>☐ Tâm tự trả lời 3 câu hỏi bản chất của phase — <strong>mục duy nhất còn lại của Phase 3</strong></li></ul>
+<h2 id="ngoài-phạm-vi-non-goals">Ngoài phạm vi (Non-goals)</h2>
+<ul><li><strong>Tự hủy đơn quá 15 phút</strong> (BullMQ delayed job) và <strong>trả hàng về kho</strong> — Phase 4. Phase 3 chỉ GHI cột <code>expiresAt</code>, không có job nào đọc nó.</li><li><strong>Thanh toán / webhook</strong> — Phase 4. Đơn dừng ở <code>PENDING</code>.</li><li><strong>Outbox pattern + async persist cho chiến lược Redis</strong> — Phase 4. Phase 3 ghi DB đồng bộ.</li><li><strong>Reconcile job</strong> cho tồn kho Redis lệch DB — Phase 4. Phase 3 chỉ log rõ khi phát hiện.</li><li><strong>Giỏ hàng nhiều SKU</strong> trong một đơn. Một đơn = một SKU. (Schema <code>OrderItem</code> đã sẵn sàng cho nhiều dòng, nhưng API và logic khoá chỉ làm 1 SKU — tránh bài toán deadlock thứ tự khoá khi chưa cần.)</li><li><strong>Huỷ đơn do user bấm</strong> — Phase 4 làm cùng lúc với auto-cancel để dùng chung đường trả kho.</li><li><strong>Sự kiện sale có giờ mở/đóng</strong> (đếm ngược, giá event riêng) — chưa có bảng Event; Phase 3 đặt hàng trực tiếp trên SKU.</li><li><strong>UI</strong> — Phase 5.</li></ul>
+<h2 id="câu-hỏi-mở-cho-tâm-quyết">Câu hỏi mở cho Tâm quyết</h2>
+<p><strong>1. Logic trừ kho thuộc module nào — <code>order</code> hay <code>product</code>?</strong> <em>(quan trọng nhất, cần ADR)</em> Tồn kho là dữ liệu của <code>product</code>, nhưng trừ kho phải nằm <strong>cùng transaction</strong> với tạo đơn của <code>order</code>. Ba hướng:</p>
+<ul><li>(a) <strong>Đặt cả 3 chiến lược trong <code>order/</code></strong>, <code>order</code> đọc/ghi <code>product_skus</code> trực tiếp qua repository của chính nó. <em>Ưu</em>: transaction gọn, không truyền object transaction của Prisma qua ranh giới module. <em>Nhược</em>: <code>order</code> chạm bảng do <code>product</code> sở hữu.</li><li>(b) Đặt trong <code>product/</code>, export qua <code>INVENTORY_RESERVER</code>. <em>Ưu</em>: đúng chủ sở hữu dữ liệu. <em>Nhược</em>: để atomic, <code>order</code> phải truyền <code>tx</code> (kiểu Prisma) vào — <strong>rò rỉ Prisma qua ranh giới module</strong>, đúng thứ <code>docs/architecture.md</code> quy tắc 2 muốn tránh.</li><li>(c) Tách module <code>inventory/</code> riêng, sở hữu cả bảng <code>product_skus.stock</code>. <em>Nhược</em>: hai module cùng ghi một bảng, phức tạp hơn giá trị mang lại ở quy mô này.</li></ul>
+<p><strong>Khuyến nghị: (a)</strong>, và viết ADR-003 nói rõ đánh đổi. Lý do: atomicity của "trừ kho + tạo đơn" là ràng buộc <strong>cứng</strong> (oversell = 0), còn "mỗi bảng một chủ" là nguyên tắc <strong>mềm</strong> — khi hai thứ xung đột thì giữ cái cứng. Ghi rõ trong ADR rằng đây là nợ có ghi chép, sẽ phải xử lý lại nếu sau này tách <code>inventory</code> thành service riêng.</p>
+<p><strong>2. Nạp tồn kho vào Redis (chiến lược C): lazy hay warm-up tường minh?</strong> Khuyến nghị: <strong>lazy khi miss</strong> — script Lua trả <code>-2</code> nếu key chưa có, service đọc DB rồi <code>SET key stock NX</code> (chỉ set khi chưa tồn tại, tránh hai request cùng nạp ghi đè nhau). Đơn giản hơn một lệnh warm-up riêng, và không cần nhớ chạy trước khi mở sale. Đánh đổi: request đầu tiên chậm hơn (thêm 1 round-trip DB).</p>
+<p><strong>3. Trần <code>quantity</code> mỗi đơn?</strong> Khuyến nghị: <strong>5</strong>. Flash sale cần chống gom hàng, và đúng con số đã dùng làm ví dụ trong test <code>ZodValidationPipe</code> từ Phase 0. Không có bảng cấu hình per-event ở phase này.</p>
+<p><strong>4. Retry cho optimistic: mấy lần, backoff thế nào?</strong> Khuyến nghị: <strong>3 lần</strong>, backoff <code>50ms × 2^n</code> + jitter ±30%. Chỉ retry khi lỗi là serialization failure / deadlock (<code>40001</code>, <code>40P01</code>); <strong>không</strong> retry <code>OUT_OF_STOCK</code>. Ghi <code>attempts</code> vào log để benchmark thấy được tỷ lệ retry tăng thế nào theo tải — đó là bằng chứng cho câu "optimistic thua khi tranh chấp gắt".</p>
+<p><strong>5. Lần gọi lặp (trùng Idempotency-Key) trả <code>200</code> hay <code>201</code>?</strong> Khuyến nghị: <strong><code>200</code></strong> + đúng đơn cũ trong body. <code>201</code> nghĩa là "vừa tạo mới", nói sai sự thật. Client phân biệt được "đơn của tôi đã tồn tại" mà không cần đọc body.</p>
+<p><strong>6. <code>POST /orders</code> có cần rate limit riêng?</strong> Khuyến nghị: <strong>không ở phase này</strong>. Rate limit login (Phase 1) chống dò mật khẩu; còn bấm "săn ngay" nhiều lần là hành vi bình thường của flash sale, và <code>Idempotency-Key</code> + tồn kho đã là giới hạn tự nhiên. Thêm rate limit lúc này sẽ làm nhiễu số đo k6.</p>
+<h2 id="kiến-thức-của-phase-này-nằm-ở-đâu">Kiến thức của phase này nằm ở đâu</h2>
+<p>Spec này là <strong>hợp đồng</strong> (API, schema, ba chiến lược, edge case, test case). Phần <em>vì sao</em> — lost update, Read Committed đủ hay không, deadlock, đọc số benchmark — và <strong>đáp án 3 câu hỏi bản chất của Phase 3</strong> nằm ở <a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 3</a>.</p>
+<h2 id="bằng-chứng-definition-of-done-2026-09-03">Bằng chứng Definition of Done (2026-09-03)</h2>
+<blockquote class="note"><p>Trạng thái tổng của dự án do <a href="claude-md.html"><code>CLAUDE.md</code> §Trạng thái hiện tại</a> sở hữu. Mục này chỉ giữ <strong>bằng chứng thô</strong> cho các mục DoD ở trên.</p></blockquote>
+<p><strong>Test:</strong> <code>npm run test:int</code> <strong>49/49 xanh</strong> (xác nhận 5 lần chạy liên tiếp), unit <strong>54/54</strong>, lint/typecheck/build sạch.</p>
+<ul><li><strong>Test #8 — cổng chính của phase: 200 request song song → đúng 100 đơn, 100 lần 409, <code>stock</code> = 0, không lỗi 5xx nào. Đúng ở CẢ BA chiến lược.</strong> Oversell = 0.</li><li>Test #13 (stock=1, 2 request → đúng 1 thắng), #14 (Redis khớp DB sau 50 reserve), #15 (Redis lệch DB → 409 + hoàn lại Redis, có log error).</li><li>Migration viết tay chạy đúng ngay lần đầu qua <code>prisma migrate deploy</code>.</li></ul>
+<p>Ba lần đỏ trên đường tới đó <strong>đều là lỗi của test, không phải của code</strong> (400 hash Argon2 làm tắc Node; supertest tự <code>listen()</code>/đóng server mỗi request; container rác làm Docker daemon chậm hơn timeout dò của Testcontainers) — chi tiết và cách chặn đã ghi ở <a href="tech-playbook.html"><code>tech-playbook.md</code> §Xuyên suốt → Testing → Bug hay gặp</a>.</p>
+<h3 id="test-16-benchmark-3-chiến-lược">Test #16 — benchmark 3 chiến lược</h3>
+<p><strong>Cấu hình đo (để chạy lại được):</strong> 1.000 VU, mỗi VU 1 request, SKU <code>stock = 100</code>, k6 v2.2.0 bắn vào app chạy từ <code>dist/</code> (không qua ts-node); Postgres 16 + Redis 7 trong Docker trên <strong>cùng máy</strong> với app và k6 — số tuyệt đối vì thế không phải số production, nhưng so sánh GIỮA ba chiến lược vẫn công bằng vì mọi thứ khác giữ nguyên. Script: <code>k6/flash-sale.js</code> (cố tình đếm RIÊNG 201 / 409 / 4xx khác / 5xx, vì <code>http_req_failed</code> chung sẽ báo "error rate 90%" trong khi 409 mới là kết quả ĐÚNG kỳ vọng).</p>
+<p>Không thêm npm script kiểu <code>npm run bench</code>: hook <code>guard_cloud_cost.py</code> nhận diện chuỗi <code>k6 run</code>, gói nó vào npm script sẽ làm hook mất tác dụng.</p>
+<p><strong>Kết quả — cả bốn lần chạy: bán ra đúng 100 chiếc, không lần nào 101. Oversell = 0. Không có 5xx nào</strong>; toàn bộ 900 lần từ chối là 409, tức trạng thái nghiệp vụ, không phải lỗi hệ thống.</p>
+<p>Bảng số (p95, rps) và <strong>ba kết quả ngược trực giác</strong> cùng lời giải thích: <a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 3 → Số thật đo được</a>.</p>
+<p><strong>Việc cần làm tiếp (đã biết, chưa làm trong Phase 3):</strong> gộp <code>UPDATE</code> + <code>isSkuOnSale</code> của optimistic thành một câu (CTE hoặc <code>UPDATE … RETURNING</code> kèm nhánh kiểm tra tồn tại) rồi đo lại — nó đổi hành vi nên phải benchmark lại, để sang sau.</p>
+<p><strong>Bug thật tìm được khi benchmark:</strong> <code>generateSkuCode</code> cắt slug 16 ký tự làm hai product khác nhau ra cùng <code>sku_code</code> → vỡ <code>UNIQUE</code> → 500 ở <strong>mọi</strong> lần seed thứ hai, dù comment trong code ghi ca này là "cực hiếm". Đã sửa bằng 4 ký tự băm FNV-1a + test cho đúng ca đó. <strong>Bài học: "cực hiếm" là phỏng đoán về tần suất, mà phỏng đoán thì phải kiểm bằng cách dùng thật.</strong></p>
+</main>
+</div>
+</body>
+</html>

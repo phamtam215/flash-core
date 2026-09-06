@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec Phase 4 — Async, Queue & Payment</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html" class="active">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="spec-async-queue-payment-webhook-phase-4">Spec: Async, Queue &amp; Payment Webhook (Phase 4)</h1>
+<ul><li><strong>Phase:</strong> 4</li><li><strong>Ngày:</strong> 2026-09-05</li><li><strong>Trạng thái:</strong> Đã implement (2026-09-05) — 6 câu hỏi mở đã chốt theo khuyến nghị</li></ul>
+<blockquote class="note"><p>Đây là <strong>hợp đồng</strong>: xây gì, API ra sao, test nào phải xanh. Phần <em>vì sao</em> — dual write, at-least-once, vì sao Outbox không cho exactly-once, backoff + jitter, verify chữ ký trên raw body — nằm ở <a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 4</a>. Đọc mục đó (~15 phút) trước khi code.</p></blockquote>
+<h2 id="mục-tiêu">Mục tiêu</h2>
+<p>Phase 3 đã giữ được <strong>oversell = 0</strong> trên đường đồng bộ. Phase 4 xử lý mọi thứ xảy ra <strong>sau khi request kết thúc</strong>: đơn <code>PENDING</code> quá 15 phút phải tự huỷ và trả hàng về kho, email xác nhận phải gửi đúng <strong>một</strong> lần, và tiền vào thì đơn phải thành <code>PAID</code> — kể cả khi worker bị giết giữa chừng, webhook đến hai lần, hay webhook đến <strong>sau</strong> khi đơn đã huỷ.</p>
+<p>Deliverable chốt phase: <strong>demo "rút dây mạng"</strong> — giết worker giữa lúc xử lý, bật lại, không mất message, không gửi email trùng, tồn kho không bị trả về hai lần.</p>
+<h2 id="phạm-vi-5-khối">Phạm vi — 5 khối</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Khối</th><th>Nội dung</th></tr></thead><tbody><tr><td>1</td><td><strong>Hạ tầng queue</strong></td><td><code>src/infra/queue/</code> — kết nối BullMQ dùng lại <code>RedisService</code>, đăng ký queue, cấu hình retry/backoff/jitter/DLQ</td></tr><tr><td>2</td><td><strong>Outbox</strong></td><td>Bảng <code>outbox_events</code> ghi <strong>cùng transaction</strong> với đơn; relay worker đọc bằng <code>FOR UPDATE SKIP LOCKED</code> rồi đẩy vào queue</td></tr><tr><td>3</td><td><strong>Tự huỷ đơn quá hạn</strong></td><td>Delayed job 15 phút + sweeper định kỳ làm lưới an toàn; huỷ đơn và <strong>trả tồn kho</strong> đúng một lần</td></tr><tr><td>4</td><td><strong>Email xác nhận</strong></td><td>Consumer idempotent qua bảng <code>processed_events</code>; <code>MailSender</code> là interface, Phase 4 dùng bản ghi log</td></tr><tr><td>5</td><td><strong>Payment webhook</strong></td><td><code>POST /payments/webhook</code> — verify HMAC trên <strong>raw body</strong>, trả 2xx nhanh, xử lý trong queue, state machine cấm hồi sinh đơn đã huỷ</td></tr></tbody></table></div>
+<h2 id="api">API</h2>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Mô tả</th></tr></thead><tbody><tr><td><code>POST</code></td><td><code>/payments/webhook</code></td><td><strong>Không</strong> (xác thực bằng chữ ký)</td><td>Nhận sự kiện từ cổng thanh toán</td></tr><tr><td><code>POST</code></td><td><code>/payments/checkout/:orderId</code></td><td>Access token</td><td>Tạo phiên thanh toán giả lập, trả về <code>paymentIntentId</code></td></tr><tr><td><code>GET</code></td><td><code>/orders/:id</code></td><td>Access token</td><td><em>(đã có ở Phase 3)</em> — bổ sung <code>paidAt</code>, <code>cancelledAt</code> vào response</td></tr></tbody></table></div>
+<h3 id="post-paymentswebhook"><code>POST /payments/webhook</code></h3>
+<p>Header bắt buộc:</p>
+<pre><code>X-Payment-Signature: t=1757000000,v1=&lt;hex hmac-sha256&gt;
+Content-Type: application/json</code></pre>
+<p>Body (<code>paymentEventSchema</code>):</p>
+<pre><code class="language-ts">z.object({
+  eventId: z.string().min(1),          // ID sự kiện của cổng — khoá chống trùng
+  type: z.enum(['payment.succeeded', 'payment.failed']),
+  orderId: z.string().uuid('orderId phải là UUID'),
+  paymentIntentId: z.string().min(1),
+  amountVnd: z.number().int().positive(),
+  occurredAt: z.string().datetime(),
+})</code></pre>
+<p>Đáp:</p>
+<div class="table-wrap"><table><thead><tr><th>Status</th><th>Khi nào</th><th>Ghi chú</th></tr></thead><tbody><tr><td><code>204</code></td><td>Chữ ký hợp lệ, đã nhận</td><td>Trả <strong>ngay</strong>, xử lý nặng nằm trong queue</td></tr><tr><td><code>400</code></td><td>Body sai schema</td><td></td></tr><tr><td><code>401</code></td><td>Chữ ký sai, thiếu header, hoặc <code>t</code> lệch quá <code>PAYMENT_WEBHOOK_TOLERANCE</code> giây</td><td><strong>Không</strong> tiết lộ lý do cụ thể trong body</td></tr></tbody></table></div>
+<p><code>204</code> cũng là câu trả lời cho sự kiện <strong>trùng</strong> — cổng gửi lại thì vẫn phải nhận êm, không 409.</p>
+<h3 id="post-paymentscheckoutorderid"><code>POST /payments/checkout/:orderId</code></h3>
+<p>Chỉ tồn tại để chạy được luồng end-to-end mà không cần cổng thật (xem Câu hỏi mở #1). Trả <code>404</code> nếu đơn không phải của user, <code>409</code> nếu đơn không còn <code>PENDING</code>.</p>
+<h2 id="schema-db">Schema DB</h2>
+<p>Ba bảng mới + hai cột trên <code>orders</code>.</p>
+<pre><code class="language-prisma">enum OutboxStatus {
+  PENDING     /// chưa đẩy vào queue
+  DISPATCHED  /// đã đẩy, không xử lý lại
+  FAILED      /// cạn retry ở khâu đẩy — cần người xem
+}
+
+/// Hộp thư đi. Dòng ở đây được ghi TRONG CÙNG transaction với dữ liệu nghiệp vụ, nên không
+/// bao giờ có chuyện "đơn tồn tại mà event biến mất".
+model OutboxEvent {
+  id          String       @id @default(uuid()) @db.Uuid
+  aggregate   String                                  /// 'order'
+  aggregateId String       @map("aggregate_id") @db.Uuid
+  type        String                                  /// 'order.placed' | 'order.paid' | ...
+  payload     Json         @db.JsonB
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  lastError   String?      @map("last_error")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  dispatchedAt DateTime?   @map("dispatched_at")
+
+  /// Relay quét đúng dòng cần đẩy, cũ trước. Index này LÀ điều kiện để `SKIP LOCKED` rẻ.
+  @@index([status, createdAt])
+  @@map("outbox_events")
+}
+
+/// Dấu "đã xử lý rồi" của consumer. Idempotency ở đây do UNIQUE của DB quyết định, giống hệt
+/// cách `Idempotency-Key` làm ở Phase 3 — không SELECT-rồi-INSERT.
+model ProcessedEvent {
+  eventId     String   @id @map("event_id")   /// khoá tự nhiên: id sự kiện + tên consumer
+  consumer    String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@unique([eventId, consumer])
+  @@map("processed_events")
+}
+
+/// Tiền đã vào nhưng đơn không còn nhận được (đã huỷ). KHÔNG tự hoàn tiền, chỉ ghi lại đầy đủ.
+model RefundRequest {
+  id              String   @id @default(uuid()) @db.Uuid
+  orderId         String   @map("order_id") @db.Uuid
+  paymentIntentId String   @map("payment_intent_id")
+  amountVnd       Int      @map("amount_vnd")
+  reason          String                        /// 'ORDER_ALREADY_CANCELLED'
+  correlationId   String?  @map("correlation_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@unique([paymentIntentId])   /// webhook lặp không tạo hai yêu cầu hoàn tiền
+  @@map("refund_requests")
+}</code></pre>
+<p>Thêm vào <code>model Order</code>:</p>
+<pre><code class="language-prisma">  paidAt          DateTime? @map("paid_at")
+  cancelledAt     DateTime? @map("cancelled_at")
+  paymentIntentId String?   @unique @map("payment_intent_id")</code></pre>
+<h2 id="hàng-đợi-và-job">Hàng đợi và job</h2>
+<p>Một queue duy nhất tên <code>flash-core</code>, phân biệt bằng tên job.</p>
+<div class="table-wrap"><table><thead><tr><th>Job</th><th>Ai đẩy</th><th>Retry</th><th>Backoff</th><th>Hết retry thì</th></tr></thead><tbody><tr><td><code>order.email.confirm</code></td><td>Outbox relay</td><td>5</td><td>exponential 1s, <code>jitter</code> bật</td><td>Giữ lại làm DLQ + log <code>error</code></td></tr><tr><td><code>order.expire</code></td><td>Đặt lúc tạo đơn, <code>delay = 15 phút</code></td><td>3</td><td>exponential 5s + jitter</td><td>DLQ; sweeper vẫn dọn được</td></tr><tr><td><code>payment.process</code></td><td>Controller webhook</td><td>5</td><td>exponential 2s + jitter</td><td>DLQ + log <code>error</code> kèm <code>eventId</code></td></tr><tr><td><code>outbox.relay</code></td><td>Repeatable, mỗi <code>OUTBOX_POLL_INTERVAL_MS</code></td><td>—</td><td>—</td><td>Dòng chuyển <code>FAILED</code> sau 5 lần</td></tr><tr><td><code>order.expire.sweep</code></td><td>Repeatable, mỗi 60s</td><td>—</td><td>—</td><td>Log <code>error</code></td></tr></tbody></table></div>
+<p><strong>DLQ ở đây là <code>removeOnFail: false</code></strong> — job cạn retry nằm lại trong Redis ở trạng thái <code>failed</code>, không biến mất. Không dựng queue riêng cho DLQ (xem Câu hỏi mở #5).</p>
+<h2 id="biến-môi-trường-mới">Biến môi trường mới</h2>
+<div class="table-wrap"><table><thead><tr><th>Biến</th><th>Mặc định</th><th>Ghi chú</th></tr></thead><tbody><tr><td><code>PAYMENT_WEBHOOK_SECRET</code></td><td><em>(bắt buộc, ≥32 ký tự)</em></td><td>Không có default — thiếu là app chết lúc khởi động</td></tr><tr><td><code>PAYMENT_WEBHOOK_TOLERANCE</code></td><td><code>300</code></td><td>Giây; chống replay chữ ký cũ</td></tr><tr><td><code>ORDER_HOLD_MINUTES</code></td><td><code>15</code></td><td>Chuyển hằng số <code>HOLD_MINUTES</code> của Phase 3 thành env để test rút xuống vài giây</td></tr><tr><td><code>QUEUE_CONCURRENCY</code></td><td><code>5</code></td><td>Số job xử lý song song mỗi worker</td></tr><tr><td><code>OUTBOX_POLL_INTERVAL_MS</code></td><td><code>1000</code></td><td></td></tr><tr><td><code>OUTBOX_BATCH_SIZE</code></td><td><code>50</code></td><td></td></tr></tbody></table></div>
+<h2 id="luồng-xử-lý">Luồng xử lý</h2>
+<h3 id="a-đặt-đơn-email-xác-nhận-outbox">A. Đặt đơn → email xác nhận (Outbox)</h3>
+<pre><code>POST /orders  ──► reserve tồn kho (Phase 3, không đổi)
+                    │
+                    ▼
+              ┌─ TRANSACTION ────────────────────────┐
+              │  INSERT orders                        │
+              │  INSERT outbox_events (order.placed)  │  ← cùng transaction, đây LÀ Outbox
+              └───────────────────────────────────────┘
+                    │
+                    ▼  (request kết thúc, trả 201 — KHÔNG chờ queue)
+
+[worker] outbox.relay mỗi 1s:
+   SELECT … FROM outbox_events WHERE status='PENDING'
+     ORDER BY created_at LIMIT :batch FOR UPDATE SKIP LOCKED
+   → queue.add('order.email.confirm', payload)
+   → UPDATE outbox_events SET status='DISPATCHED', dispatched_at=now()
+
+[worker] order.email.confirm:
+   INSERT processed_events(eventId, 'email.confirm')   ← va UNIQUE ⇒ thoát êm, KHÔNG gửi lại
+   mailer.send(...)</code></pre>
+<p><strong>Transaction boundary:</strong> chỉ bao hai câu <code>INSERT</code>. Không gọi Redis, không gọi queue, không gọi mailer bên trong.</p>
+<h3 id="b-tự-huỷ-đơn-quá-hạn">B. Tự huỷ đơn quá hạn</h3>
+<pre><code>Lúc tạo đơn: queue.add('order.expire', {orderId}, { delay: ORDER_HOLD_MINUTES })
+Song song:   order.expire.sweep mỗi 60s quét (status='PENDING' AND expires_at &lt; now())
+
+Cả hai đường đều gọi CÙNG một hàm cancelExpiredOrder(orderId):
+   UPDATE orders SET status='CANCELLED', cancelled_at=now()
+     WHERE id=:id AND status='PENDING' AND expires_at &lt; now()
+   → 0 dòng bị ảnh hưởng ⇒ ai đó xử lý trước rồi ⇒ RETURN, không làm gì thêm
+   → 1 dòng                ⇒ trả tồn kho về (reserver.release) trong cùng transaction với UPDATE</code></pre>
+<p>Hai đường vào một hàm là cố ý: nó <strong>bắt buộc</strong> hàm đó phải idempotent, và đó là bài học chính của khối này.</p>
+<h3 id="c-webhook-thanh-toán">C. Webhook thanh toán</h3>
+<pre><code>POST /payments/webhook
+  1. Đọc RAW body (chưa parse)
+  2. HMAC-SHA256(`${t}.${rawBody}`, PAYMENT_WEBHOOK_SECRET) so bằng timingSafeEqual
+  3. |now - t| &gt; tolerance  ⇒ 401
+  4. Parse Zod ⇒ 400 nếu sai
+  5. queue.add('payment.process', event)   → trả 204 NGAY</code></pre>
+<pre><code>[worker] payment.process:
+   INSERT processed_events(eventId, 'payment')      ← trùng ⇒ thoát êm
+   Đơn PENDING   → UPDATE … SET status='PAID', paid_at=now() WHERE id=? AND status='PENDING'
+   Đơn PAID      → không làm gì (đã xử lý)
+   Đơn CANCELLED → INSERT refund_requests + logger.error({orderId, paymentIntentId, correlationId})
+                   TUYỆT ĐỐI không đổi status về PAID</code></pre>
+<h2 id="edge-cases-bắt-buộc-xử-lý">Edge cases bắt buộc xử lý</h2>
+<p>Đánh dấu theo <strong>test thật đang khoá nó lại</strong>, không theo "code có nhánh đó".</p>
+<ul><li>☑ Đẩy queue hỏng giữa lô → <strong>cả lô rollback về <code>PENDING</code></strong>, không dòng nào kẹt ở <code>DISPATCHED</code> <em>(test 4b)</em></li><li>☑ Đẩy hỏng liên tiếp 5 lần → dòng chuyển <code>FAILED</code>, không thử lại vô hạn <em>(test 4c)</em></li><li>☑ Worker bị giết giữa lúc xử lý <code>order.email.confirm</code> → job được giao lại, chạy lại, không mất <em>(test 18)</em></li><li>☑ Job được giao lại sau khi worker chết → consumer idempotent nuốt bản trùng, email chỉ gửi một lần <em>(test 5, 18)</em></li><li>☑ Hai relay chạy song song → <code>FOR UPDATE SKIP LOCKED</code> chia việc, không cùng đẩy một dòng <em>(test 4)</em></li><li>☑ Webhook đến <strong>hai lần</strong> cùng <code>eventId</code> → lần hai thoát êm, vẫn trả <code>204</code> <em>(test 13)</em></li><li>☑ Webhook đến <strong>sau</strong> khi đơn đã <code>CANCELLED</code> → tạo <code>refund_requests</code>, log <code>error</code>, đơn giữ nguyên <em>(test 14)</em></li><li>☑ Webhook chữ ký sai / thiếu header / <code>t</code> quá cũ → <code>401</code>, không xử lý <em>(test 11, 12, unit 16)</em></li><li>☑ Body webhook bị sửa một byte → chữ ký không khớp → <code>401</code> <em>(test 11b)</em></li><li>☑ Delayed job và sweeper cùng huỷ một đơn → chỉ một đường trả tồn kho <em>(test 8a, 8b)</em></li><li>☑ Delayed job nổ sau khi đơn đã sang trạng thái khác → conditional <code>UPDATE</code> ảnh hưởng 0 dòng → thoát êm <em>(test 8b, 9)</em></li><li>☑ Mailer lỗi <strong>tạm thời</strong> → dấu idempotent được trả lại để retry còn chạy <em>(test 6)</em></li><li>☑ Mailer lỗi <strong>vĩnh viễn</strong> → không retry (<code>UnrecoverableError</code>), dấu KHÔNG trả lại nên không gửi trùng <em>(test 6b, unit <code>job.processor.spec.ts</code>)</em></li><li>☑ <code>amountVnd</code> khác <code>total_vnd</code> → <strong>không</strong> <code>PAID</code>, ghi <code>refund_requests</code> <code>AMOUNT_MISMATCH</code> <em>(test 15)</em></li></ul>
+<p><strong>Chưa có test, ghi ra để không tự nhận là đã xong:</strong></p>
+<ul><li>☐ Redis chết đúng lúc controller <code>queue.add</code> cho webhook → trả <code>500</code> để cổng gửi lại. Code đi đúng đường đó (lỗi bay lên exception filter), nhưng chưa có test vì phải giết Redis giữa một request — cần công cụ chèn lỗi, chưa đáng dựng ở phase này.</li><li>☐ User <strong>tự huỷ đơn</strong> rồi delayed job vẫn nổ. Chưa có endpoint huỷ đơn nào, nên tình huống này chưa tồn tại. Khi thêm endpoint đó thì <code>cancelIfExpired</code> phải được xem lại: hiện nó đòi <code>expires_at &lt;= now()</code>, tức không dùng lại được cho huỷ chủ động.</li></ul>
+<h2 id="test-cases-phải-pass">Test cases phải pass</h2>
+<p>Integration (Testcontainers, Postgres + Redis thật) trừ khi ghi rõ:</p>
+<ol><li>Đặt đơn → có đúng 1 dòng <code>outbox_events</code> <code>PENDING</code>, ghi cùng transaction với đơn</li><li>Relay chạy → dòng thành <code>DISPATCHED</code>, job có trong queue</li><li>Chạy relay <strong>hai lần</strong> trên cùng dòng → chỉ một job được đẩy</li><li>Hai relay song song trên 50 dòng → tổng job đẩy đúng 50, không trùng (<code>SKIP LOCKED</code>)</li><li>Consumer email chạy hai lần cùng <code>eventId</code> → <code>mailer.send</code> được gọi đúng <strong>1</strong> lần</li><li>Giả lập worker chết giữa chừng (throw sau khi gửi, trước khi đánh dấu) → chạy lại không gửi trùng</li><li>Đơn quá hạn → <code>order.expire</code> huỷ đơn, <code>stock</code> tăng lại đúng số lượng</li><li><strong>Delayed job + sweeper cùng chạy trên một đơn → <code>stock</code> chỉ tăng một lần</strong> ⭐</li><li>Đơn đã <code>PAID</code> → <code>order.expire</code> không huỷ, không trả kho</li><li>Webhook chữ ký đúng → <code>204</code>, đơn thành <code>PAID</code>, <code>paid_at</code> khác null</li><li>Webhook chữ ký sai → <code>401</code>, đơn giữ nguyên <code>PENDING</code></li><li>Webhook <code>t</code> lệch 10 phút → <code>401</code></li><li>Webhook cùng <code>eventId</code> gửi 2 lần → <code>204</code> cả hai, chỉ một lần chuyển trạng thái</li><li>Webhook tới đơn đã <code>CANCELLED</code> → đơn vẫn <code>CANCELLED</code>, có 1 dòng <code>refund_requests</code>, có log <code>error</code></li><li>Webhook lệch số tiền → không <code>PAID</code>, có <code>refund_requests</code> <code>AMOUNT_MISMATCH</code></li><li>Unit: <code>verifySignature</code> — chữ ký đúng/sai/thiếu/hết hạn, và <strong>so sánh bằng <code>timingSafeEqual</code></strong></li><li>Unit: <code>paymentEventSchema</code> chặn field lạ, <code>amountVnd</code> âm, <code>orderId</code> không phải uuid</li><li><strong>"Rút dây mạng"</strong>: đặt 20 đơn → giết worker giữa chừng → bật lại → đúng 20 email, không hơn ⭐</li><li><em>(4b)</em> Đẩy queue hỏng giữa lô → cả lô về <code>PENDING</code>, nhịp sau đẩy lại đủ ⭐</li><li><em>(4c)</em> Đẩy hỏng 5 lần liên tiếp → dòng chuyển <code>FAILED</code></li><li><em>(6b)</em> Lỗi mail vĩnh viễn → không retry, dấu giữ nguyên nên không gửi trùng</li></ol>
+<h2 id="definition-of-done">Definition of Done</h2>
+<ul><li>☑ Toàn bộ test case trên xanh (<strong>21 integration</strong>), <code>npm run check</code> sạch</li><li>☑ Test #8 và #18 xanh — đây là hai cổng chính của phase</li><li>☑ Chạy <strong>bằng tay</strong> trên môi trường dev thật (API + worker + Postgres/Redis compose) — số liệu ở §Bằng chứng DoD bên dưới</li><li>☑ Demo "rút dây mạng" (giết worker giữa chừng) chạy bằng tay — Tâm chạy 2026-09-05, kết quả ở §Bằng chứng DoD</li><li>☑ Migration viết tay chạy đúng qua <code>prisma migrate deploy</code></li><li>☑ ADR cho các quyết định ở §Câu hỏi mở được chốt (ADR-004, ADR-005)</li><li>☑ Kiến thức mới ghi vào <code>tech-playbook.md</code> §Phase 4</li><li>☑ 4 câu hỏi bản chất có đáp án — <a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 4</a> (Claude viết theo yêu cầu trực tiếp của Tâm, ghi rõ nguồn ngay trong mục đó)</li></ul>
+<h2 id="bằng-chứng-definition-of-done-2026-09-05">Bằng chứng Definition of Done (2026-09-05)</h2>
+<blockquote class="note"><p>Trạng thái tổng của dự án do <a href="claude-md.html"><code>CLAUDE.md</code> §Trạng thái hiện tại</a> sở hữu.</p></blockquote>
+<p><strong>Test:</strong> 21/21 integration mới xanh; chạy cả bộ <strong>70/70</strong> (49 của Phase 0–3 vẫn xanh sau khi <code>OrderService</code>/<code>OrderRepository</code> đổi để ghi outbox và hẹn giờ huỷ đơn). Unit <strong>74/74</strong>. Lint/typecheck sạch. Migration <code>20260905090000_add_async_queue_payment</code> chạy đúng ngay lần đầu qua <code>prisma migrate deploy</code>.</p>
+<p>Hai cổng chính:</p>
+<ul><li><strong>#8a/#8b — huỷ đơn quá hạn:</strong> hai đường (delayed job + sweeper) cùng chạy trên một đơn → đúng một đường đổi được trạng thái, <code>stock</code> trở về <strong>10</strong>, không phải 14.</li><li><strong>#18 — "rút dây mạng":</strong> 20 đơn, giết worker #1 bằng <code>close(true)</code> (không chờ job đang chạy), bật worker #2 dọn nốt → <strong>đúng 20 email</strong>, 20 tiêu đề khác nhau. Không mất, không trùng.</li></ul>
+<p><strong>Năm việc đổi so với spec khi làm thật:</strong></p>
+<ol><li><code>EmailConfirmPayload</code> <strong>không</strong> mang địa chỉ email (spec ban đầu có). Lý do: đó là dữ liệu cá nhân nằm lại trong Redis + bảng outbox, và tra lúc gửi thì đổi email xong vẫn gửi đúng chỗ. Đường đặt hàng cũng không phải gánh thêm một câu <code>SELECT</code>.</li><li>BullMQ phải có <strong>kết nối Redis riêng</strong>, không dùng lại <code>RedisService</code> như spec viết — worker chạy lệnh blocking nên bắt buộc <code>maxRetriesPerRequest: null</code>, ngược với giá trị <code>1</code> mà rate limit cần. Ghi ở <code>tech-playbook.md</code> §Phase 4 → Bug hay gặp.</li><li>Thêm <code>test/infra-fixture.ts</code>: mặc định vẫn Testcontainers, nhưng cho phép trỏ vào Postgres/Redis đã chạy sẵn qua <code>TEST_DATABASE_URL</code>/<code>TEST_REDIS_URL</code> — cần cho môi trường không nối được <code>docker.sock</code> từ trong Jest.</li><li><strong>Relay đổi thứ tự: đẩy trước, đánh dấu sau, trong CÙNG transaction.</strong> Bản đầu đánh dấu <code>DISPATCHED</code> rồi commit trước khi <code>queue.add</code> — chết ở khe giữa là mất sự kiện im lặng, phá đúng lời hứa của phase. <a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006</a> ghi lý do chấp nhận gọi ra ngoài bên trong transaction. Test 4b khoá tính chất này lại.</li><li>Thêm biến <code>QUEUE_PREFIX</code>. BullMQ chia job cho <strong>mọi</strong> tiến trình cùng Redis + cùng tiền tố, nên worker đang chạy trên máy dev nuốt mất job của integration test. Test đặt tiền tố ngẫu nhiên mỗi lần chạy.</li></ol>
+<p><strong>Chạy demo bằng tay:</strong></p>
+<pre><code class="language-bash">npm run up &amp;&amp; npx prisma migrate deploy
+npm run dev                        # terminal 1
+npm run worker                     # terminal 2
+node scripts/send-webhook.mjs --order &lt;uuid&gt; --amount &lt;vnd&gt;</code></pre>
+<h3 id="kết-quả-chạy-tay-trên-dev-thật-2026-09-05">Kết quả chạy tay trên dev thật (2026-09-05)</h3>
+<p>SKU <code>stock = 5</code>, giá 250.000đ. Mọi số dưới đây đọc thẳng từ Postgres, không phải từ test.</p>
+<div class="table-wrap"><table><thead><tr><th>Bước</th><th>Kết quả quan sát được</th></tr></thead><tbody><tr><td>Đặt đơn 2 cái</td><td><code>PENDING</code>, <code>total_vnd = 500000</code>, <code>stock</code> 5 → <strong>3</strong></td></tr><tr><td>Outbox</td><td>1 dòng <code>order.placed</code>, relay đổi sang <strong><code>DISPATCHED</code></strong> trong ~1 giây</td></tr><tr><td>Email</td><td>1 dòng <code>processed_events(consumer='order.email.confirm')</code> — gửi đúng một lần</td></tr><tr><td><code>POST /payments/checkout/:id</code></td><td>trả <code>paymentIntentId</code></td></tr><tr><td>Webhook chữ ký <strong>đúng</strong></td><td><code>204</code> → đơn <strong><code>PAID</code></strong>, <code>paid_at</code> có giá trị, <code>payment_intent_id</code> khớp</td></tr><tr><td>Webhook chữ ký <strong>sai</strong> (đổi khoá ký)</td><td><strong><code>401 INVALID_SIGNATURE</code></strong>, đơn không đổi</td></tr><tr><td>Webhook <strong>trùng</strong> <code>eventId</code>, gửi 2 lần</td><td><code>204</code> cả hai, <code>processed_events</code> vẫn <strong>1</strong> dòng, <code>payment_intent_id</code> <strong>không</strong> bị ghi đè</td></tr><tr><td>Đơn thứ hai bị đẩy quá hạn (<code>expires_at</code> về quá khứ)</td><td><strong>sweeper</strong> huỷ trong vòng 60 giây: <code>CANCELLED</code>, <code>cancelled_at</code> có giá trị, <code>stock</code> 2 → <strong>3</strong> (trả kho đúng một lần)</td></tr><tr><td>Webhook "đã trả tiền" tới đơn <strong>đã huỷ</strong></td><td><code>204</code>, đơn <strong>vẫn <code>CANCELLED</code></strong>, <code>paid_at</code> rỗng, sinh 1 <code>refund_requests</code> <code>reason='ORDER_ALREADY_CANCELLED'</code>, <code>stock</code> <strong>giữ nguyên 3</strong></td></tr></tbody></table></div>
+<p>Hàng cuối là ca đáng giá nhất: hệ thống <strong>không</strong> hồi sinh đơn (sẽ tạo oversell ở đường sau), <strong>không</strong> im lặng bỏ qua (khách mất tiền), mà để lại hồ sơ đầy đủ + log mức <code>error</code>.</p>
+<h2 id="ngoài-phạm-vi-non-goals">Ngoài phạm vi (Non-goals)</h2>
+<ul><li><strong>Cổng thanh toán thật</strong> (Stripe/VNPay/MoMo) — cần secret thật và mạng ngoài, CI không chạy được</li><li><strong>Gửi email thật qua SMTP</strong> — <code>MailSender</code> là interface, Phase 4 chỉ có bản ghi log</li><li><strong>Tự động hoàn tiền</strong> — chỉ ghi <code>refund_requests</code>; hoàn tiền là quy trình nghiệp vụ, không phải code</li><li><strong>Saga / distributed transaction</strong> — một DB thì chưa cần</li><li><strong>Queue riêng cho DLQ, dashboard BullMQ</strong> — dùng trạng thái <code>failed</code> sẵn có</li><li><strong>Đo hiệu năng queue</strong> — Phase 4 đo <em>đúng đắn</em>, không đo throughput; benchmark Redis async là việc của Phase 7</li></ul>
+<h2 id="câu-hỏi-mở-cho-tâm-quyết">Câu hỏi mở cho Tâm quyết</h2>
+<blockquote class="note"><p>Mỗi câu đều có khuyến nghị. Nếu Tâm nói "bắt đầu code đi" mà không sửa gì, tôi hiểu là chấp nhận toàn bộ khuyến nghị và ghi ADR theo đó (giống cách đã làm ở Phase 2 và 3).</p></blockquote>
+<p><strong>1. Cổng thanh toán: sandbox thật hay giả lập trong repo?</strong> Khuyến nghị: <strong>giả lập</strong> — thêm <code>POST /payments/checkout/:orderId</code> sinh ra <code>paymentIntentId</code>, và một script <code>scripts/send-webhook.mjs</code> ký đúng chữ ký để bắn webhook vào app. Lý do: bài học của phase là <em>verify chữ ký, idempotent, webhook đến muộn</em> — cả ba đều học được đầy đủ với cổng giả, mà test vẫn chạy được trong CI không cần mạng. Cổng thật chỉ thêm phần đăng ký tài khoản.</p>
+<p><strong>2. Worker chạy chung process với API hay tách entrypoint?</strong> Khuyến nghị: <strong>tách</strong> — <code>src/worker.ts</code> + <code>npm run worker</code>. Không tách thì không giết được worker mà giữ API sống, tức là <strong>không demo được deliverable của phase</strong>. Đổi lại: local phải chạy hai lệnh. Cách chạy trên Cloud Run (nơi khó nuôi process nền ở free tier) để Phase 7 quyết bằng ADR.</p>
+<p><strong>3. Huỷ đơn quá hạn: delayed job, sweeper, hay cả hai?</strong> Khuyến nghị: <strong>cả hai</strong>, và đó là chủ ý. Delayed job dạy cách BullMQ hẹn giờ; sweeper dạy bài học lớn hơn — <strong>queue có thể mất job, DB mới là sự thật</strong>. Hai đường cùng gọi một hàm idempotent biến "phải idempotent" từ lời khuyên thành ràng buộc test được (test #8). Chi phí: một repeatable job mỗi 60s, quét bằng index <code>[status, expires_at]</code> đã có sẵn từ Phase 3.</p>
+<p><strong>4. Trả tồn kho khi huỷ đơn: gọi <code>reserver.release</code> hay viết SQL riêng?</strong> Khuyến nghị: <strong><code>reserver.release</code></strong> — đã có sẵn, và với chiến lược Redis thì nó trả về <strong>cả Redis lẫn DB</strong>, thứ mà một câu SQL không làm được. Ràng buộc kèm theo (đúng tinh thần ADR-003): lệnh <code>UPDATE orders</code> và lệnh trả kho phải nằm trong <strong>cùng một</strong> interactive transaction ở chiến lược optimistic/pessimistic; với Redis thì DB trước, Redis sau, hỏng thì log <code>error</code>.</p>
+<p><strong>5. DLQ: <code>removeOnFail: false</code> hay một queue <code>*.dlq</code> riêng?</strong> Khuyến nghị: <strong><code>removeOnFail: false</code></strong>. Job cạn retry nằm lại ở trạng thái <code>failed</code> trong Redis, xem được bằng <code>queue.getFailed()</code>. Queue riêng chỉ đáng khi cần re-drive hàng loạt có nghi thức — chưa phải bài toán ở đây, và nó là một khái niệm mới phải nuôi.</p>
+<p><strong>6. <code>MailSender</code>: interface + bản log, hay ghi thẳng vào bảng <code>sent_emails</code>?</strong> Khuyến nghị: <strong>interface + bản ghi log</strong>, và test dùng bản đếm số lần gọi. Bảng <code>sent_emails</code> nghe có vẻ "thật" hơn nhưng nó chính là bảng <code>processed_events</code> đội tên khác — hai bảng cùng một việc là chỗ để sinh ra bug.</p>
+<h2 id="kiến-thức-của-phase-này-nằm-ở-đâu">Kiến thức của phase này nằm ở đâu</h2>
+<p><a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 4</a> — dual write, at-least-once vs exactly-once, <code>SKIP LOCKED</code>, backoff + jitter, thundering herd, verify chữ ký trên raw body, state machine cấm chuyển ngược. Bốn câu hỏi bản chất của phase (<code>docs/SPEC.md</code>) sẽ có đáp án ở cùng chỗ đó <strong>sau khi</strong> code xong và đo thật — không viết trước.</p>
+<h3 id="demo-rút-dây-mạng-chạy-tay-tâm-2026-09-05">Demo "rút dây mạng" chạy tay (Tâm, 2026-09-05)</h3>
+<p>20 đơn đặt <strong>khi worker đang tắt</strong> ⇒ 20 sự kiện nằm ở outbox <code>PENDING</code>. Bật worker, <code>Ctrl+C</code> sau ~1 giây (cú "rút dây"), bật lại, để chạy tiếp.</p>
+<div class="table-wrap"><table><thead><tr><th>Chỉ số</th><th>Kết quả</th><th>Ý nghĩa</th></tr></thead><tbody><tr><td><code>so_don</code></td><td>20</td><td></td></tr><tr><td><code>outbox_con_cho</code></td><td><strong>0</strong></td><td>không sự kiện nào kẹt lại ⇒ <strong>không mất</strong></td></tr><tr><td><code>email_da_gui</code></td><td><strong>20</strong></td><td>đúng một dấu cho mỗi đơn ⇒ <strong>không trùng</strong></td></tr></tbody></table></div>
+<p><code>21</code> là gửi trùng, <code>19</code> là mất — cả hai đều phá lời hứa của phase. Hai con số này mới là bằng chứng, không phải "log nhìn có vẻ ổn". Đây cũng đúng kịch bản test #18 tự động hoá, chạy tay để nhìn tận mắt.</p>
+</main>
+</div>
+</body>
+</html>

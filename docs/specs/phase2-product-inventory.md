@@ -2,7 +2,7 @@
 
 - **Phase:** 2
 - **Ngày:** 2026-08-27 (draft) · 2026-08-29 (code)
-- **Trạng thái:** Code xong theo spec dưới, **chưa xác nhận trên Postgres thật** — xem
+- **Trạng thái:** **Đã implement**, xác nhận trên Postgres thật (28/28 integration + 43/43 unit) — xem
   §Trạng thái thật ở cuối file
 
 ## Mục tiêu

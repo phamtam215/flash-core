@@ -77,6 +77,11 @@ docs/
     └── hoc/                 giáo trình 8 phase (viết tay) + bộ theo dõi 113 ý
 ```
 
+> **Mỗi file `.md` đều có bản HTML.** 30/30 — kể cả spec, checklist và template. Thêm một
+> `.md` mới thì **phải đăng ký nó vào `PAGES` trong `scripts/build-docs-html.mjs`**, nếu không
+> nó vô hình với người đọc offline và mọi link trỏ tới nó sẽ hiện "(chưa có bản HTML)".
+> ADR-008 từng bị sót đúng kiểu đó.
+>
 > **Chỉ có MỘT thư mục đọc bằng trình duyệt.** Trước đây có hai (`docs/html/` và `docs/hoc/`),
 > mỗi bên một `index.html` và một sidebar riêng, **không hề trỏ sang nhau** — ai vào cửa này
 > không bao giờ biết cửa kia tồn tại. Và cả hai đều có trang viết tay về cùng những phase.

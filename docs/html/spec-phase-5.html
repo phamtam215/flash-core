@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec Phase 5 — UI demo</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html" class="active">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="spec-ui-demo-nhìn-thấy-tồn-kho-rơi-về-0-phase-5">Spec: UI demo — nhìn thấy tồn kho rơi về 0 (Phase 5)</h1>
+<ul><li><strong>Phase:</strong> 5</li><li><strong>Ngày:</strong> 2026-09-05</li><li><strong>Trạng thái:</strong> Đã implement (2026-09-05)</li></ul>
+<blockquote class="note"><p>Hợp đồng của phase. Phần <em>vì sao chọn trang tĩnh</em> ở <a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007</a>; cơ chế CORS và bẫy cookie ở <a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 5</a>.</p></blockquote>
+<h2 id="mục-tiêu">Mục tiêu</h2>
+<p>FE ở đây là <strong>công cụ trực quan hoá</strong>, không phải sản phẩm (<code>project-context.md</code> quyết định #10). Nó tồn tại để làm được đúng một cảnh: <strong>k6 bắn 1.000 VU trong khi tồn kho trên màn hình rơi về 0 và dừng đúng 0</strong> — thứ mà một bảng số trong terminal không kể được.</p>
+<p>Mục tiêu phụ, cũng thật: có một chỗ bấm được để tự thử luồng Phase 1–4 mà không cần curl.</p>
+<h2 id="phạm-vi">Phạm vi</h2>
+<p><strong>Một file <code>public/index.html</code>.</strong> Không dependency, không build step, CSS viết tay, do Nest phục vụ tĩnh trên cùng cổng với API.</p>
+<p>Bốn màn hình, chuyển bằng show/hide (không router):</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Màn hình</th><th>Dùng API</th></tr></thead><tbody><tr><td>1</td><td>Đăng nhập / Đăng ký</td><td><code>POST /auth/register</code>, <code>POST /auth/login</code>, <code>GET /auth/me</code>, <code>POST /auth/logout</code></td></tr><tr><td>2</td><td>Sự kiện sale — lưới áo, tồn kho tự cập nhật</td><td><code>GET /products</code>, <code>GET /products/:id/skus</code></td></tr><tr><td>3</td><td>Chọn size/màu → "Săn ngay" → đơn giữ chỗ + đếm ngược</td><td><code>POST /orders</code>, <code>POST /payments/checkout/:orderId</code></td></tr><tr><td>4</td><td>Đơn của tôi</td><td><code>GET /orders</code></td></tr></tbody></table></div>
+<h2 id="quyết-định-thiết-kế">Quyết định thiết kế</h2>
+<p><strong>1. Cùng origin, không CORS.</strong> Nest phục vụ <code>public/</code> bằng <code>useStaticAssets</code> (có sẵn trong <code>platform-express</code>, không thêm dependency). FE và API cùng <code>localhost:3000</code> nên cookie <code>SameSite=Strict</code> tự đi kèm mọi <code>fetch</code> — chỉ cần <code>credentials: 'same-origin'</code>.</p>
+<p><strong>2. Polling 1,5 giây, không WebSocket.</strong> Cảnh cần quay là tồn kho rơi trong ~10 giây; polling đủ mượt và không thêm một tầng hạ tầng nào. WebSocket là công nghệ mới ⇒ phải qua ADR, và nó không làm demo tốt hơn.</p>
+<p><strong>3. FE KHÔNG tự "thanh toán được".</strong> Bấm "Thanh toán" chỉ gọi <code>POST /payments/checkout/:id</code> để lấy <code>paymentIntentId</code>, rồi <strong>hiện ra lệnh <code>node scripts/send-webhook.mjs …</code> để copy</strong>. Trình duyệt không có <code>PAYMENT_WEBHOOK_SECRET</code> nên không ký nổi webhook — và đó chính là điểm đáng nhìn: nếu FE tự đánh dấu đơn đã trả tiền được thì việc verify chữ ký ở Phase 4 là vô nghĩa.</p>
+<p><strong>4. Không tự sinh dữ liệu mẫu trong FE.</strong> Muốn có áo để săn thì tạo qua API (hoặc <code>npm run seed</code>). FE chỉ đọc và đặt đơn — thêm màn quản trị là mở rộng phạm vi.</p>
+<h2 id="luồng-chính">Luồng chính</h2>
+<pre><code>Mở http://localhost:3000
+  ├─ GET /auth/me  → 200: vào thẳng màn (2)   ·   401: hiện màn (1)
+  │
+  ├─ Màn (2): GET /products (keyset) → lưới áo
+  │            chọn một áo → GET /products/:id/skus
+  │            setInterval 1,5s: gọi lại /skus → cập nhật số tồn kho
+  │
+  ├─ Màn (3): chọn size/màu → POST /orders (kèm Idempotency-Key sinh bằng crypto.randomUUID)
+  │            201 → hiện đơn + đếm ngược tới expiresAt
+  │            409 → "Hết hàng"   ·   404 → "SKU không còn bán"
+  │            bấm Thanh toán → POST /payments/checkout/:id → hiện lệnh send-webhook
+  │
+  └─ Màn (4): GET /orders → danh sách, polling 3s để thấy PENDING → PAID / CANCELLED</code></pre>
+<h2 id="edge-cases-bắt-buộc-xử-lý">Edge cases bắt buộc xử lý</h2>
+<ul><li>☑ Chưa đăng nhập mà mở thẳng màn (2) → tự chuyển về màn (1), không hiện lỗi đỏ</li><li>☐ Access token hết hạn giữa chừng (15 phút) → <code>401</code> ở một lần polling → thử <code>POST /auth/refresh</code> <strong>một lần</strong>, hỏng thì về màn đăng nhập. Không lặp vô hạn</li><li>☑ <code>POST /orders</code> trả <code>409</code> → hiện "Hết hàng", <strong>không</strong> coi là lỗi hệ thống (không đỏ toàn trang)</li><li>☑ Bấm "Săn ngay" hai lần thật nhanh → nút khoá ngay lần đầu; và mỗi lần bấm sinh <code>Idempotency-Key</code> mới (khoá cũ sẽ trả về đúng đơn cũ, không tạo đơn thứ hai)</li><li>☐ Đơn hết hạn giữa lúc đang xem → đếm ngược về 0 → hàng đổi sang <code>CANCELLED</code> ở nhịp polling sau</li><li>☑ Rời tab rồi quay lại → polling không nhân đôi (dọn <code>setInterval</code> khi đổi màn)</li><li>☑ API chết giữa chừng → hiện dải báo lỗi ở đầu trang, polling vẫn tiếp tục để tự hồi phục</li></ul>
+<h2 id="test-cases-phải-pass">Test cases phải pass</h2>
+<p>FE không có test tự động (SPEC.md §Phase 5) — nhưng <strong>phần server phục vụ nó thì có</strong>:</p>
+<ol><li><code>GET /</code> trả <code>200</code> và <code>Content-Type: text/html</code></li><li><code>GET /</code> <strong>không</strong> bị guard chặn (không cần đăng nhập mới xem được trang)</li><li>Route tĩnh không nuốt route API: <code>GET /health</code> vẫn trả JSON như cũ</li><li>Đường dẫn lạ (<code>GET /khong-ton-tai</code>) vẫn trả 404 JSON đúng hình dạng lỗi chung, không trả HTML</li></ol>
+<p>Phần UI kiểm bằng tay theo danh sách edge case ở trên.</p>
+<h2 id="definition-of-done">Definition of Done</h2>
+<ul><li>☑ 4 màn hình chạy được trên trình duyệt thật — xem §Bằng chứng DoD</li><li>☑ 4 test server ở trên xanh, <code>npm run check</code> sạch (74 unit + 74 integration)</li><li>☑ Chạy k6 (<code>k6/flash-sale.js</code>) trong khi mở màn (2): tồn kho rơi về <strong>0 và dừng ở 0</strong></li><li>☐ Quay video/GIF ~2 phút cảnh đó — deliverable của phase</li><li>☐ Tâm tự trả lời câu hỏi bản chất của Phase 5 trong <code>docs/SPEC.md</code></li></ul>
+<h2 id="ngoài-phạm-vi-non-goals">Ngoài phạm vi (Non-goals)</h2>
+<ul><li>Framework, build step, TypeScript cho FE — <a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007</a></li><li>Màn quản trị (tạo áo/SKU), phân trang đầy đủ, tìm kiếm, lọc</li><li>Responsive tới mức mobile-first — chỉ cần không vỡ ở màn hình hẹp</li><li>i18n, dark mode theo hệ thống, accessibility đầy đủ</li><li>Test tự động cho FE (Playwright/Cypress) — sẽ là công nghệ mới, và không phục vụ mục tiêu học</li></ul>
+<h2 id="câu-hỏi-mở-cho-tâm-quyết">Câu hỏi mở cho Tâm quyết</h2>
+<p>Không có. Hướng đã chốt ở ADR-007; nếu muốn đổi thì nói trước khi tôi code.</p>
+<h2 id="bằng-chứng-definition-of-done-2026-09-05">Bằng chứng Definition of Done (2026-09-05)</h2>
+<p>Chạy đầu-cuối trên <strong>Chrome thật</strong>, app build từ <code>dist/</code>, Postgres/Redis của docker-compose:</p>
+<div class="table-wrap"><table><thead><tr><th>Bước</th><th>Kết quả</th></tr></thead><tbody><tr><td>Mở <code>/</code> khi chưa đăng nhập</td><td>hiện màn Đăng nhập, không lỗi đỏ, console sạch</td></tr><tr><td>Đăng ký → tự đăng nhập</td><td>vào thẳng màn Sự kiện sale, header hiện email</td></tr><tr><td>Lưới áo + bảng SKU</td><td>12 áo, tồn kho tự cập nhật, dấu thời gian đổi mỗi 1,5 giây</td></tr><tr><td>Bấm "Săn ngay"</td><td><code>201</code>, tồn kho <strong>3 → 2</strong>, hiện đơn <code>PENDING</code> + đếm ngược <code>còn 14:59</code></td></tr><tr><td>Bấm "Thanh toán"</td><td>hiện <code>paymentIntentId</code> + lệnh <code>send-webhook</code> để copy</td></tr><tr><td>Chạy lệnh đó ở terminal</td><td><code>204</code>; worker xử lý → đơn thành <strong><code>PAID</code></strong></td></tr><tr><td>Mở tab "Đơn của tôi"</td><td>hàng đơn hiện <code>PAID</code>, cột Còn lại là <code>—</code></td></tr></tbody></table></div>
+<p><strong>Một bug thật tìm được nhờ bấm bằng trình duyệt tự động, không phải nhìn màn hình:</strong> bản đầu của <code>renderSkus()</code> ghi đè <code>innerHTML</code> cả <code>&lt;tbody&gt;</code> mỗi nhịp polling ⇒ <strong>mọi nút "Săn ngay" bị huỷ và tạo lại mỗi 1,5 giây</strong>. Nhìn thì không thấy gì, nhưng một cú bấm chậm rơi vào phần tử đã bị gỡ khỏi DOM và <strong>không có gì xảy ra</strong>. Trình duyệt tự động báo thẳng: <em>"element did not become interactive"</em>. Đã sửa thành cập nhật tại chỗ — chỉ dựng lại hàng khi danh sách SKU thật sự đổi, còn lại chỉ ghi đè ô tồn kho.</p>
+<h3 id="chạy-k6-với-trang-đang-mở-2026-09-05">Chạy k6 với trang đang mở (2026-09-05)</h3>
+<p>SKU <code>stock = 100</code>, 1.000 VU, trang đang polling 1,5 giây trên cùng SKU đó:</p>
+<pre><code>201 (bán được):    100   ← đúng 100
+409 (hết hàng):    900   ← trạng thái nghiệp vụ, không phải lỗi
+4xx khác:          0
+5xx:               0</code></pre>
+<p>Toàn bộ 1.000 iteration xong trong <strong>1,4 giây</strong>. Trên màn hình, ô Tồn kho đi từ <code>100</code> xuống <code>0</code>, đổi sang màu đỏ, nút chuyển thành "Hết hàng" và <strong>dừng ở 0</strong> — không có nhịp polling nào hiện số âm hay số khác 0 sau đó.</p>
+<p>Đối chiếu DB ngay sau khi chạy:</p>
+<div class="table-wrap"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><code>product_skus.stock</code></td><td><strong>0</strong></td></tr><tr><td>số dòng <code>order_items</code> của SKU đó</td><td><strong>100</strong></td></tr><tr><td>tổng <code>quantity</code> đã bán</td><td><strong>100</strong></td></tr></tbody></table></div>
+<p>Bán ra đúng 100 chiếc trên 1.000 người bấm. <strong>Oversell = 0</strong>, lần này nhìn thấy được chứ không chỉ đọc trong bảng số của k6.</p>
+</main>
+</div>
+</body>
+</html>

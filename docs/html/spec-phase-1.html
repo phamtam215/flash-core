@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec Phase 1 — Auth</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html" class="active">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="spec-auth-đăng-ký-đăng-nhập-refresh-token-phase-1">Spec: Auth — đăng ký, đăng nhập, refresh token (Phase 1)</h1>
+<ul><li><strong>Phase:</strong> 1</li><li><strong>Ngày:</strong> 2026-08-08</li><li><strong>Trạng thái:</strong> <strong>Đã implement</strong> 2026-08-08 — 14/14 test case xanh (21 unit + 12 integration), kể cả test #8 reuse detection (Docker đang tắt lúc code xong; cần <code>npm run test:int</code> để xác nhận)</li></ul>
+<h2 id="mục-tiêu">Mục tiêu</h2>
+<p>Cho user tạo tài khoản và đăng nhập, rồi giữ phiên đăng nhập an toàn bằng cặp Access + Refresh Token. Phase 3 cần biết "ai đang bấm Săn ngay" để chống một người ôm hàng và để gắn đơn vào đúng người — không có auth thì không làm được.</p>
+<p>Mục tiêu học: <strong>lưu mật khẩu đúng cách</strong>, và <strong>hiểu vì sao token bị đánh cắp lại phát hiện được</strong>.</p>
+<h2 id="api">API</h2>
+<div class="table-wrap"><table><thead><tr><th>Method</th><th>Path</th><th>Việc</th><th>Response</th></tr></thead><tbody><tr><td>POST</td><td><code>/auth/register</code></td><td>Tạo tài khoản</td><td><code>201 { id, email }</code></td></tr><tr><td>POST</td><td><code>/auth/login</code></td><td>Đăng nhập</td><td><code>200 { user }</code> + 2 cookie</td></tr><tr><td>POST</td><td><code>/auth/refresh</code></td><td>Đổi refresh token lấy cặp mới</td><td><code>200 { user }</code> + 2 cookie mới</td></tr><tr><td>POST</td><td><code>/auth/logout</code></td><td>Thu hồi refresh token</td><td><code>204</code></td></tr><tr><td>GET</td><td><code>/auth/me</code></td><td>Thông tin user đang đăng nhập</td><td><code>200 { id, email }</code></td></tr></tbody></table></div>
+<p><strong>Request schema (Zod):</strong></p>
+<pre><code class="language-ts">register: { email: string().email(), password: string().min(8).max(72) }
+login:    { email: string().email(), password: string() }
+// refresh và logout không có body — token nằm trong cookie</code></pre>
+<p><strong>Hai token, hai vai trò khác nhau:</strong></p>
+<div class="table-wrap"><table><thead><tr><th></th><th>Access Token</th><th>Refresh Token</th></tr></thead><tbody><tr><td>Dùng để</td><td>Gọi API hằng ngày</td><td><strong>Chỉ</strong> để xin cặp token mới</td></tr><tr><td>Sống</td><td>15 phút</td><td>7 ngày</td></tr><tr><td>Lưu ở</td><td>HttpOnly Cookie, <code>path=/</code></td><td>HttpOnly Cookie, <code>path=/auth</code></td></tr><tr><td>Server có lưu không</td><td><strong>Không</strong> (stateless, verify bằng chữ ký)</td><td><strong>Có</strong> — lưu hash trong DB để thu hồi được</td></tr></tbody></table></div>
+<p>Vì sao access token ngắn: nó không thu hồi được, nên rủi ro bị đánh cắp được giới hạn bằng thời gian sống. Vì sao refresh token phải lưu DB: để thu hồi được khi logout hoặc khi phát hiện bị đánh cắp.</p>
+<h2 id="schema-db">Schema DB</h2>
+<pre><code class="language-prisma">model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  refreshTokens RefreshToken[]
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")   // SHA-256, KHÔNG lưu token thô
+  familyId  String    @map("family_id") @db.Uuid   // cả chuỗi rotation dùng chung 1 id
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@map("refresh_tokens")
+}</code></pre>
+<p><code>familyId</code> là chìa khoá của reuse detection — xem mục dưới.</p>
+<h2 id="luồng-xử-lý">Luồng xử lý</h2>
+<p><strong>Đăng ký:</strong> validate Zod → hash mật khẩu bằng Argon2id → <code>INSERT</code>. Email trùng → 409. Không có transaction (một câu lệnh ghi).</p>
+<p><strong>Đăng nhập:</strong> tìm user theo email → <code>argon2.verify</code> → sinh cặp token → lưu hash refresh token vào DB với <code>familyId</code> mới → set 2 cookie. Sai email <strong>hoặc</strong> sai mật khẩu đều trả <strong>cùng một lỗi 401</strong> <code>INVALID_CREDENTIALS</code> — không được nói "email không tồn tại", vì như vậy là cho kẻ tấn công dò xem email nào đã đăng ký.</p>
+<p><strong>Refresh (phần khó nhất):</strong></p>
+<ol><li>Đọc refresh token từ cookie, hash lại, tra DB.</li><li>Không tìm thấy → 401.</li><li><strong>Tìm thấy nhưng <code>revokedAt</code> khác null</strong> → đây là token đã dùng rồi mà vẫn bị dùng lại → <strong>reuse detection</strong>: thu hồi <strong>toàn bộ token cùng <code>familyId</code></strong>, trả 401. Người dùng thật lẫn kẻ trộm đều bị đăng xuất — đúng như mong muốn.</li><li>Hết hạn → 401.</li><li>Hợp lệ → <strong>trong một transaction</strong>: đánh dấu token cũ <code>revokedAt = now()</code>, tạo token mới cùng <code>familyId</code>. Trả cặp cookie mới.</li></ol>
+<p>Transaction chỉ bọc bước 5. Không gọi gì ra ngoài trong transaction.</p>
+<p><strong>Cơ chế reuse detection, nói bằng lời:</strong> mỗi refresh token chỉ được dùng <strong>đúng một lần</strong>. Nếu kẻ trộm copy token và dùng trước, người dùng thật sẽ dùng lại token cũ đó và bị phát hiện. Nếu người dùng thật dùng trước, kẻ trộm bị phát hiện. <strong>Dù ai dùng trước, lần thứ hai luôn lộ.</strong> Đó là toàn bộ ý tưởng.</p>
+<h2 id="edge-cases-bắt-buộc-xử-lý">Edge cases bắt buộc xử lý</h2>
+<ul><li>☐ Email đã tồn tại → 409, không lộ thông tin gì thêm</li><li>☐ Sai mật khẩu và email không tồn tại → <strong>cùng</strong> 401 <code>INVALID_CREDENTIALS</code></li><li>☐ Refresh token đã dùng rồi lại dùng nữa → thu hồi cả <code>familyId</code>, 401</li><li>☐ Refresh token hết hạn → 401</li><li>☐ Logout → token bị thu hồi, dùng lại không được</li><li>☐ Mật khẩu và hash <strong>không bao giờ</strong> xuất hiện trong log (đã có <code>redact</code> từ Phase 0)</li><li>☐ Response của <code>/auth/me</code> không chứa <code>passwordHash</code></li><li>☐ Brute-force login → rate limit chặn</li></ul>
+<h2 id="test-cases-phải-pass">Test cases phải pass</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Test</th><th>Loại</th></tr></thead><tbody><tr><td>1</td><td>Đăng ký thành công → 201, DB có user, <code>passwordHash</code> không phải mật khẩu thô</td><td>integration ✅</td></tr><tr><td>2</td><td>Đăng ký email trùng → 409</td><td>integration ✅</td></tr><tr><td>3</td><td>Đăng nhập đúng → 200 + 2 cookie có cờ <code>HttpOnly</code></td><td>integration ✅</td></tr><tr><td>4</td><td>Sai mật khẩu và email lạ → <strong>cùng</strong> một response 401</td><td>integration ✅</td></tr><tr><td>5</td><td><code>/auth/me</code> không có token → 401</td><td>integration ✅</td></tr><tr><td>6</td><td><code>/auth/me</code> có access token → 200, <strong>không</strong> có <code>passwordHash</code> trong body</td><td>integration ✅</td></tr><tr><td>7</td><td>Refresh hợp lệ → cặp token mới, token cũ hết dùng được</td><td>integration ✅</td></tr><tr><td>8</td><td><strong>Dùng lại refresh token cũ → cả family bị thu hồi</strong> (case quan trọng nhất)</td><td>integration ✅</td></tr><tr><td>9</td><td>Refresh token hết hạn → 401</td><td>integration ✅</td></tr><tr><td>10</td><td>Logout → refresh token cũ không dùng được nữa</td><td>integration ✅</td></tr><tr><td>11</td><td>Access token hết hạn → 401, refresh xong gọi lại thì được</td><td>integration ✅</td></tr><tr><td>12</td><td>Đăng nhập sai N lần → 429</td><td>integration ✅</td></tr><tr><td>13</td><td>Zod chặn email sai định dạng / mật khẩu dưới 8 ký tự</td><td>unit ✅</td></tr><tr><td>14</td><td>Chuẩn hoá email (chữ thường, cắt khoảng trắng), loại field lạ</td><td>unit ✅</td></tr></tbody></table></div>
+<p>Test 8 là <strong>deliverable của phase này</strong> theo <code>docs/SPEC.md</code>.</p>
+<p><strong>Trạng thái thật (2026-08-27):</strong> 14/14 test case pass — 21/21 unit test + 12/12 integration test (<code>test/auth.e2e-spec.ts</code>, chạy thật qua Testcontainers) + 5 test health e2e đi kèm, tổng <code>npm run test:int</code> = 17/17. Chạy lần đầu dính bug môi trường (Prisma 7 tải WASM query compiler cần <code>node --experimental-vm-modules</code> khi chạy dưới Jest) — đã sửa trong <code>package.json</code>, chi tiết ở <code>docs/tech-playbook.md</code> §Xuyên suốt → Testing → Bug hay gặp.</p>
+<h2 id="ngoài-phạm-vi">Ngoài phạm vi</h2>
+<ul><li>Quên mật khẩu, xác thực email, OAuth — không cần cho bài toán flash sale</li><li>Role/permission (admin) — chưa có màn admin nào</li><li>CSRF token — dùng <code>SameSite=Strict</code> là đủ cho phase này, ghi lại làm nợ</li></ul>
+<h2 id="hai-quyết-định-đã-chốt-2026-08-08">Hai quyết định đã chốt (2026-08-08)</h2>
+<p><strong>1. Rate limit login → lưu đếm ở Redis</strong>, không phải RAM.</p>
+<p>Đếm trong RAM sai ngay khi có từ 2 instance trở lên: mỗi instance đếm riêng nên giới hạn "5 lần/phút" thành 10 lần/phút với 2 instance. Cloud Run tự scale nên đây không phải giả định xa vời. Redis đã dựng sẵn trong <code>docker-compose.yml</code> từ Phase 0 mà chưa ai dùng, và Phase 3 (chiến lược C) chắc chắn cần Redis client — làm bây giờ là làm sớm việc phải làm.</p>
+<p><strong>Hệ quả:</strong> Phase 1 phát sinh thêm <code>src/infra/redis/</code> — module hạ tầng thứ hai, cấu trúc copy từ <code>infra/prisma/</code>. Dùng biến <code>REDIS_URL</code> đã có sẵn trong <code>env.schema.ts</code>.</p>
+<p><strong>2. Access token đọc từ HttpOnly Cookie</strong>, không dùng header <code>Authorization: Bearer</code>.</p>
+<p><code>docs/SPEC.md</code> đã chốt HttpOnly Cookie, và Phase 5 có UI thật nên browser tự gửi cookie là đường đi tự nhiên. Đổi lại: <strong>test bằng curl/Postman phiền hơn</strong> vì phải giữ cookie jar — chấp nhận, vì integration test dùng <code>supertest</code> giữ cookie tự động.</p>
+<p>Ghi chú bảo mật: HttpOnly chặn JavaScript đọc token (chống XSS lấy token), nhưng <strong>không</strong> chặn CSRF — browser vẫn tự gửi cookie kèm request từ trang khác. Phase này dựa vào <code>SameSite=Strict</code>; CSRF token là nợ đã ghi ở mục Ngoài phạm vi.</p>
+<hr>
+<h2 id="kiến-thức-của-phase-này-nằm-ở-đâu">Kiến thức của phase này nằm ở đâu</h2>
+<p>Spec này là <strong>hợp đồng</strong>. Phần <em>vì sao</em> — Argon2 vs bcrypt, XSS vs CSRF, vì sao HttpOnly chưa đủ — và <strong>đáp án 3 câu hỏi bản chất của Phase 1</strong> nằm ở <a href="tech-playbook.html"><code>tech-playbook.md</code> §Phase 1</a>. Khoảng 15 phút.</p>
+<h2 id="bằng-chứng-definition-of-done">Bằng chứng Definition of Done</h2>
+<p><strong>14/14 test case pass</strong> — 21 unit + 12 integration (<code>test/auth.e2e-spec.ts</code>), kể cả test #8 (reuse detection: dùng lại refresh token đã xoay → thu hồi cả family). Trạng thái tổng: <a href="claude-md.html"><code>CLAUDE.md</code> §Trạng thái hiện tại</a>.</p>
+</main>
+</div>
+</body>
+</html>

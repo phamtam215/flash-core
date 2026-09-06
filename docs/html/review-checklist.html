@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checklist review code</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html" class="active">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="review-checklist-dùng-cho-mọi-code-do-ai-viết">Review Checklist — dùng cho MỌI code do AI viết</h1>
+<blockquote class="note"><p>Quy tắc vàng: <strong>không merge code mà mình không giải thích lại được luồng chạy.</strong></p></blockquote>
+<h2 id="đúng-nghiệp-vụ">Đúng nghiệp vụ</h2>
+<ul><li>☐ Khớp spec trong <code>docs/specs/</code>? Tất cả test case trong spec đều có test và pass?</li><li>☐ Edge cases trong spec được xử lý thật (không chỉ TODO)?</li></ul>
+<h2 id="transaction-concurrency">Transaction &amp; Concurrency</h2>
+<ul><li>☐ Transaction boundary hẹp nhất có thể? Không gọi API ngoài / gửi email trong transaction?</li><li>☐ Race condition: chuyện gì xảy ra nếu 2 request chạy song song qua đoạn này?</li><li>☐ Idempotency-Key được check đúng chỗ (trước khi tạo side effect)?</li></ul>
+<p>Bổ sung sau Phase 3 — mỗi dòng là một bug đã gặp thật hoặc đã phải nghĩ kỹ để tránh:</p>
+<ul><li>☐ Điều kiện tồn kho nằm <strong>trong câu ghi</strong> (<code>UPDATE … WHERE stock &gt;= ?</code>), không phải <code>if</code> trong RAM rồi mới ghi?</li><li>☐ <code>UPDATE</code> ghi <strong>0 dòng</strong> thì có tách được "không tồn tại" (404) khỏi "hết hàng" (409)? Gộp hai ca này lại là gốc của bug "retry 3 lần cho SKU đã hết hàng".</li><li>☐ Hết hàng trả <strong>409</strong>, không phải 500? (trộn 4xx với 5xx làm error rate benchmark vô nghĩa)</li><li>☐ Chỉ retry lỗi <strong>serialization failure / deadlock</strong>, KHÔNG retry trạng thái nghiệp vụ?</li><li>☐ <code>SELECT … FOR UPDATE</code> có nằm trong <code>$transaction</code> interactive? (ngoài transaction thì khoá nhả ngay khi câu lệnh xong → vô tác dụng, và bug này im lặng)</li><li>☐ Trừ kho xong mà bước sau thất bại (trùng Idempotency-Key, ghi DB lỗi) thì có <strong>hoàn kho</strong>?</li><li>☐ Nhánh hai kho dữ liệu lệch nhau (Redis vs DB) có <strong>log rõ</strong>, không im lặng sửa số?</li><li>☐ Test song song đo đúng thứ cần đo, hay đang đo chính bộ tạo tải? (xem <code>docs/tech-playbook.md</code> §Xuyên suốt → Testing)</li></ul>
+<h2 id="lỗi-độ-bền">Lỗi &amp; độ bền</h2>
+<ul><li>☐ Không có catch nuốt lỗi? Lỗi được phân loại (4xx vs 5xx) hợp lý?</li><li>☐ Job queue: retry được cấu hình? Job fail hết retry đi về đâu (DLQ)?</li><li>☐ Nếu process chết ngay TẠI dòng này thì hệ thống ở trạng thái gì? Phục hồi được không?</li></ul>
+<h2 id="hiệu-năng">Hiệu năng</h2>
+<ul><li>☐ Có N+1 query không? Query trong vòng lặp?</li><li>☐ Index tồn tại cho các cột trong WHERE/ORDER BY của query nóng?</li></ul>
+<h2 id="bảo-mật-log">Bảo mật &amp; log</h2>
+<ul><li>☐ Input được validate bằng Zod ở biên? Không tin dữ liệu client (giá, tồn kho)?</li><li>☐ Log đủ để debug (correlationId) nhưng không lộ password/token?</li><li>☐ Secret không hardcode?</li></ul>
+<h2 id="đọc-lại-phần-vì-sao-làm-cuối-cùng">Đọc lại phần "vì sao" (làm cuối cùng)</h2>
+<ul><li>☐ Claude đã tóm tắt <strong>luồng chạy 5–10 câu</strong> cho thay đổi này chưa? Đọc lại, chỗ nào thấy lạ thì hỏi — <strong>hỏi là được, không cần tự trả lời</strong>.</li><li>☐ Quyết định nào trong diff này mà sáu tháng sau sẽ không ai nhớ lý do? Nếu có → viết ADR.</li></ul>
+<blockquote class="note"><p>Trước đây mục này bắt tự kể lại luồng chạy không nhìn code. Đã bỏ (2026-08-07): việc đó biến mỗi lần review thành một bài thi.</p></blockquote>
+</main>
+</div>
+</body>
+</html>
