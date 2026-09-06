@@ -27,10 +27,10 @@
 <div id="side-progress"></div>
 </div>
 <div class="nav-group"><h3>Tài liệu gốc</h3>
-<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
-<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
-<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
-<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+<a class="item out" href="../../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../../SPEC.md">SPEC.md — 8 phase</a>
 </div>
 </nav>
 <main class="content">
@@ -69,7 +69,7 @@ thứ không phục vụ câu đó đều là phạm vi thừa.</p>
 </div>
 
 <div class="box why">
-<div class="t">Đáp án cho câu đoán: quyết định đúng — và <a href="../adr/007-ui-la-trang-tinh-mot-file.md">ADR-007</a> là thứ phân biệt</div>
+<div class="t">Đáp án cho câu đoán: quyết định đúng — và <a href="../../adr/007-ui-la-trang-tinh-mot-file.md">ADR-007</a> là thứ phân biệt</div>
 <p>Cắt góc là <b>làm ít hơn rồi im lặng</b>. Quyết định là <b>làm ít hơn, viết ra vì sao, và ghi
 rõ mình đang mất gì</b>. ADR-007 nói thẳng cái mất: không có component tái dùng, không có type
 safety ở FE, DOM thao tác bằng tay. Và cái được: <b>không có build step</b> — không
@@ -282,7 +282,7 @@ này tồn tại.</p>
 <p>Câu trả lời đúng không phải "React nặng quá", mà là <b>phạm vi</b>: ở đây FE là <b>công cụ trực
 quan hoá</b>, không phải sản phẩm. Nó có đúng một việc — làm hiện ra cảnh tồn kho rơi về 0 khi
 1.000 VU đang bắn — và một trang tĩnh làm được việc đó.</p>
-<p>Cái được ghi rõ trong <a href="../adr/007-ui-la-trang-tinh-mot-file.md">ADR-007</a>: không build
+<p>Cái được ghi rõ trong <a href="../../adr/007-ui-la-trang-tinh-mot-file.md">ADR-007</a>: không build
 step, không <code>node_modules</code> thứ hai, sửa file là F5 thấy ngay. Cái mất cũng ghi rõ:
 không component tái dùng, không type safety ở FE.</p>
 <p><b>Điểm mấu chốt khi bị hỏi:</b> có ADR nghĩa là đây là <i>quyết định</i>, không phải <i>không
@@ -323,8 +323,12 @@ là phạm vi thừa, dù bản thân nó là việc tốt.</p>
 <p>Biết mình đang làm loại nào là điều kiện để biết dừng — và đó là câu hỏi bản chất của phase này.</p>
 </div></details>
 
+<div class="box note chu-so-huu">
+<p><b>Chủ sở hữu của những đáp án này.</b> Phần trả lời ở trên là <i>bản diễn đạt để nói ra miệng</i>. Bản gốc — và bản được cập nhật khi code đổi — nằm ở <a href="../../tech-playbook.md"><code>tech-playbook.md</code> §Phase 5</a>. <b>Hai chỗ lệch nhau thì playbook đúng.</b> <b>API và hợp đồng đầy đủ</b> của phase (endpoint, schema, edge case, test case, bằng chứng DoD) nằm ở <a href="../../specs/phase5-ui-demo.md"><code>docs/specs/phase5-ui-demo.md</code></a> — trang này không chép lại.</p>
+</div>
+
 <div class="box key lam-that">
-<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../onboarding.md"><b>Buổi 5</b> của <code>docs/onboarding.md</code></a> — tự đóng góp một thay đổi theo đúng quy trình spec → test → code → doc. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
+<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../../onboarding.md"><b>Buổi 5</b> của <code>docs/onboarding.md</code></a> — tự đóng góp một thay đổi theo đúng quy trình spec → test → code → doc. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
 </div>
 
 <section class="track" id="track" data-phase="p5"></section>

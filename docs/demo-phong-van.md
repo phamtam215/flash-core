@@ -198,7 +198,7 @@ docker start flashcore-redis
 Rất hay xảy ra: phỏng vấn online, không share được máy, hoặc máy họ cấp. Chuẩn bị sẵn:
 
 1. **Video/GIF 2 phút** — cảnh k6 chạy và tồn kho rơi về 0 (deliverable của Phase 5).
-2. **Mở [`docs/hoc/index.html`](hoc/index.html)** — sơ đồ vòng đời đơn hàng và cơ chế từng
+2. **Mở [`docs/html/hoc/index.html`](html/hoc/index.html)** — sơ đồ vòng đời đơn hàng và cơ chế từng
    phase. Chỉ vào sơ đồ mà nói, đừng đọc chữ.
 3. **Bảng số của Phase 3** — [spec §Bằng chứng test #16](specs/phase3-order-concurrency.md).
 
@@ -258,7 +258,7 @@ Chi tiết: [playbook §Phase 3 → Số thật đo được](tech-playbook.md)
 
 - [`tech-playbook.md` §Ôn phỏng vấn — 12 câu chốt](tech-playbook.md) — bảng "câu phải nói được"
 - Mỗi phase có mục *Câu hỏi bản chất — và đáp án* trong cùng file
-- Mỗi trang [`hoc/phase-N.html`](hoc/index.html) có mục **"Bị chỉ vào — trả lời thế nào"** với
+- Mỗi trang [`hoc/phase-N.html`](html/hoc/index.html) có mục **"Bị chỉ vào — trả lời thế nào"** với
   đáp án gập lại
 
 Ôn theo đúng thứ tự đó: đọc câu hỏi → tự nói ra → **rồi mới** mở đáp án.
@@ -295,4 +295,4 @@ anh gõ được bao nhiêu dòng.
 - [ ] Trang `localhost:3000` mở sẵn, đã đăng nhập, đã chọn áo, thấy tồn kho 100
 - [ ] Đã **chạy thử trọn kịch bản một lần** và thấy `201=100 · 409=900 · 5xx=0`
 - [ ] Video 2 phút mở sẵn trong tab khác (phương án B)
-- [ ] [`docs/hoc/index.html`](hoc/index.html) mở sẵn trong tab khác (phương án B)
+- [ ] [`docs/html/hoc/index.html`](html/hoc/index.html) mở sẵn trong tab khác (phương án B)

@@ -27,10 +27,10 @@
 <div id="side-progress"></div>
 </div>
 <div class="nav-group"><h3>Tài liệu gốc</h3>
-<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
-<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
-<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
-<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+<a class="item out" href="../../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../../SPEC.md">SPEC.md — 8 phase</a>
 </div>
 </nav>
 <main class="content">
@@ -71,7 +71,7 @@ tiên chạm tới biến đó, với thông báo lỗi chẳng liên quan gì. 
 
 <h3>Vì sao là Modular Monolith, không phải microservices</h3>
 
-<p>Đây là quyết định đầu tiên và ảnh hưởng tới mọi phase sau (<a href="../adr/001-modular-monolith.md">ADR-001</a>).
+<p>Đây là quyết định đầu tiên và ảnh hưởng tới mọi phase sau (<a href="../../adr/001-modular-monolith.md">ADR-001</a>).
 Ba cách chia một hệ thống:</p>
 
 <figure class="dg">
@@ -377,8 +377,8 @@ nhiêu</b>. Coverage đếm dòng <i>được chạy qua</i>, không đếm dòn
 <li class="y"><code>docker compose up</code> chạy được toàn bộ hạ tầng</li>
 <li class="y"><b>CI xanh từ máy sạch</b> — đây mới là điều kiện thật, không phải "xanh trên máy tôi"</li>
 <li class="y">ESLint chặn được import sâu (tự kiểm bằng cách cố tình viết một dòng vi phạm)</li>
-<li class="y">2 ADR: <a href="../adr/001-modular-monolith.md">001 — Modular Monolith</a>, <a href="../adr/002-nen-mong-ky-thuat-phase-0.md">002 — nền móng kỹ thuật</a></li>
-<li class="y">3 câu hỏi bản chất có đáp án <span class="src">→ <a href="../tech-playbook.md">tech-playbook §Phase 0</a></span></li>
+<li class="y">2 ADR: <a href="../../adr/001-modular-monolith.md">001 — Modular Monolith</a>, <a href="../../adr/002-nen-mong-ky-thuat-phase-0.md">002 — nền móng kỹ thuật</a></li>
+<li class="y">3 câu hỏi bản chất có đáp án <span class="src">→ <a href="../../tech-playbook.md">tech-playbook §Phase 0</a></span></li>
 </ul>
 
 <div class="box note">
@@ -446,8 +446,12 @@ ranh giới module biến mất.</p>
 Prisma ở mọi nơi — truy cập DB vẫn phải gom trong <code>*.repository.ts</code> của module.</p>
 </div></details>
 
+<div class="box note chu-so-huu">
+<p><b>Chủ sở hữu của những đáp án này.</b> Phần trả lời ở trên là <i>bản diễn đạt để nói ra miệng</i>. Bản gốc — và bản được cập nhật khi code đổi — nằm ở <a href="../../tech-playbook.md"><code>tech-playbook.md</code> §Phase 0</a>. <b>Hai chỗ lệch nhau thì playbook đúng.</b> <b>API và hợp đồng đầy đủ</b> của phase (endpoint, schema, edge case, test case, bằng chứng DoD) nằm ở <a href="../../specs/phase0-nen-mong.md"><code>docs/specs/phase0-nen-mong.md</code></a> — trang này không chép lại.</p>
+</div>
+
 <div class="box key lam-that">
-<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../onboarding.md"><b>Buổi 0 và Buổi 1</b> của <code>docs/onboarding.md</code></a> — chạy được hệ thống, rồi đi theo một request qua 4 file. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
+<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../../onboarding.md"><b>Buổi 0 và Buổi 1</b> của <code>docs/onboarding.md</code></a> — chạy được hệ thống, rồi đi theo một request qua 4 file. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
 </div>
 
 <section class="track" id="track" data-phase="p0"></section>

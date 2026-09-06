@@ -12,8 +12,8 @@ chép lại. Đây là luật khiến tài liệu không lệch nhau khi code đ
 |---|---|
 | Dự án là gì, chạy thế nào | [`README.md`](../README.md) (gốc repo) |
 | **Thứ tự học** cho người mới: học gì trước, phá cái gì để thấy | [`onboarding.md`](onboarding.md) |
-| **Sơ đồ**: nghiệp vụ, vòng đời đơn, vai trò từng module, cơ chế từng phase | [`hoc/`](hoc/index.html) |
-| **Tiến độ hiểu bài** (113 ý, tick trong trình duyệt — không nằm trong git) | [`hoc/assets/track.js`](hoc/assets/track.js) |
+| **Sơ đồ**: nghiệp vụ, vòng đời đơn, vai trò từng module, cơ chế từng phase | [`hoc/`](html/hoc/index.html) |
+| **Tiến độ hiểu bài** (113 ý, tick trong trình duyệt — không nằm trong git) | [`hoc/assets/track.js`](html/hoc/assets/track.js) |
 | **Tech stack nào giải quyết vấn đề gì** + kịch bản demo/thuyết trình khi phỏng vấn | [`demo-phong-van.md`](demo-phong-van.md) |
 | **Đang ở phase nào, còn nợ gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
 | Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) |
@@ -33,7 +33,7 @@ Ba ranh giới hay bị vi phạm nhất, ghi ra để tự kiểm khi sửa tà
 2. **Chỉ `CLAUDE.md` giữ trạng thái.** Spec được giữ *bằng chứng* (số test, số đo, cấu hình để
    chạy lại), không giữ câu "đang làm dở đến đâu".
 3. **Glossary không giải thích.** Dài hơn một dòng nghĩa là nó thuộc playbook.
-4. **`hoc/` không giữ kiến thức mới.** Nó sở hữu *sơ đồ* và *đường đi qua code*; mọi câu
+4. **`html/hoc/` không giữ kiến thức mới.** Nó sở hữu *sơ đồ* và *đường đi qua code*; mọi câu
    "vì sao" bám sát playbook và trỏ link về. Viết một cơ chế mới ở đó là tạo nguồn thứ hai.
 
 ## Mở file nào khi nào
@@ -41,7 +41,7 @@ Ba ranh giới hay bị vi phạm nhất, ghi ra để tự kiểm khi sửa tà
 | Thời điểm | File |
 |---|---|
 | **Lần đầu vào dự án** | [`onboarding.md`](onboarding.md) — lộ trình 6 buổi có thực hành, làm theo thứ tự |
-| **Muốn hiểu một phase ở mức bản chất** (sơ đồ, cấu trúc file, cách test, tiêu chí qua phase) | [`hoc/index.html`](hoc/index.html) — giáo trình 8 trang, mở bằng trình duyệt |
+| **Muốn hiểu một phase ở mức bản chất** (sơ đồ, cấu trúc file, cách test, tiêu chí qua phase) | [`hoc/index.html`](html/hoc/index.html) — giáo trình 8 trang, mở bằng trình duyệt |
 | **"Giờ tôi cần làm gì?"** | [`../CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
 | Trước khi bắt đầu một phase | [`glossary.md`](glossary.md) (nhận tên, 20') → [`tech-playbook.md`](tech-playbook.md) §Phase N (cơ chế + bẫy, 15') → [`SPEC.md`](SPEC.md) |
 | Trước khi code một tính năng | gõ `/spec <tên>` → tạo file trong [`specs/`](specs/) |
@@ -68,12 +68,19 @@ docs/
 ├── git-workflow.md        chuẩn commit, quy tắc nhánh, cách đóng phase
 ├── review-checklist.md    checklist review code
 ├── phase-0-checklist.md   hồ sơ Phase 0 (đã đóng — không còn việc phải làm)
-├── hoc/                   ★ GIÁO TRÌNH 8 PHASE — sơ đồ + đường đi qua code (HTML viết tay)
 ├── specs/                 hợp đồng từng tính năng + bằng chứng DoD
 ├── adr/                   quyết định kiến trúc
 ├── templates/             khuôn cho spec & ADR
-└── html/                  bản đọc offline, sinh bằng `npm run docs:html`
+└── html/                  ★ BẢN ĐỌC BẰNG TRÌNH DUYỆT — một thư mục duy nhất
+    ├── index.html           cửa vào duy nhất
+    ├── *.html               trang tham khảo, SINH từ .md (`npm run docs:html`)
+    └── hoc/                 giáo trình 8 phase (viết tay) + bộ theo dõi 113 ý
 ```
+
+> **Chỉ có MỘT thư mục đọc bằng trình duyệt.** Trước đây có hai (`docs/html/` và `docs/hoc/`),
+> mỗi bên một `index.html` và một sidebar riêng, **không hề trỏ sang nhau** — ai vào cửa này
+> không bao giờ biết cửa kia tồn tại. Và cả hai đều có trang viết tay về cùng những phase.
+> Đã gộp: `hoc/` nằm trong `html/`, sáu trang phase trùng vai đã xoá.
 
 ## Ba nguyên tắc không được phá
 

@@ -27,10 +27,10 @@
 <div id="side-progress"></div>
 </div>
 <div class="nav-group"><h3>Tài liệu gốc</h3>
-<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
-<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
-<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
-<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+<a class="item out" href="../../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../../SPEC.md">SPEC.md — 8 phase</a>
 </div>
 </nav>
 <main class="content">
@@ -182,7 +182,7 @@ giữ khoá trên dòng nghiệp vụ nóng trong lúc chờ mạng là cách l�
 <li>Redis nằm cùng hạ tầng, và transaction có trần thời gian (15 giây).</li>
 </ol>
 <p>Không có ngoại lệ này thì <b>không có cách nào giữ được "không mất"</b>. Ghi ở
-<a href="../adr/006-relay-giu-transaction-khi-day-queue.md">ADR-006</a>.</p>
+<a href="../../adr/006-relay-giu-transaction-khi-day-queue.md">ADR-006</a>.</p>
 </div>
 
 <h3><code>SKIP LOCKED</code> — vế còn lại của cặp</h3>
@@ -251,7 +251,7 @@ idempotent" trở nên có sức nặng. Dự án có đúng hai consumer, đặ
 <p><b>Idempotency là miễn phí khi hệ quả nằm trong DB, và là một quyết định nghiệp vụ khi nó ra
 ngoài.</b> Dự án chọn ghi dấu <i>trước</i> khi gửi mail — chấp nhận rủi ro mất một email nếu
 process chết đúng khe giữa hai bước, để đổi lấy chắc chắn không gửi trùng
-(<a href="../adr/004-ghi-dau-truoc-khi-gui-mail.md">ADR-004</a>).</p>
+(<a href="../../adr/004-ghi-dau-truoc-khi-gui-mail.md">ADR-004</a>).</p>
 </div>
 
 <h2>Webhook thanh toán — ba chi tiết, sai cái nào cũng hỏng im lặng</h2>
@@ -405,10 +405,10 @@ thật ngày 2026-09-05: <b>20 / 0 / 20</b>.</p>
 <li class="y">Chạy <b>bằng tay</b> trên môi trường dev thật: API + worker + Postgres/Redis compose</li>
 <li class="y">Demo "rút dây mạng" chạy tay, số liệu dán vào spec</li>
 <li class="y">Migration viết tay chạy đúng qua <code>prisma migrate deploy</code></li>
-<li class="y">3 ADR: <a href="../adr/004-ghi-dau-truoc-khi-gui-mail.md">004</a> ·
-<a href="../adr/005-worker-chay-process-rieng.md">005</a> ·
-<a href="../adr/006-relay-giu-transaction-khi-day-queue.md">006</a></li>
-<li class="y">4 câu hỏi bản chất có đáp án <span class="src">→ <a href="../tech-playbook.md">tech-playbook §Phase 4</a></span></li>
+<li class="y">3 ADR: <a href="../../adr/004-ghi-dau-truoc-khi-gui-mail.md">004</a> ·
+<a href="../../adr/005-worker-chay-process-rieng.md">005</a> ·
+<a href="../../adr/006-relay-giu-transaction-khi-day-queue.md">006</a></li>
+<li class="y">4 câu hỏi bản chất có đáp án <span class="src">→ <a href="../../tech-playbook.md">tech-playbook §Phase 4</a></span></li>
 </ul>
 
 <div class="box key">
@@ -480,7 +480,7 @@ tự ý sửa số.</b> Việc của code là ghi lại đủ để người kh�
 
 <details class="qa"><summary>"Vì sao worker phải là tiến trình riêng chứ không chạy chung với API?"</summary>
 <div class="ans">
-<p>Ba lý do, theo <a href="../adr/005-worker-chay-process-rieng.md">ADR-005</a>:</p>
+<p>Ba lý do, theo <a href="../../adr/005-worker-chay-process-rieng.md">ADR-005</a>:</p>
 <ul>
 <li><b>Hai loại tải khác nhau.</b> API phải trả lời nhanh; worker làm việc nặng và được phép chậm.
 Chạy chung thì một job nặng làm tăng latency của mọi request.</li>
@@ -500,8 +500,12 @@ trả — job nền chạy chung sẽ bị treo giữa chừng.</li>
 Nó quan trọng <b>ngang</b> với bản thân backoff, không phải chi tiết làm đẹp.</p>
 </div></details>
 
+<div class="box note chu-so-huu">
+<p><b>Chủ sở hữu của những đáp án này.</b> Phần trả lời ở trên là <i>bản diễn đạt để nói ra miệng</i>. Bản gốc — và bản được cập nhật khi code đổi — nằm ở <a href="../../tech-playbook.md"><code>tech-playbook.md</code> §Phase 4</a>. <b>Hai chỗ lệch nhau thì playbook đúng.</b> <b>API và hợp đồng đầy đủ</b> của phase (endpoint, schema, edge case, test case, bằng chứng DoD) nằm ở <a href="../../specs/phase4-async-queue-payment.md"><code>docs/specs/phase4-async-queue-payment.md</code></a> — trang này không chép lại.</p>
+</div>
+
 <div class="box key lam-that">
-<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../onboarding.md"><b>Buổi 3</b> của <code>docs/onboarding.md</code></a> — demo &quot;rút dây mạng&quot;: giết worker giữa chừng rồi đếm 20 / 0 / 20. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
+<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../../onboarding.md"><b>Buổi 3</b> của <code>docs/onboarding.md</code></a> — demo &quot;rút dây mạng&quot;: giết worker giữa chừng rồi đếm 20 / 0 / 20. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
 </div>
 
 <section class="track" id="track" data-phase="p4"></section>

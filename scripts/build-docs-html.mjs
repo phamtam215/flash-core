@@ -40,13 +40,10 @@ const PAGES = [
 ];
 
 const NAV = [
-  ['Phase', [
-    ['phase-0.html', 'Phase 0 — Nền móng'],
-    ['phase-1.html', 'Phase 1 — Auth'],
-    ['phase-2.html', 'Phase 2 — Product'],
-    ['phase-3.html', 'Phase 3 — Order ⭐'],
-    ['phase-4.html', 'Phase 4 — Async &amp; Payment'],
-    ['phase-5.html', 'Phase 5 — UI demo'],
+  ['Học theo phase', [
+    ['hoc/index.html', '★ Giáo trình 8 phase'],
+    ['hoc/phase-3.html', 'Phase 3 — Concurrency ⭐'],
+    ['hoc/phase-4.html', 'Phase 4 — Async ⭐'],
   ]],
   ['ADR', [
     ['adr-001-modular-monolith.html', 'ADR-001: Modular Monolith'],
@@ -306,14 +303,14 @@ function section(srcFile, heading) {
 }
 
 /**
- * Trang phase là bản đọc có dẫn dắt, viết tay — nhưng những đoạn đã có chủ ở Markdown thì
- * được NHÚNG vào giữa hai mốc, không chép:
+ * `index.html` viết tay — nhưng những đoạn đã có chủ ở nơi khác thì được NHÚNG vào giữa hai
+ * mốc, không chép (sidebar lấy từ hằng NAV; nội dung lấy từ Markdown):
  *
  *   <!--@@from docs/tech-playbook.md ### Tiêu đề-->  …nội dung sinh ra…  <!--@@end-->
  */
 const MARKER = /<!--@@from (\S+) (#{1,6} [^>]*?)-->[\s\S]*?<!--@@end-->/g;
 let embedded = 0;
-for (const file of readdirSync(OUT_DIR).filter((name) => /^(phase-\d+|index)\.html$/.test(name))) {
+for (const file of readdirSync(OUT_DIR).filter((name) => /^index\.html$/.test(name))) {
   const before = readFileSync(`${OUT_DIR}${file}`, 'utf8');
   const after = before
     .replace(MARKER, (_, src, heading) => {
@@ -328,4 +325,4 @@ for (const file of readdirSync(OUT_DIR).filter((name) => /^(phase-\d+|index)\.ht
   }
 }
 console.log(`\nSinh lại ${PAGES.length} trang + nhúng ${embedded} mục vào trang phase.`);
-console.log('Phần dẫn dắt của index.html và phase-*.html viết tay; sidebar + mục kiến thức thì nhúng.');
+console.log('index.html và hoc/ viết tay; sidebar của index.html thì nhúng từ hằng NAV.');

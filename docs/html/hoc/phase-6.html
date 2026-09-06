@@ -27,10 +27,10 @@
 <div id="side-progress"></div>
 </div>
 <div class="nav-group"><h3>Tài liệu gốc</h3>
-<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
-<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
-<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
-<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+<a class="item out" href="../../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../../SPEC.md">SPEC.md — 8 phase</a>
 </div>
 </nav>
 <main class="content">
@@ -120,7 +120,7 @@ nhất.</p>
 <p><b>Vì sao không truyền tham số?</b> Vì mọi service sẽ phải nhận thêm một tham số chẳng liên quan
 gì tới nghiệp vụ của nó, và <b>chỉ cần một chỗ quên là đứt chuỗi</b> — mà chỗ quên đó không có test
 nào bắt được. Cái giá phải trả: đọc <code>OrderService</code> sẽ không thấy id được truyền vào từ
-đâu. Đánh đổi ghi ở <a href="../adr/008-correlationid-dung-asynclocalstorage.md">ADR-008</a>.</p>
+đâu. Đánh đổi ghi ở <a href="../../adr/008-correlationid-dung-asynclocalstorage.md">ADR-008</a>.</p>
 </div>
 
 <h2><code>/health</code> vs <code>/ready</code> — và đáp án cho câu đoán</h2>
@@ -419,8 +419,12 @@ id được truyền vào từ đâu. Đó là lý do chỉ có đúng <b>hai</b
 <code>run()</code>.</p>
 </div></details>
 
+<div class="box note chu-so-huu">
+<p><b>Chủ sở hữu của những đáp án này.</b> Phần trả lời ở trên là <i>bản diễn đạt để nói ra miệng</i>. Bản gốc — và bản được cập nhật khi code đổi — nằm ở <a href="../../tech-playbook.md"><code>tech-playbook.md</code> §Phase 6</a>. <b>Hai chỗ lệch nhau thì playbook đúng.</b> <b>API và hợp đồng đầy đủ</b> của phase (endpoint, schema, edge case, test case, bằng chứng DoD) nằm ở <a href="../../specs/phase6-observability.md"><code>docs/specs/phase6-observability.md</code></a> — trang này không chép lại.</p>
+</div>
+
 <div class="box key lam-that">
-<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../onboarding.md"><b>Buổi 4</b> của <code>docs/onboarding.md</code></a> — truy một correlationId qua hai tiến trình, rồi giết Redis xem /ready và /health khác nhau ra sao. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
+<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../../onboarding.md"><b>Buổi 4</b> của <code>docs/onboarding.md</code></a> — truy một correlationId qua hai tiến trình, rồi giết Redis xem /ready và /health khác nhau ra sao. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
 </div>
 
 <section class="track" id="track" data-phase="p6"></section>
