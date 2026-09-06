@@ -166,6 +166,15 @@ function inline(text) {
 
   let out = text.replace(/`([^`]+)`/g, (_, code) => park(`<code>${escapeHtml(code)}</code>`));
 
+  // ẢNH — phải xử lý TRƯỚC link, vì `![alt](src)` cũng khớp mẫu link và sẽ bị nuốt mất dấu `!`.
+  //
+  // Đường dẫn trong Markdown viết theo góc nhìn của `docs/` (`html/assets/img/x.png`) để mở
+  // file .md trên GitHub vẫn thấy ảnh; sang HTML thì trang nằm sẵn trong `docs/html/` nên
+  // phải bỏ tiền tố `html/`.
+  out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) =>
+    park(`<img src="${src.replace(/^html\//, '')}" alt="${escapeHtml(alt)}" loading="lazy">`),
+  );
+
   out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
     const [path, anchor] = href.split('#');
     const key = (path.split('/').pop() || '').toLowerCase();

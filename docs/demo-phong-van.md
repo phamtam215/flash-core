@@ -9,6 +9,128 @@
 
 ---
 
+## Phần 0 — Nghiệp vụ và luồng làm việc, nhìn bằng ảnh
+
+> Đọc phần này trước. Không hiểu **app làm gì** thì mọi thứ kỹ thuật phía dưới đều vô nghĩa.
+
+### Nghiệp vụ trong bốn câu
+
+Một shop bán áo thun mở **flash sale**: một mẫu áo, số lượng **giới hạn theo từng biến thể**
+(size × màu), mở bán đúng giờ. Hàng nghìn người bấm "Săn ngay" trong vài giây.
+
+Việc khó không phải bán hàng — mà là **bán đúng số lượng có thật**. Còn 100 chiếc thì phải bán
+ra **đúng 100**, không phải 101. Bán vượt là mất tiền thật (hoàn đơn, xin lỗi khách) và mất uy
+tín; bán thiếu là bỏ doanh thu.
+
+Và vì tiền tham gia vào, hệ thống còn phải trả lời được: đơn chưa trả tiền thì **giữ chỗ bao
+lâu**, ai trả tiền rồi mà đơn đã huỷ thì **xử lý sao**, worker chết giữa chừng thì **có mất
+việc không**.
+
+### Vòng đời một đơn hàng
+
+Đây là thứ cần thuộc trước khi mở UI — mọi màn hình chỉ là cách nhìn vào một trong ba trạng
+thái này:
+
+```
+                     ┌──────────────────────────────────────────┐
+   bấm "Săn ngay"    │                                          │
+  ───────────────►  PENDING  ──── webhook "đã trả tiền" ────►  PAID
+   (trừ kho NGAY)    │  giữ chỗ 15 phút                          (kết thúc)
+                     │
+                     └──── quá 15 phút, chưa trả tiền ────►  CANCELLED
+                            (worker tự huỷ + TRẢ HÀNG VỀ KHO)
+```
+
+Ba điều đáng chú ý, và cả ba đều là quyết định nghiệp vụ chứ không phải kỹ thuật:
+
+1. **Trừ kho ngay lúc bấm**, không đợi trả tiền. Nếu đợi, hai người cùng "giữ" một chiếc áo và
+   người trả tiền sau sẽ mất hàng — tệ hơn nhiều.
+2. **Giữ chỗ 15 phút** rồi tự huỷ. Không có nó thì người bấm mà không trả tiền sẽ giam hàng
+   vĩnh viễn.
+3. **Huỷ thì phải trả hàng về kho**, và trả **đúng một lần**. Trả hai lần là tự sinh ra hàng
+   không tồn tại.
+
+### Luồng dùng app — bảy bước, có ảnh thật
+
+#### Bước 1 · Đăng nhập
+
+![Màn đăng nhập](html/assets/img/ui-1-dang-nhap.png)
+*Chưa có tài khoản thì bấm **Đăng ký** — nó tự đăng nhập luôn. Token nằm trong cookie
+`HttpOnly`, JavaScript không đọc được (đó là chủ đích, chống XSS lấy mất token).*
+
+#### Bước 2 · Màn "Sự kiện sale" — nơi nhìn thấy tồn kho
+
+![Màn sự kiện sale với lưới áo và bảng SKU](html/assets/img/ui-2-su-kien-sale.png)
+*Phía trên là lưới **mẫu áo**; bấm một mẫu thì bảng bên dưới hiện các **biến thể (SKU)** của
+nó. Mỗi dòng là một tổ hợp **size × màu**, và **tồn kho đếm riêng cho từng dòng** — "áo đen
+size M" hết không có nghĩa "áo trắng size M" hết. Con số ở cột Tồn kho **tự cập nhật mỗi 1,5
+giây**, nên mở hai tab sẽ thấy chúng đổi cùng nhau.*
+
+#### Bước 3 · Bấm "Săn ngay" → đơn giữ chỗ
+
+![Đơn PENDING với đếm ngược 15 phút](html/assets/img/ui-3-don-giu-cho.png)
+*Tồn kho tụt **100 → 99** ngay lập tức, và một đơn `PENDING` hiện ra kèm **đếm ngược 14:59**.
+Đơn đã giữ chỗ nhưng **chưa trả tiền**. Nếu hết hàng thì nút chuyển thành "Hết hàng" và bấm sẽ
+báo lỗi 409 — đó là trạng thái bình thường của flash sale, không phải lỗi hệ thống.*
+
+#### Bước 4 · Bấm "Thanh toán"
+
+![Lệnh send-webhook hiện ra sau khi tạo phiên thanh toán](html/assets/img/ui-4-thanh-toan.png)
+*Trang **không** tự đánh dấu đã trả tiền được — nó chỉ tạo một phiên thanh toán rồi hiện ra
+lệnh để copy. **Đó là điểm cần nhấn khi demo**: trình duyệt không giữ khoá bí mật nên không ký
+nổi webhook. Nếu nó ký được thì việc verify chữ ký ở phía server là vô nghĩa, và ai cũng đánh
+dấu đơn của người khác là "đã trả tiền" được.*
+
+#### Bước 5 · Chạy lệnh đó ở terminal — đóng vai cổng thanh toán
+
+```bash
+node scripts/send-webhook.mjs \
+  --order <order-id> --amount 299000 --intent <payment-intent-id>
+```
+
+Server nhận, **verify chữ ký**, trả `204` ngay rồi đẩy việc nặng vào hàng đợi. Worker xử lý và
+đổi đơn sang `PAID`.
+
+#### Bước 6 · Tab "Đơn của tôi" — thấy kết quả
+
+![Đơn đã chuyển sang PAID](html/assets/img/ui-5-don-cua-toi.png)
+*Trạng thái đã là **PAID**, cột "Còn lại" thành `—` vì đơn không còn đếm ngược nữa. Nếu để đơn
+quá 15 phút mà không chạy lệnh trên, chính bảng này sẽ tự chuyển nó sang `CANCELLED` và tồn kho
+được cộng trả lại.*
+
+#### Bước 7 · Cảnh đáng giá nhất — 1.000 người bấm cùng lúc
+
+Đây là lý do cả dự án tồn tại. Chọn một mẫu có `stock = 100`:
+
+![Tồn kho 100 trước khi chạy k6](html/assets/img/ui-6-truoc-k6.png)
+*Trước khi bắn: tồn kho **100**, nút "Săn ngay" còn bấm được.*
+
+Rồi chạy k6 (1.000 người dùng ảo, mỗi người bấm mua một lần):
+
+```
+201 (bán được):    100   ← đúng 100
+409 (hết hàng):    900   ← trạng thái nghiệp vụ, KHÔNG phải lỗi
+4xx khác:          0
+5xx:               0
+```
+
+![Tồn kho về 0 và dừng ở 0 sau khi chạy k6](html/assets/img/ui-7-sau-k6.png)
+*Sau **một giây**: tồn kho **0** màu đỏ, nút thành "Hết hàng", và **dừng đúng ở 0** — không có
+nhịp cập nhật nào hiện số âm. Bán ra đúng 100 chiếc trên 1.000 người bấm.*
+
+### Ai làm gì phía sau — ba thành phần
+
+| Thành phần | Chạy bằng lệnh | Việc của nó |
+|---|---|---|
+| **API** | `npm run dev` | Nhận request, trừ kho, tạo đơn, verify chữ ký webhook. Phục vụ luôn trang web ở `localhost:3000` |
+| **Worker** | `npm run worker` | Chạy nền, **không** phục vụ HTTP: gửi email, tự huỷ đơn quá hạn, xử lý sự kiện thanh toán |
+| **Postgres + Redis** | `npm run up` | Postgres giữ **sự thật** về tồn kho; Redis giữ hàng đợi việc và bộ đếm rate limit |
+
+Thiếu worker thì app vẫn đặt được đơn — nhưng đơn sẽ **không bao giờ** tự huỷ, và email không
+bao giờ gửi. Đó là lý do demo phải mở hai terminal.
+
+---
+
 ## Phần 1 — Dự án là gì, nói trong ba độ dài
 
 Người phỏng vấn hỏi "kể về dự án của em" bằng ba kiểu, và mỗi kiểu cần một câu trả lời khác

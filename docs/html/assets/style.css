@@ -244,3 +244,31 @@ del { color: var(--text-muted); }
 .content > pre {
   max-width: min(1140px, 100%);
 }
+
+/* ── Ảnh chụp màn hình ────────────────────────────────────────────────────────────────── */
+
+.content img {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0.4em 0 0.2em;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
+}
+
+/* Ảnh giao diện là ảnh chụp màn hình TỐI, đặt trên nền sáng của trang tài liệu — bọc một
+   khung tối quanh nó để mắt không bị chói ở rìa, và để chú thích dính liền với ảnh. */
+.content > p:has(> img) {
+  max-width: min(1140px, 100%);
+  background: #14161b;
+  border-radius: 10px;
+  padding: 14px 14px 10px;
+}
+.content > p:has(> img) em {
+  display: block;
+  color: #9aa3b2;
+  font-size: 0.88em;
+  font-style: normal;
+  margin-top: 8px;
+  text-align: center;
+}

@@ -16,6 +16,51 @@
 <blockquote class="note"><p><strong>File này sở hữu đúng hai thứ:</strong> <em>tech stack nào giải quyết vấn đề gì</em>, và <em>kịch bản đứng trước người phỏng vấn</em>.</p>
 <p>Nó <strong>không</strong> chứa kiến thức kỹ thuật — mọi câu "vì sao" trỏ về <a href="tech-playbook.html"><code>tech-playbook.md</code></a>, mọi quyết định trỏ về <code><code>adr/</code></code>, mọi con số trỏ về <code><code>specs/</code></code>. Nếu thấy mình sắp giải thích một cơ chế ở đây, dừng lại và đặt link.</p></blockquote>
 <hr>
+<h2 id="phần-0-nghiệp-vụ-và-luồng-làm-việc-nhìn-bằng-ảnh">Phần 0 — Nghiệp vụ và luồng làm việc, nhìn bằng ảnh</h2>
+<blockquote class="note"><p>Đọc phần này trước. Không hiểu <strong>app làm gì</strong> thì mọi thứ kỹ thuật phía dưới đều vô nghĩa.</p></blockquote>
+<h3 id="nghiệp-vụ-trong-bốn-câu">Nghiệp vụ trong bốn câu</h3>
+<p>Một shop bán áo thun mở <strong>flash sale</strong>: một mẫu áo, số lượng <strong>giới hạn theo từng biến thể</strong> (size × màu), mở bán đúng giờ. Hàng nghìn người bấm "Săn ngay" trong vài giây.</p>
+<p>Việc khó không phải bán hàng — mà là <strong>bán đúng số lượng có thật</strong>. Còn 100 chiếc thì phải bán ra <strong>đúng 100</strong>, không phải 101. Bán vượt là mất tiền thật (hoàn đơn, xin lỗi khách) và mất uy tín; bán thiếu là bỏ doanh thu.</p>
+<p>Và vì tiền tham gia vào, hệ thống còn phải trả lời được: đơn chưa trả tiền thì <strong>giữ chỗ bao lâu</strong>, ai trả tiền rồi mà đơn đã huỷ thì <strong>xử lý sao</strong>, worker chết giữa chừng thì <strong>có mất việc không</strong>.</p>
+<h3 id="vòng-đời-một-đơn-hàng">Vòng đời một đơn hàng</h3>
+<p>Đây là thứ cần thuộc trước khi mở UI — mọi màn hình chỉ là cách nhìn vào một trong ba trạng thái này:</p>
+<pre><code>                     ┌──────────────────────────────────────────┐
+   bấm "Săn ngay"    │                                          │
+  ───────────────►  PENDING  ──── webhook "đã trả tiền" ────►  PAID
+   (trừ kho NGAY)    │  giữ chỗ 15 phút                          (kết thúc)
+                     │
+                     └──── quá 15 phút, chưa trả tiền ────►  CANCELLED
+                            (worker tự huỷ + TRẢ HÀNG VỀ KHO)</code></pre>
+<p>Ba điều đáng chú ý, và cả ba đều là quyết định nghiệp vụ chứ không phải kỹ thuật:</p>
+<ol><li><strong>Trừ kho ngay lúc bấm</strong>, không đợi trả tiền. Nếu đợi, hai người cùng "giữ" một chiếc áo và người trả tiền sau sẽ mất hàng — tệ hơn nhiều.</li><li><strong>Giữ chỗ 15 phút</strong> rồi tự huỷ. Không có nó thì người bấm mà không trả tiền sẽ giam hàng vĩnh viễn.</li><li><strong>Huỷ thì phải trả hàng về kho</strong>, và trả <strong>đúng một lần</strong>. Trả hai lần là tự sinh ra hàng không tồn tại.</li></ol>
+<h3 id="luồng-dùng-app-bảy-bước-có-ảnh-thật">Luồng dùng app — bảy bước, có ảnh thật</h3>
+<h4 id="bước-1-đăng-nhập">Bước 1 · Đăng nhập</h4>
+<p><img src="assets/img/ui-1-dang-nhap.png" alt="Màn đăng nhập" loading="lazy"> <em>Chưa có tài khoản thì bấm <strong>Đăng ký</strong> — nó tự đăng nhập luôn. Token nằm trong cookie <code>HttpOnly</code>, JavaScript không đọc được (đó là chủ đích, chống XSS lấy mất token).</em></p>
+<h4 id="bước-2-màn-sự-kiện-sale-nơi-nhìn-thấy-tồn-kho">Bước 2 · Màn "Sự kiện sale" — nơi nhìn thấy tồn kho</h4>
+<p><img src="assets/img/ui-2-su-kien-sale.png" alt="Màn sự kiện sale với lưới áo và bảng SKU" loading="lazy"> <em>Phía trên là lưới <strong>mẫu áo</strong>; bấm một mẫu thì bảng bên dưới hiện các <strong>biến thể (SKU)</strong> của nó. Mỗi dòng là một tổ hợp <strong>size × màu</strong>, và <strong>tồn kho đếm riêng cho từng dòng</strong> — "áo đen size M" hết không có nghĩa "áo trắng size M" hết. Con số ở cột Tồn kho <strong>tự cập nhật mỗi 1,5 giây</strong>, nên mở hai tab sẽ thấy chúng đổi cùng nhau.</em></p>
+<h4 id="bước-3-bấm-săn-ngay-đơn-giữ-chỗ">Bước 3 · Bấm "Săn ngay" → đơn giữ chỗ</h4>
+<p><img src="assets/img/ui-3-don-giu-cho.png" alt="Đơn PENDING với đếm ngược 15 phút" loading="lazy"> <em>Tồn kho tụt <strong>100 → 99</strong> ngay lập tức, và một đơn <code>PENDING</code> hiện ra kèm <strong>đếm ngược 14:59</strong>. Đơn đã giữ chỗ nhưng <strong>chưa trả tiền</strong>. Nếu hết hàng thì nút chuyển thành "Hết hàng" và bấm sẽ báo lỗi 409 — đó là trạng thái bình thường của flash sale, không phải lỗi hệ thống.</em></p>
+<h4 id="bước-4-bấm-thanh-toán">Bước 4 · Bấm "Thanh toán"</h4>
+<p><img src="assets/img/ui-4-thanh-toan.png" alt="Lệnh send-webhook hiện ra sau khi tạo phiên thanh toán" loading="lazy"> <em>Trang <strong>không</strong> tự đánh dấu đã trả tiền được — nó chỉ tạo một phiên thanh toán rồi hiện ra lệnh để copy. <strong>Đó là điểm cần nhấn khi demo</strong>: trình duyệt không giữ khoá bí mật nên không ký nổi webhook. Nếu nó ký được thì việc verify chữ ký ở phía server là vô nghĩa, và ai cũng đánh dấu đơn của người khác là "đã trả tiền" được.</em></p>
+<h4 id="bước-5-chạy-lệnh-đó-ở-terminal-đóng-vai-cổng-thanh-toán">Bước 5 · Chạy lệnh đó ở terminal — đóng vai cổng thanh toán</h4>
+<pre><code class="language-bash">node scripts/send-webhook.mjs \
+  --order &lt;order-id&gt; --amount 299000 --intent &lt;payment-intent-id&gt;</code></pre>
+<p>Server nhận, <strong>verify chữ ký</strong>, trả <code>204</code> ngay rồi đẩy việc nặng vào hàng đợi. Worker xử lý và đổi đơn sang <code>PAID</code>.</p>
+<h4 id="bước-6-tab-đơn-của-tôi-thấy-kết-quả">Bước 6 · Tab "Đơn của tôi" — thấy kết quả</h4>
+<p><img src="assets/img/ui-5-don-cua-toi.png" alt="Đơn đã chuyển sang PAID" loading="lazy"> <em>Trạng thái đã là <strong>PAID</strong>, cột "Còn lại" thành <code>—</code> vì đơn không còn đếm ngược nữa. Nếu để đơn quá 15 phút mà không chạy lệnh trên, chính bảng này sẽ tự chuyển nó sang <code>CANCELLED</code> và tồn kho được cộng trả lại.</em></p>
+<h4 id="bước-7-cảnh-đáng-giá-nhất-1000-người-bấm-cùng-lúc">Bước 7 · Cảnh đáng giá nhất — 1.000 người bấm cùng lúc</h4>
+<p>Đây là lý do cả dự án tồn tại. Chọn một mẫu có <code>stock = 100</code>:</p>
+<p><img src="assets/img/ui-6-truoc-k6.png" alt="Tồn kho 100 trước khi chạy k6" loading="lazy"> <em>Trước khi bắn: tồn kho <strong>100</strong>, nút "Săn ngay" còn bấm được.</em></p>
+<p>Rồi chạy k6 (1.000 người dùng ảo, mỗi người bấm mua một lần):</p>
+<pre><code>201 (bán được):    100   ← đúng 100
+409 (hết hàng):    900   ← trạng thái nghiệp vụ, KHÔNG phải lỗi
+4xx khác:          0
+5xx:               0</code></pre>
+<p><img src="assets/img/ui-7-sau-k6.png" alt="Tồn kho về 0 và dừng ở 0 sau khi chạy k6" loading="lazy"> <em>Sau <strong>một giây</strong>: tồn kho <strong>0</strong> màu đỏ, nút thành "Hết hàng", và <strong>dừng đúng ở 0</strong> — không có nhịp cập nhật nào hiện số âm. Bán ra đúng 100 chiếc trên 1.000 người bấm.</em></p>
+<h3 id="ai-làm-gì-phía-sau-ba-thành-phần">Ai làm gì phía sau — ba thành phần</h3>
+<div class="table-wrap"><table><thead><tr><th>Thành phần</th><th>Chạy bằng lệnh</th><th>Việc của nó</th></tr></thead><tbody><tr><td><strong>API</strong></td><td><code>npm run dev</code></td><td>Nhận request, trừ kho, tạo đơn, verify chữ ký webhook. Phục vụ luôn trang web ở <code>localhost:3000</code></td></tr><tr><td><strong>Worker</strong></td><td><code>npm run worker</code></td><td>Chạy nền, <strong>không</strong> phục vụ HTTP: gửi email, tự huỷ đơn quá hạn, xử lý sự kiện thanh toán</td></tr><tr><td><strong>Postgres + Redis</strong></td><td><code>npm run up</code></td><td>Postgres giữ <strong>sự thật</strong> về tồn kho; Redis giữ hàng đợi việc và bộ đếm rate limit</td></tr></tbody></table></div>
+<p>Thiếu worker thì app vẫn đặt được đơn — nhưng đơn sẽ <strong>không bao giờ</strong> tự huỷ, và email không bao giờ gửi. Đó là lý do demo phải mở hai terminal.</p>
+<hr>
 <h2 id="phần-1-dự-án-là-gì-nói-trong-ba-độ-dài">Phần 1 — Dự án là gì, nói trong ba độ dài</h2>
 <p>Người phỏng vấn hỏi "kể về dự án của em" bằng ba kiểu, và mỗi kiểu cần một câu trả lời khác nhau về <strong>độ dài</strong>, không phải về nội dung. Chuẩn bị sẵn cả ba.</p>
 <h3 id="30-giây-khi-họ-mới-mở-cv-ra">30 giây — khi họ mới mở CV ra</h3>
