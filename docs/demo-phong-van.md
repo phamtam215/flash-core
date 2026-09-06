@@ -50,6 +50,23 @@ Ba điều đáng chú ý, và cả ba đều là quyết định nghiệp vụ 
 3. **Huỷ thì phải trả hàng về kho**, và trả **đúng một lần**. Trả hai lần là tự sinh ra hàng
    không tồn tại.
 
+### Giao diện demo được những gì
+
+Không chỉ "đặt đơn và thanh toán". Trang này cho thấy **năm** tính chất, và cái đáng giá nhất
+nằm ở cuối:
+
+| # | Nhìn thấy gì | Nó chứng minh điều gì |
+|---|---|---|
+| 1 | Tồn kho **đếm riêng cho từng size × màu** | Bài toán không phải "còn bao nhiêu áo" mà "còn bao nhiêu áo **đen size M**" |
+| 2 | Bấm "Săn ngay" → tồn kho tụt ngay, đơn `PENDING` đếm ngược | Trừ kho xảy ra **lúc bấm**, không đợi trả tiền — nếu không, hai người cùng "giữ" một chiếc |
+| 3 | Không trả tiền → đơn **tự huỷ**, tồn kho **quay lại** | Việc chạy ở **worker**, sau khi request đã xong. Và phải trả hàng **đúng một lần** |
+| 4 | Thanh toán → `PAID`, nhưng trang **không tự làm được** | Trình duyệt không giữ khoá bí mật ⇒ không ký nổi webhook. Đó là điều đang được chứng minh |
+| 5 | ⭐ 1.000 người bấm → tồn kho về **0 và dừng ở 0** | Lý do cả dự án tồn tại: bán đúng 100 chiếc, không phải 101 |
+
+Bốn thứ **không** nhìn thấy trên giao diện — `correlationId` xuyên tiến trình, metrics,
+`/ready` vs `/health`, và "rút dây mạng" — nằm ở [mục terminal](#demo-trên-terminal--bốn-cảnh-và-chúng-mạnh-hơn-ui)
+bên dưới. Giao diện cho thấy *cái gì*; terminal cho thấy *vì sao tin được*.
+
 ### Luồng dùng app — bảy bước, có ảnh thật
 
 > **Về dữ liệu trong các ảnh dưới đây.** Chúng được chụp trên một database **riêng và sạch**
@@ -108,6 +125,30 @@ Server nhận, **verify chữ ký**, trả `204` ngay rồi đẩy việc nặng
 *Trạng thái đã là **PAID**, cột "Còn lại" thành `—` vì đơn không còn đếm ngược nữa. Nếu để đơn
 quá 15 phút mà không chạy lệnh trên, chính bảng này sẽ tự chuyển nó sang `CANCELLED` và tồn kho
 được cộng trả lại.*
+
+#### Bước 6b · Không trả tiền → đơn **tự huỷ** và hàng **quay lại kho**
+
+Đây là thứ khó thấy nhất nhưng đáng kể nhất về mặt nghiệp vụ, và nó chạy **hoàn toàn tự động**
+— không ai bấm gì cả. Đặt một đơn rồi **không** thanh toán:
+
+![Đơn PENDING đang đếm ngược](html/assets/img/ui-8-truoc-huy.png)
+*Đơn `PENDING`, cột "Còn lại" đang đếm ngược. Tồn kho của SKU đó đã bị trừ **8 → 7** — hàng
+đang bị **giữ chỗ** cho người này.*
+
+Để yên. Hết giờ, **worker** tự làm phần còn lại:
+
+![Đơn đã tự chuyển CANCELLED](html/assets/img/ui-9-sau-huy.png)
+*Đơn tự chuyển sang **`CANCELLED`**, cột "Còn lại" thành `—`. Và quan trọng hơn: tồn kho quay
+lại **7 → 8**. Hàng được **trả về kho** để người khác mua được.*
+
+**Chỗ cần chỉ tay vào:** cả hai việc — huỷ đơn và trả hàng — do worker làm, **sau khi request
+đã kết thúc từ lâu**. Và nó phải trả hàng **đúng một lần**: hệ thống có *hai* đường cùng huỷ
+đơn (một job hẹn giờ và một vòng quét định kỳ), nếu cả hai cùng trả kho thì tồn kho **phồng
+lên thành hàng không có thật**. Ảnh trên cho thấy `8`, không phải `9`.
+
+> Trong ảnh, thời gian giữ chỗ được đặt xuống **30 giây** bằng biến `ORDER_HOLD_MINUTES` cho
+> dễ quay; mặc định là 15 phút. Biến đó tồn tại chính vì lý do này — để demo và test không
+> phải ngồi chờ.
 
 #### Bước 7 · Cảnh đáng giá nhất — 1.000 người bấm cùng lúc
 
