@@ -52,6 +52,14 @@ Ba điều đáng chú ý, và cả ba đều là quyết định nghiệp vụ 
 
 ### Luồng dùng app — bảy bước, có ảnh thật
 
+> **Về dữ liệu trong các ảnh dưới đây.** Chúng được chụp trên một database **riêng và sạch**
+> (`flashcore_demo`) với ba mẫu áo dựng đúng như một shop thật. Database dev thường lẫn nhiều
+> sản phẩm rác do chính quá trình phát triển sinh ra — `Áo benchmark <số>` do
+> `k6/seed-target.js` tạo mỗi lần chạy load test, `Seed Product <số>` do `npm run seed` tạo
+> 10.000 dòng để đo `EXPLAIN` ở Phase 2, và vài mẫu tên kiểu `Áo demo…` / `Áo rút dây mạng` do
+> người viết tài liệu tạo khi kiểm thử. **Chúng không phải tính năng của app** — nếu anh mở DB
+> dev và thấy chúng thì đó chỉ là rác dữ liệu, xoá được hoặc bỏ qua được.
+
 #### Bước 1 · Đăng nhập
 
 ![Màn đăng nhập](html/assets/img/ui-1-dang-nhap.png)
@@ -61,15 +69,18 @@ Ba điều đáng chú ý, và cả ba đều là quyết định nghiệp vụ 
 #### Bước 2 · Màn "Sự kiện sale" — nơi nhìn thấy tồn kho
 
 ![Màn sự kiện sale với lưới áo và bảng SKU](html/assets/img/ui-2-su-kien-sale.png)
-*Phía trên là lưới **mẫu áo**; bấm một mẫu thì bảng bên dưới hiện các **biến thể (SKU)** của
-nó. Mỗi dòng là một tổ hợp **size × màu**, và **tồn kho đếm riêng cho từng dòng** — "áo đen
-size M" hết không có nghĩa "áo trắng size M" hết. Con số ở cột Tồn kho **tự cập nhật mỗi 1,5
+*Phía trên là lưới **mẫu áo** (ở đây: Basic Cotton, Polo, Oversize); bấm một mẫu thì bảng bên
+dưới hiện các **biến thể (SKU)** của nó. Mỗi dòng là một tổ hợp **size × màu** với tồn kho
+riêng: `S/Đen 60` · `M/Đen 100` · `L/Đen 45` · `M/Trắng 8`. Vậy "áo đen size M" hết **không**
+có nghĩa "áo trắng size M" hết — đó là ý nghĩa của "tồn kho theo SKU biến thể". Số `8` hiện
+màu vàng vì sắp hết; `0` sẽ đỏ và nút chuyển thành "Hết hàng". Con số **tự cập nhật mỗi 1,5
 giây**, nên mở hai tab sẽ thấy chúng đổi cùng nhau.*
 
 #### Bước 3 · Bấm "Săn ngay" → đơn giữ chỗ
 
 ![Đơn PENDING với đếm ngược 15 phút](html/assets/img/ui-3-don-giu-cho.png)
-*Tồn kho tụt **100 → 99** ngay lập tức, và một đơn `PENDING` hiện ra kèm **đếm ngược 14:59**.
+*Bấm "Săn ngay" ở dòng `M/Trắng` — tồn kho tụt **8 → 7** ngay lập tức, và một đơn `PENDING`
+hiện ra kèm **đếm ngược 14:59**.
 Đơn đã giữ chỗ nhưng **chưa trả tiền**. Nếu hết hàng thì nút chuyển thành "Hết hàng" và bấm sẽ
 báo lỗi 409 — đó là trạng thái bình thường của flash sale, không phải lỗi hệ thống.*
 
@@ -103,7 +114,8 @@ quá 15 phút mà không chạy lệnh trên, chính bảng này sẽ tự chuy�
 Đây là lý do cả dự án tồn tại. Chọn một mẫu có `stock = 100`:
 
 ![Tồn kho 100 trước khi chạy k6](html/assets/img/ui-6-truoc-k6.png)
-*Trước khi bắn: tồn kho **100**, nút "Săn ngay" còn bấm được.*
+*Một mẫu riêng dựng sẵn cho benchmark: `Áo thun Flash Sale 20:00 — 100 chiếc`. Trước khi bắn:
+tồn kho **100**, nút "Săn ngay" còn bấm được.*
 
 Rồi chạy k6 (1.000 người dùng ảo, mỗi người bấm mua một lần):
 
