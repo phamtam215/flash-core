@@ -57,6 +57,62 @@
 4xx khác:          0
 5xx:               0</code></pre>
 <p><img src="assets/img/ui-7-sau-k6.png" alt="Tồn kho về 0 và dừng ở 0 sau khi chạy k6" loading="lazy"> <em>Sau <strong>một giây</strong>: tồn kho <strong>0</strong> màu đỏ, nút thành "Hết hàng", và <strong>dừng đúng ở 0</strong> — không có nhịp cập nhật nào hiện số âm. Bán ra đúng 100 chiếc trên 1.000 người bấm.</em></p>
+<h3 id="demo-trên-terminal-bốn-cảnh-và-chúng-mạnh-hơn-ui">Demo trên terminal — bốn cảnh, và chúng mạnh hơn UI</h3>
+<p>Giao diện cho thấy <strong>cái gì</strong> xảy ra. Terminal cho thấy <strong>vì sao tin được</strong>. Bốn output dưới đây là kết quả chạy thật, copy nguyên văn.</p>
+<h4 id="cảnh-1-k6-1000-người-bấm-bán-ra-đúng-100">Cảnh 1 · k6 — 1.000 người bấm, bán ra đúng 100</h4>
+<pre><code>     execution: local
+        script: k6/flash-sale.js
+
+     scenarios: (100.00%) 1 scenario, 1000 max VUs, 1m30s max duration
+              * flash_sale: 1 iterations for each of 1000 VUs
+
+running (0m01.0s), 0340/1000 VUs, 660 complete and 0 interrupted iterations
+running (0m02.0s), 0079/1000 VUs, 921 complete and 0 interrupted iterations
+
+=== Kết quả benchmark ===
+Chiến lược:        optimistic
+Pool max:          10
+201 (bán được):    100   ← phải đúng 100
+409 (hết hàng):    900   ← bình thường, KHÔNG phải lỗi
+4xx khác:          0   ← phải 0
+5xx:               0   ← phải 0
+p95 (ms):          2078.8
+throughput (rps):  470.0
+
+flash_sale ✓ [ 100% ] 1000 VUs  0m02.1s/1m0s  1000/1000 iters, 1 per VU</code></pre>
+<p><strong>Chỗ cần chỉ tay vào:</strong> bốn dòng đếm riêng 201 / 409 / 4xx / 5xx. Gộp chúng lại thành một "error rate" thì báo cáo sẽ ghi <strong>90% lỗi</strong> trong khi hệ thống hoạt động hoàn hảo — 900 lần 409 là <em>hết hàng</em>, đúng như kỳ vọng khi chỉ có 100 chiếc.</p>
+<h4 id="cảnh-2-một-correlationid-đi-xuyên-hai-tiến-trình">Cảnh 2 · Một <code>correlationId</code> đi xuyên hai tiến trình</h4>
+<p>Đặt đơn với một id do mình tự đặt:</p>
+<pre><code class="language-bash">curl -X POST localhost:3000/orders \
+  -H 'x-correlation-id: don-hang-20h00-cua-khach' \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"skuId":"...","quantity":1}'</code></pre>
+<p>Rồi tìm nó trong log của <strong>cả hai</strong> tiến trình:</p>
+<pre><code class="language-bash">grep don-hang-20h00-cua-khach api.log worker.log</code></pre>
+<pre><code>[API]     OrderService      Đặt đơn thành công
+[API]                       POST /orders → 201 (16ms)
+[WORKER]  LoggingMailSender Gửi email (bản log của Phase 4)</code></pre>
+<p><strong>Chỗ cần chỉ tay vào:</strong> dòng thứ ba đến từ <strong>một process khác</strong>, chạy <strong>sau khi request đã kết thúc từ lâu</strong> — mà vẫn mang đúng id đó. Không có nó thì khi khách báo "tôi đặt hàng lúc 8 giờ tối, bị lỗi", việc tra log là lọc theo mốc thời gian giữa hàng nghìn dòng của hàng trăm request đan xen. Có nó thì một lệnh <code>grep</code> ra đủ chuỗi.</p>
+<h4 id="cảnh-3-giết-redis-ready-chết-health-sống">Cảnh 3 · Giết Redis — <code>/ready</code> chết, <code>/health</code> sống</h4>
+<pre><code class="language-bash">docker stop flashcore-redis
+curl -o /dev/null -w "ready:  %{http_code}\n" localhost:3000/ready
+curl -o /dev/null -w "health: %{http_code}\n" localhost:3000/health</code></pre>
+<pre><code>ready:  503
+health: 200</code></pre>
+<pre><code class="language-json">{
+  "code": "NOT_READY",
+  "message": "Instance chưa sẵn sàng nhận traffic",
+  "details": { "database": "up", "redis": "down", "shuttingDown": false },
+  "correlationId": "9da35d22-03eb-4da0-8117-d4a76ed202f2"
+}</code></pre>
+<p><strong>Chỗ cần chỉ tay vào:</strong> <code>/health</code> <strong>vẫn 200</strong>. Hai endpoint trả lời hai câu khác nhau — <em>"có nên gửi traffic vào đây không"</em> và <em>"process còn sống không"</em>. Gộp chúng lại là lỗi cấu hình đắt nhất khi deploy: <code>/health</code> fail sẽ khiến orchestrator <strong>restart container</strong>, mà restart app thì không chữa được Redis — chỉ thêm thời gian khởi động vào giữa sự cố.</p>
+<h4 id="cảnh-4-hệ-thống-tự-báo-cáo-về-chính-nó">Cảnh 4 · Hệ thống tự báo cáo về chính nó</h4>
+<pre><code class="language-bash">curl -s localhost:3000/metrics | grep -E "^orders_placed_total|^outbox_pending"</code></pre>
+<pre><code>orders_placed_total{result="created"} 1
+inventory_reserve_duration_seconds_count{strategy="optimistic"} 1
+outbox_pending 0</code></pre>
+<p><strong>Chỗ cần chỉ tay vào:</strong> nhãn <code>result</code> và <code>strategy</code>. Một metric <code>http_requests_total{status="409"}</code> chỉ nói <em>"có 409"</em>; nó không phân biệt được <strong>hết hàng</strong> với <strong>SKU không tồn tại</strong> — nên metric nghiệp vụ phải đếm ở trong service, nơi biết lý do. Và <code>outbox_pending</code> tăng đều nghĩa là relay đã chết, nhìn thấy được rất lâu trước khi có ai báo "không nhận được email".</p>
+<blockquote class="note"><p><strong>Cảnh thứ năm — "rút dây mạng"</strong> — nằm ở <code>Phần 3</code> vì nó cần vài phút thao tác. Đó là cảnh mạnh nhất trong cả buổi demo: giết worker giữa chừng, bật lại, rồi đếm ra <strong>20 / 0 / 20</strong>.</p></blockquote>
 <h3 id="ai-làm-gì-phía-sau-ba-thành-phần">Ai làm gì phía sau — ba thành phần</h3>
 <div class="table-wrap"><table><thead><tr><th>Thành phần</th><th>Chạy bằng lệnh</th><th>Việc của nó</th></tr></thead><tbody><tr><td><strong>API</strong></td><td><code>npm run dev</code></td><td>Nhận request, trừ kho, tạo đơn, verify chữ ký webhook. Phục vụ luôn trang web ở <code>localhost:3000</code></td></tr><tr><td><strong>Worker</strong></td><td><code>npm run worker</code></td><td>Chạy nền, <strong>không</strong> phục vụ HTTP: gửi email, tự huỷ đơn quá hạn, xử lý sự kiện thanh toán</td></tr><tr><td><strong>Postgres + Redis</strong></td><td><code>npm run up</code></td><td>Postgres giữ <strong>sự thật</strong> về tồn kho; Redis giữ hàng đợi việc và bộ đếm rate limit</td></tr></tbody></table></div>
 <p>Thiếu worker thì app vẫn đặt được đơn — nhưng đơn sẽ <strong>không bao giờ</strong> tự huỷ, và email không bao giờ gửi. Đó là lý do demo phải mở hai terminal.</p>

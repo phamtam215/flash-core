@@ -238,10 +238,14 @@ Muốn xem lại thì `git log -- .claude/`.
   worker, ADR-008), `infra/metrics/` (prom-client, `GET /metrics`, 4 metric hạ tầng + 4 nghiệp
   vụ), `/ready` kiểm cả Redis + cờ `shuttingDown`, `DomainError.logLevel` (503 readiness log
   `warn` chứ không `error` — trả nợ ghi từ Phase 0), graceful shutdown 3 bước ở `main.ts`.
-  **15 integration test mới, tổng 89/89**; unit **77/77**. 2 biến env mới có mặc định:
+  **15 integration test mới, tổng 90/90**; unit **77/77**. 2 biến env mới có mặc định:
   `METRICS_ENABLED`, `SHUTDOWN_GRACE_MS`.
   **`test/infra-fixture.ts` giờ tự reset schema** khi dùng `TEST_DATABASE_URL`, và từ chối chạy
   nếu tên DB không kết thúc bằng `_test`.
+  **Một bug thật tìm được khi chụp ảnh demo (2026-09-06):** `jobId: expire:${id}` — BullMQ từ
+  chối `jobId` chứa `:` nên **mọi đơn đều không hẹn được lịch tự huỷ**. Lỗi rơi vào `catch`
+  chỉ log `warn` và sweeper vẫn dọn đúng, nên không test nào đỏ và nhìn từ ngoài không thấy gì
+  sai. Sửa thành `expire-${id}`, thêm test 9b khoá lại (integration giờ 90/90).
   **Còn lại:** Tâm trả lời 3 câu hỏi bản chất, review + push.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).

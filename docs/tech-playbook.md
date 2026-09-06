@@ -1006,6 +1006,7 @@ vào DB trong cùng transaction, rồi mới đẩy ra ngoài.
 | Đơn đã huỷ bỗng thành đã trả tiền | Webhook đến muộn, code hồi sinh đơn `CANCELLED` | State machine cấm chuyển ngược; ghi bản ghi cần hoàn tiền |
 | Tồn kho bị trả về kho hai lần | Job huỷ đơn chạy hai lần, không kiểm tra trạng thái trước khi bù | Conditional `UPDATE`, xem số dòng bị ảnh hưởng |
 | Job biến mất không dấu vết | `removeOnFail: true`, không có DLQ | Giữ failed job + metric + log mức error |
+| **Delayed job không bao giờ chạy, mà không có lỗi nào nổi lên** | `jobId` tuỳ chọn chứa dấu `:` — BullMQ dùng `:` phân cách khoá Redis nên từ chối thẳng (`Custom Id cannot contain :`) | Dùng `-` thay `:`. Và **đừng để `try/catch` quanh `queue.add` nuốt lỗi thành `warn`**: ở đây nó biến một lỗi vĩnh viễn thành một dòng log ai cũng bỏ qua |
 | Log `error` dồn dập tưởng hàng trăm job chết | Job **lặp** thất bại bị gộp chung với job một lần cạn retry | Job lặp không nằm lại DLQ — nhịp sau nó chạy lại; phân biệt bằng `job.repeatJobKey` và hạ xuống `warn` |
 | Service vừa hồi phục lại sập | Thundering herd | Backoff **+ jitter** |
 | Job retry mãi cho lỗi không thể sửa | Không phân biệt lỗi tạm thời với lỗi vĩnh viễn | Email sai định dạng → `UnrecoverableError`, đừng retry |

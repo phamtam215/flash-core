@@ -404,6 +404,20 @@ describe('Async, Queue & Payment (e2e)', () => {
     expect((await prisma.productSku.findUniqueOrThrow({ where: { id: skuId } })).stock).toBe(10);
   });
 
+  it('9b. ⭐ đặt đơn → CÓ delayed job huỷ đơn trong queue (không bị nuốt lỗi im lặng)', async () => {
+    const { agent } = await loginAsNewUser();
+    const order = await placeOrder(agent, await seedSku(5));
+
+    const delayed = await queue.queue.getJobs(['delayed', 'waiting']);
+    const expireJob = delayed.find((j) => j.name === JOB.ORDER_EXPIRE && j.id === `expire-${order.id}`);
+
+    // Bản đầu dùng `jobId: expire:<id>` — BullMQ từ chối vì `:` là ký tự phân cách khoá Redis
+    // của nó (`Custom Id cannot contain :`). Lỗi rơi vào `catch` chỉ log `warn`, và sweeper
+    // vẫn dọn đúng, nên MỌI đơn mất lịch hẹn mà không ai thấy. Test này là cái chốt.
+    expect(expireJob).toBeDefined();
+    expect(expireJob?.opts.delay).toBeGreaterThan(0);
+  });
+
   it('9. đơn đã PAID → job huỷ không đụng tới, không trả kho', async () => {
     const { agent } = await loginAsNewUser();
     const skuId = await seedSku(10);

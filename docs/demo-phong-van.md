@@ -118,6 +118,116 @@ Rồi chạy k6 (1.000 người dùng ảo, mỗi người bấm mua một lần
 *Sau **một giây**: tồn kho **0** màu đỏ, nút thành "Hết hàng", và **dừng đúng ở 0** — không có
 nhịp cập nhật nào hiện số âm. Bán ra đúng 100 chiếc trên 1.000 người bấm.*
 
+### Demo trên terminal — bốn cảnh, và chúng mạnh hơn UI
+
+Giao diện cho thấy **cái gì** xảy ra. Terminal cho thấy **vì sao tin được**. Bốn output dưới
+đây là kết quả chạy thật, copy nguyên văn.
+
+#### Cảnh 1 · k6 — 1.000 người bấm, bán ra đúng 100
+
+```
+     execution: local
+        script: k6/flash-sale.js
+
+     scenarios: (100.00%) 1 scenario, 1000 max VUs, 1m30s max duration
+              * flash_sale: 1 iterations for each of 1000 VUs
+
+running (0m01.0s), 0340/1000 VUs, 660 complete and 0 interrupted iterations
+running (0m02.0s), 0079/1000 VUs, 921 complete and 0 interrupted iterations
+
+=== Kết quả benchmark ===
+Chiến lược:        optimistic
+Pool max:          10
+201 (bán được):    100   ← phải đúng 100
+409 (hết hàng):    900   ← bình thường, KHÔNG phải lỗi
+4xx khác:          0   ← phải 0
+5xx:               0   ← phải 0
+p95 (ms):          2078.8
+throughput (rps):  470.0
+
+flash_sale ✓ [ 100% ] 1000 VUs  0m02.1s/1m0s  1000/1000 iters, 1 per VU
+```
+
+**Chỗ cần chỉ tay vào:** bốn dòng đếm riêng 201 / 409 / 4xx / 5xx. Gộp chúng lại thành một
+"error rate" thì báo cáo sẽ ghi **90% lỗi** trong khi hệ thống hoạt động hoàn hảo — 900 lần
+409 là *hết hàng*, đúng như kỳ vọng khi chỉ có 100 chiếc.
+
+#### Cảnh 2 · Một `correlationId` đi xuyên hai tiến trình
+
+Đặt đơn với một id do mình tự đặt:
+
+```bash
+curl -X POST localhost:3000/orders \
+  -H 'x-correlation-id: don-hang-20h00-cua-khach' \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"skuId":"...","quantity":1}'
+```
+
+Rồi tìm nó trong log của **cả hai** tiến trình:
+
+```bash
+grep don-hang-20h00-cua-khach api.log worker.log
+```
+
+```
+[API]     OrderService      Đặt đơn thành công
+[API]                       POST /orders → 201 (16ms)
+[WORKER]  LoggingMailSender Gửi email (bản log của Phase 4)
+```
+
+**Chỗ cần chỉ tay vào:** dòng thứ ba đến từ **một process khác**, chạy **sau khi request đã
+kết thúc từ lâu** — mà vẫn mang đúng id đó. Không có nó thì khi khách báo "tôi đặt hàng lúc 8
+giờ tối, bị lỗi", việc tra log là lọc theo mốc thời gian giữa hàng nghìn dòng của hàng trăm
+request đan xen. Có nó thì một lệnh `grep` ra đủ chuỗi.
+
+#### Cảnh 3 · Giết Redis — `/ready` chết, `/health` sống
+
+```bash
+docker stop flashcore-redis
+curl -o /dev/null -w "ready:  %{http_code}\n" localhost:3000/ready
+curl -o /dev/null -w "health: %{http_code}\n" localhost:3000/health
+```
+
+```
+ready:  503
+health: 200
+```
+
+```json
+{
+  "code": "NOT_READY",
+  "message": "Instance chưa sẵn sàng nhận traffic",
+  "details": { "database": "up", "redis": "down", "shuttingDown": false },
+  "correlationId": "9da35d22-03eb-4da0-8117-d4a76ed202f2"
+}
+```
+
+**Chỗ cần chỉ tay vào:** `/health` **vẫn 200**. Hai endpoint trả lời hai câu khác nhau —
+*"có nên gửi traffic vào đây không"* và *"process còn sống không"*. Gộp chúng lại là lỗi cấu
+hình đắt nhất khi deploy: `/health` fail sẽ khiến orchestrator **restart container**, mà
+restart app thì không chữa được Redis — chỉ thêm thời gian khởi động vào giữa sự cố.
+
+#### Cảnh 4 · Hệ thống tự báo cáo về chính nó
+
+```bash
+curl -s localhost:3000/metrics | grep -E "^orders_placed_total|^outbox_pending"
+```
+
+```
+orders_placed_total{result="created"} 1
+inventory_reserve_duration_seconds_count{strategy="optimistic"} 1
+outbox_pending 0
+```
+
+**Chỗ cần chỉ tay vào:** nhãn `result` và `strategy`. Một metric `http_requests_total{status="409"}`
+chỉ nói *"có 409"*; nó không phân biệt được **hết hàng** với **SKU không tồn tại** — nên metric
+nghiệp vụ phải đếm ở trong service, nơi biết lý do. Và `outbox_pending` tăng đều nghĩa là relay
+đã chết, nhìn thấy được rất lâu trước khi có ai báo "không nhận được email".
+
+> **Cảnh thứ năm — "rút dây mạng"** — nằm ở [Phần 3](#phút-57--rút-dây-mạng--phần-thuyết-phục-nhất)
+> vì nó cần vài phút thao tác. Đó là cảnh mạnh nhất trong cả buổi demo: giết worker giữa
+> chừng, bật lại, rồi đếm ra **20 / 0 / 20**.
+
 ### Ai làm gì phía sau — ba thành phần
 
 | Thành phần | Chạy bằng lệnh | Việc của nó |

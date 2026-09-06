@@ -94,7 +94,13 @@ export class OrderService {
         {
           delay: this.env.ORDER_HOLD_MINUTES * 60 * 1000,
           // `jobId` theo đơn: đẩy lại cùng đơn không sinh ra hai lịch hẹn.
-          jobId: `expire:${order.id}`,
+          //
+          // Dấu gạch nối, KHÔNG phải dấu hai chấm: BullMQ dùng `:` làm ký tự phân cách khoá
+          // Redis nên nó từ chối thẳng `jobId` chứa `:` (`Custom Id cannot contain :`). Bản
+          // đầu viết `expire:${order.id}` và **mọi đơn đều không hẹn được lịch tự huỷ** —
+          // lỗi bị `catch` bên dưới nuốt thành một dòng `warn`, còn sweeper thì vẫn dọn đúng
+          // nên nhìn từ ngoài không ai thấy gì sai. Test #12 khoá lại tính chất này.
+          jobId: `expire-${order.id}`,
         },
       );
     } catch (error) {
