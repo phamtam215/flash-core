@@ -92,7 +92,9 @@ code, pre, kbd, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Co
 .sidebar a.item.active .n { color: rgba(255, 255, 255, .75); }
 .sidebar .out { font-size: 12.5px; color: var(--muted); }
 
-.content { flex: 1; min-width: 0; max-width: 900px; padding: 34px 40px 96px; }
+/* `margin: 0 auto` để cột nội dung nằm GIỮA phần còn lại của màn hình, không dính sát
+   sidebar. Thiếu nó thì màn hình 1800px sẽ thừa hơn 600px trống bên phải. */
+.content { flex: 1; min-width: 0; max-width: 1000px; margin: 0 auto; padding: 34px 40px 96px; }
 
 @media (max-width: 860px) {
   .layout { flex-direction: column; }

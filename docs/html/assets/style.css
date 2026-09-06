@@ -220,3 +220,27 @@ del { color: var(--text-muted); }
   }
   .content { padding: 28px 18px 60px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Căn giữa cột đọc — PHẢI đặt ở CUỐI FILE
+   ═══════════════════════════════════════════════════════════════════════════════
+
+   `.content > *` ở trên đã khai `margin-left/right: auto`, nhưng mọi rule sau đó dùng
+   shorthand `margin: 0.9em 0` (cho `p`, `.table-wrap`, `pre`, heading…) đều GHI ĐÈ hai
+   giá trị auto về 0 — cùng độ đặc hiệu thì rule đứng sau thắng. Kết quả: cả trang dính
+   lề trái, và màn hình càng rộng thì khoảng trống bên phải càng lớn.
+
+   Đặt lại ở cuối file là cách sửa rẻ nhất mà không phải bọc thêm một thẻ div vào HTML
+   (`index.html` viết tay cũng dùng chung `.content` này, bọc thêm thẻ là phải sửa cả hai). */
+
+.content > * {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Chữ giữ ~780px cho dễ đọc (dòng quá dài thì mắt khó bắt đầu dòng tiếp theo), nhưng
+   BẢNG và KHỐI CODE thì càng rộng càng dễ đọc — cho chúng dùng thêm chỗ khi màn hình rộng. */
+.content > .table-wrap,
+.content > pre {
+  max-width: min(1140px, 100%);
+}

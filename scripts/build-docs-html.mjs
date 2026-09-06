@@ -132,7 +132,19 @@ function inline(text) {
     .replace(/(^|[^*])\*([^*]+?)\*/g, '$1<em>$2</em>')
     .replace(/~~(.+?)~~/g, '<del>$1</del>');
 
-  return out.replace(/@@SLOT(\d+)@@/g, (_, index) => slots[Number(index)]);
+  // Khôi phục LẶP, không phải một lượt.
+  //
+  // Chỗ đậu có thể LỒNG NHAU: `[`tech-playbook.md`](tech-playbook.md)` bị xử lý hai vòng —
+  // code span đậu thành `@@SLOT0@@` trước, rồi cả cái link (đang chứa marker đó) đậu thành
+  // `@@SLOT1@@`. `String.replace` KHÔNG quét lại phần vừa thay, nên khôi phục một lượt chỉ
+  // mở được lớp ngoài và để lại `@@SLOT0@@` hiện nguyên văn ra trang.
+  //
+  // Trần 5 vòng để một marker hỏng không làm treo vòng lặp — thực tế chỉ cần 2.
+  let restored = out;
+  for (let round = 0; round < 5 && /@@SLOT\d+@@/.test(restored); round += 1) {
+    restored = restored.replace(/@@SLOT(\d+)@@/g, (_, index) => slots[Number(index)] ?? '');
+  }
+  return restored;
 }
 
 const stripTask = (text) => text.replace(/^\[ \]\s+/, '☐ ').replace(/^\[[xX]\]\s+/, '☑ ');

@@ -14,7 +14,7 @@
 <main class="content">
 <h1 id="flash-core-lộ-trình-cho-người-mới">Flash-Core — Lộ trình cho người mới</h1>
 <blockquote class="note"><p><strong>Đây không phải tài liệu để đọc. Đây là tài liệu để LÀM.</strong></p>
-<p>Nó không chứa kiến thức — kiến thức đã nằm ở <a href="tech-playbook.html">@@SLOT0@@</a>. Cái nó sở hữu là <strong>thứ tự</strong>: học gì trước, tự tay phá cái gì để thấy, và làm sao biết mình đã hiểu thật hay chỉ đang gật gù.</p></blockquote>
+<p>Nó không chứa kiến thức — kiến thức đã nằm ở <a href="tech-playbook.html"><code>tech-playbook.md</code></a>. Cái nó sở hữu là <strong>thứ tự</strong>: học gì trước, tự tay phá cái gì để thấy, và làm sao biết mình đã hiểu thật hay chỉ đang gật gù.</p></blockquote>
 <h2 id="bạn-sẽ-làm-được-gì-sau-khi-xong">Bạn sẽ làm được gì sau khi xong</h2>
 <p>Không phải "hiểu về", mà là <strong>làm được</strong>. Sau 6 buổi (mỗi buổi 60–90 phút):</p>
 <ol><li>Dựng và chạy toàn bộ hệ thống, đặt được một đơn hàng đi hết vòng đời từ <code>PENDING</code> tới <code>PAID</code>.</li><li><strong>Tự tay tạo ra một vụ bán vượt hàng</strong>, rồi giải thích được vì sao nó xảy ra bằng đúng cơ chế.</li><li>Đọc một câu SQL và nói được nó an toàn hay không dưới tải, mà không cần chạy thử.</li><li><strong>Giết một tiến trình giữa chừng</strong> rồi chứng minh bằng số liệu là không mất và không trùng dữ liệu.</li><li>Từ một <code>correlationId</code>, truy toàn bộ hành trình của một request qua hai process.</li><li>Sửa một tính năng nhỏ theo đúng quy trình của repo: spec → test → code → tài liệu.</li></ol>
@@ -24,7 +24,7 @@
 <p><strong>2. Làm trước, đọc lý thuyết sau.</strong> Mỗi buổi có mục <em>"Vì sao"</em> trỏ sang playbook. <strong>Đừng mở nó trước khi làm xong phần thực hành.</strong> Lời giải thích chỉ bám được vào trí nhớ khi nó trả lời một câu hỏi bạn đang thật sự thắc mắc.</p>
 <p><strong>3. Tự kiểm bằng cách NHỚ LẠI, không phải đọc lại.</strong> Cuối mỗi buổi có phần <em>Tự kiểm</em>. Gấp tài liệu, tự nói thành lời. Đọc lại cho cảm giác quen thuộc — mà quen thuộc không phải là hiểu.</p>
 <blockquote class="note"><p><strong>Nếu chỉ có 2 tiếng:</strong> làm <strong>Buổi 0</strong> và <strong>Buổi 2</strong>. Buổi 2 là phần cốt lõi của cả dự án; mọi thứ còn lại là hạ tầng phục vụ nó.</p></blockquote>
-<blockquote class="note"><p><strong>Đi cùng tài liệu này:</strong> <code>@@SLOT0@@</code> — giáo trình 8 phase, mở bằng trình duyệt. Nó có <strong>sơ đồ</strong> (vòng đời đơn hàng, cơ chế từng phase, đường đi của một request) và <strong>bộ theo dõi 113 ý</strong> để tick khi <em>nói được thành lời</em>.</p>
+<blockquote class="note"><p><strong>Đi cùng tài liệu này:</strong> <code><code>docs/html/hoc/index.html</code></code> — giáo trình 8 phase, mở bằng trình duyệt. Nó có <strong>sơ đồ</strong> (vòng đời đơn hàng, cơ chế từng phase, đường đi của một request) và <strong>bộ theo dõi 113 ý</strong> để tick khi <em>nói được thành lời</em>.</p>
 <p>Hai file chia việc rõ ràng: <strong>file này bắt LÀM</strong>, giáo trình kia giải thích <strong>VÌ SAO</strong>. Cách dùng tốt nhất là xen kẽ — làm xong buổi thực hành thì mở trang phase tương ứng để xem sơ đồ và tick những ý mình đã nói được:</p>
 <div class="table-wrap"><table><thead><tr><th>Buổi ở đây</th><th>Trang giáo trình tương ứng</th></tr></thead><tbody><tr><td>Buổi 1</td><td><code>Phase 0</code> · <code>Phase 1</code></td></tr><tr><td><strong>Buổi 2</strong> ⭐</td><td><code>Phase 2</code> · <code>Phase 3</code> ⭐</td></tr><tr><td>Buổi 3</td><td><code>Phase 4</code> ⭐</td></tr><tr><td>Buổi 4</td><td><code>Phase 6</code></td></tr><tr><td>Buổi 5</td><td><code>Phase 5</code> · <code>Phase 7</code></td></tr></tbody></table></div></blockquote>
 <hr>
@@ -68,18 +68,18 @@ curl -s -b $J -X POST localhost:3000/products -H 'Content-Type: application/json
 <h3 id="dự-đoán-trước">Dự đoán trước</h3>
 <p>Viết ra giấy: <em>một shop bán áo online bình thường và một shop chạy flash sale khác nhau ở chỗ nào về mặt kỹ thuật?</em> Ghi ít nhất hai điểm.</p>
 <h3 id="đọc-20-phút-đúng-thứ-tự-này">Đọc (20 phút, đúng thứ tự này)</h3>
-<ol><li><a href="docs-map.html">@@SLOT0@@</a> — 3 phút, biết dự án là gì.</li><li><code>@@SLOT0@@</code> mở bằng trình duyệt → trang <strong>Phase 0</strong> rồi <strong>Phase 1</strong>. Đây là bản đọc có dẫn dắt, không phải code.</li><li><a href="architecture.html">@@SLOT0@@</a> §<em>Đọc theo thứ tự này</em> — bảng 12 dòng, mỗi dòng một file.</li></ol>
+<ol><li><a href="docs-map.html"><code>README.md</code></a> — 3 phút, biết dự án là gì.</li><li><code><code>docs/html/index.html</code></code> mở bằng trình duyệt → trang <strong>Phase 0</strong> rồi <strong>Phase 1</strong>. Đây là bản đọc có dẫn dắt, không phải code.</li><li><a href="architecture.html"><code>architecture.md</code></a> §<em>Đọc theo thứ tự này</em> — bảng 12 dòng, mỗi dòng một file.</li></ol>
 <h3 id="làm">Làm</h3>
 <p>Đi theo <strong>đúng một request</strong> từ đầu tới cuối, mở lần lượt 4 file trong bảng đó. Sau khi đi xong, tự vẽ lại sơ đồ trên giấy — chỉ bằng trí nhớ:</p>
 <pre><code>HTTP request → ? → ? → ? → response</code></pre>
-<p>Rồi đối chiếu với <a href="architecture.html">@@SLOT0@@</a> §<em>Đi theo một request</em>.</p>
+<p>Rồi đối chiếu với <a href="architecture.html"><code>architecture.md</code></a> §<em>Đi theo một request</em>.</p>
 <h3 id="điểm-cốt-lõi-của-buổi-này">Điểm cốt lõi của buổi này</h3>
 <p>Dự án là <strong>Modular Monolith</strong>: một process, một database, nhưng ranh giới giữa các module được <strong>máy ép</strong>, không phải bằng lời dặn. Hai tầng:</p>
 <div class="table-wrap"><table><thead><tr><th>Tầng</th><th>Chặn cái gì</th><th>Lỗ hổng của nó</th></tr></thead><tbody><tr><td>DI container của NestJS</td><td>Không <code>exports</code> thì module khác không <strong>inject</strong> được</td><td>Vẫn <code>import</code> thẳng file rồi tự <code>new</code> được</td></tr><tr><td>ESLint <code>no-restricted-imports</code></td><td>Chặn <code>import</code> sâu vào trong module khác</td><td>—</td></tr></tbody></table></div>
 <p>Thiếu tầng thứ hai thì ranh giới xói mòn <strong>im lặng</strong>: không test nào đỏ khi ai đó phá luật.</p>
 <h3 id="tự-kiểm">Tự kiểm</h3>
 <ul><li>Module <code>order</code> cần đổi trạng thái đơn khi có tiền vào. Module <code>payment</code> được phép làm gì và <strong>không</strong> được phép làm gì?</li><li>Vì sao dự án một người lại <strong>không nên</strong> làm microservices?</li></ul>
-<blockquote class="note"><p><strong>Đáp án:</strong> <a href="tech-playbook.html">@@SLOT0@@</a> §Phase 0 → <em>Câu hỏi bản chất</em> · cửa hẹp giữa hai module: <code>@@SLOT1@@</code></p></blockquote>
+<blockquote class="note"><p><strong>Đáp án:</strong> <a href="tech-playbook.html"><code>tech-playbook.md</code></a> §Phase 0 → <em>Câu hỏi bản chất</em> · cửa hẹp giữa hai module: <code><code>src/modules/order/order-payments.ts</code></code></p></blockquote>
 <hr>
 <h2 id="buổi-2-tự-tay-gây-ra-một-vụ-bán-vượt-90-phút">Buổi 2 ⭐ — Tự tay gây ra một vụ bán vượt (90 phút)</h2>
 <blockquote class="note"><p>Đây là buổi quan trọng nhất. Nếu chỉ làm được một buổi, làm buổi này.</p></blockquote>
@@ -127,7 +127,7 @@ B đọc stock = 1 → "còn hàng, bán!"
 Bán 2 chiếc trong khi chỉ có 1. Tồn kho cuối = 0 (đúng ra là -1).</code></pre>
 <p>Đối chiếu với dự đoán của bạn. Chú ý câu trả lời số 3: <strong>database không báo lỗi gì cả.</strong> Không có exception, không có cảnh báo. Tiền vẫn thu, hàng thì không có.</p>
 <h3 id="thí-nghiệm-2-phá-code-thật-rồi-chạy-test-30-phút">Thí nghiệm 2 — Phá code thật rồi chạy test (30 phút)</h3>
-<p>Mở <code>@@SLOT0@@</code>, tìm <code>decrementStockConditional</code>. Thay thân hàm bằng bản "đọc → kiểm tra → ghi":</p>
+<p>Mở <code><code>src/modules/order/order.repository.ts</code></code>, tìm <code>decrementStockConditional</code>. Thay thân hàm bằng bản "đọc → kiểm tra → ghi":</p>
 <pre><code class="language-ts">const read = await this.prisma.$queryRaw&lt;{ stock: number; price_vnd: number }[]&gt;`
   SELECT stock, price_vnd FROM product_skus WHERE id = ${skuId}::uuid AND is_active = true`;
 const current = read[0];
@@ -157,11 +157,11 @@ RETURNING price_vnd</code></pre>
 <pre><code class="language-bash">npm run test:int -- --testPathPatterns=order -t "200 request song song"</code></pre>
 <p>Ba lần xanh: 200 request → <strong>đúng 100 đơn</strong>, 100 lần 409, tồn kho = 0.</p>
 <h3 id="vì-sao-giờ-mới-đọc">Vì sao (giờ mới đọc)</h3>
-<blockquote class="note"><p><a href="tech-playbook.html">@@SLOT0@@</a> §Phase 3 — đọc mục <em>Cơ chế phải nắm</em> và <em>Câu hỏi bản chất của Phase 3</em>. Câu quan trọng nhất: khi câu <code>UPDATE</code> gặp một dòng đang bị khoá, Postgres <strong>chờ, rồi đánh giá lại <code>WHERE</code> trên phiên bản mới nhất</strong> — nên <code>stock &gt;= ?</code> không bao giờ được kiểm tra trên dữ liệu cũ.</p></blockquote>
+<blockquote class="note"><p><a href="tech-playbook.html"><code>tech-playbook.md</code></a> §Phase 3 — đọc mục <em>Cơ chế phải nắm</em> và <em>Câu hỏi bản chất của Phase 3</em>. Câu quan trọng nhất: khi câu <code>UPDATE</code> gặp một dòng đang bị khoá, Postgres <strong>chờ, rồi đánh giá lại <code>WHERE</code> trên phiên bản mới nhất</strong> — nên <code>stock &gt;= ?</code> không bao giờ được kiểm tra trên dữ liệu cũ.</p></blockquote>
 <h3 id="tự-kiểm">Tự kiểm</h3>
 <p>Gấp tài liệu:</p>
 <ol><li>Vì sao <code>if (stock &gt; 0) stock--</code> <strong>chắc chắn</strong> sai, không phải "hiếm khi" sai?</li><li>Dự án có <strong>ba</strong> chiến lược chống oversell. Kể tên và nói mỗi cái thắng khi nào.</li><li>Benchmark cho thấy <code>pessimistic</code> <strong>nhanh nhất</strong> — ngược với kỳ vọng thông thường. Vì sao?</li></ol>
-<blockquote class="note"><p>Câu 3 khó nhất và đáng nhất: đáp án ở <a href="tech-playbook.html">@@SLOT0@@</a> §Phase 3 → <em>Số thật đo được ở Phase 3</em>.</p></blockquote>
+<blockquote class="note"><p>Câu 3 khó nhất và đáng nhất: đáp án ở <a href="tech-playbook.html"><code>tech-playbook.md</code></a> §Phase 3 → <em>Số thật đo được ở Phase 3</em>.</p></blockquote>
 <hr>
 <h2 id="buổi-3-việc-xảy-ra-sau-khi-request-kết-thúc-90-phút">Buổi 3 — Việc xảy ra sau khi request kết thúc (90 phút)</h2>
 <p><strong>Mục tiêu:</strong> giải thích được vì sao "ghi DB rồi đẩy queue" là sai, và tự chứng minh được hệ thống không mất/không trùng dữ liệu khi bị giết giữa chừng.</p>
@@ -209,7 +209,7 @@ SQL</code></pre>
 <p>Hiểu ba con số này là hiểu cả buổi:</p>
 <div class="table-wrap"><table><thead><tr><th>Con số</th><th>Nghĩa là</th><th>Nếu sai</th></tr></thead><tbody><tr><td><code>so_don = 20</code></td><td>đặt được 20 đơn</td><td></td></tr><tr><td><code>outbox_con_cho = 0</code></td><td>không sự kiện nào kẹt lại</td><td><strong>&gt; 0 ⇒ MẤT dữ liệu</strong></td></tr><tr><td><code>email_da_gui = 20</code></td><td>đúng một dấu cho mỗi đơn</td><td><strong>21 ⇒ gửi TRÙNG · 19 ⇒ MẤT</strong></td></tr></tbody></table></div>
 <h3 id="vì-sao-giờ-mới-đọc">Vì sao (giờ mới đọc)</h3>
-<blockquote class="note"><p><a href="tech-playbook.html">@@SLOT0@@</a> §Phase 4 — <em>Cơ chế phải nắm</em> và <em>Câu hỏi bản chất của Phase 4</em>. Rồi đọc <a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006</a>.</p>
+<blockquote class="note"><p><a href="tech-playbook.html"><code>tech-playbook.md</code></a> §Phase 4 — <em>Cơ chế phải nắm</em> và <em>Câu hỏi bản chất của Phase 4</em>. Rồi đọc <a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006</a>.</p>
 <p><strong>ADR-006 là tài liệu đáng đọc nhất của cả repo.</strong> Nó kể một lỗi thật: bản đầu tiên của code viết đúng pattern Outbox nhưng <strong>sai thứ tự</strong>, nên vẫn mất dữ liệu im lặng — và <strong>không một test nào đỏ</strong>. Đó là loại lỗi mà kinh nghiệm không tự dạy được.</p></blockquote>
 <h3 id="tự-kiểm">Tự kiểm</h3>
 <ol><li><code>at-least-once</code> và <code>exactly-once</code> khác nhau ở đâu? Vì sao <code>exactly-once</code> "không tồn tại"?</li><li>Đánh dấu đơn <code>PAID</code> và gửi email xác nhận — cùng dùng một bảng <code>processed_events</code>, nhưng <strong>bảo đảm đạt được khác nhau</strong>. Khác ở đâu, và vì sao?</li><li>Webhook "đã thanh toán" đến <strong>sau</strong> khi đơn đã tự huỷ. Ba cách xử lý sai là gì?</li></ol>
@@ -240,16 +240,16 @@ curl -s -o /dev/null -w "health: %{http_code}\n" localhost:3000/health
 docker start flashcore-redis</code></pre>
 <p><strong>Phải ra <code>ready: 503</code> nhưng <code>health: 200</code>.</strong> Hai endpoint này trả lời hai câu hỏi khác nhau, và gộp chúng làm một là lỗi cấu hình đắt nhất khi deploy — vì <code>/health</code> fail sẽ khiến hệ thống <strong>restart container</strong>, mà restart app thì không chữa được Redis.</p>
 <h3 id="vì-sao-giờ-mới-đọc">Vì sao (giờ mới đọc)</h3>
-<blockquote class="note"><p><a href="tech-playbook.html">@@SLOT0@@</a> §Phase 6 · <code>ADR-008</code> <span class="unavail">(chưa có bản HTML)</span></p></blockquote>
+<blockquote class="note"><p><a href="tech-playbook.html"><code>tech-playbook.md</code></a> §Phase 6 · <code>ADR-008</code> <span class="unavail">(chưa có bản HTML)</span></p></blockquote>
 <h3 id="tự-kiểm">Tự kiểm</h3>
 <ol><li><code>/health</code> và <code>/ready</code> khác nhau thế nào? Điều gì xảy ra nếu <code>/health</code> cũng kiểm database?</li><li>Vì sao <strong>không</strong> được đặt <code>orderId</code> vào nhãn của metric?</li><li><code>orders_placed_total{result="out_of_stock"}</code> được đếm trong service chứ không ở interceptor. Vì sao interceptor không làm được việc đó?</li></ol>
 <hr>
 <h2 id="buổi-5-tự-đóng-góp-một-thay-đổi-90-phút">Buổi 5 — Tự đóng góp một thay đổi (90 phút)</h2>
 <p><strong>Mục tiêu:</strong> đi trọn quy trình của repo, không phải viết code giỏi.</p>
 <h3 id="việc">Việc</h3>
-<p>Hiện chưa có endpoint để <strong>user tự huỷ đơn</strong> của mình. Nó đã được ghi là nợ trong <code>@@SLOT0@@</code> <span class="unavail">(chưa có bản HTML)</span> §Edge cases.</p>
+<p>Hiện chưa có endpoint để <strong>user tự huỷ đơn</strong> của mình. Nó đã được ghi là nợ trong <code><code>docs/specs/phase4-async-queue-payment.md</code></code> <span class="unavail">(chưa có bản HTML)</span> §Edge cases.</p>
 <p>Làm theo đúng thứ tự này — <strong>thứ tự mới là bài học</strong>, không phải đoạn code:</p>
-<ol><li><strong>Spec trước.</strong> Copy <code>@@SLOT0@@</code> <span class="unavail">(chưa có bản HTML)</span> thành <code>docs/specs/huy-don-chu-dong.md</code>. Trả lời: API ra sao, đơn ở trạng thái nào thì huỷ được, tồn kho xử lý thế nào, có bao nhiêu edge case?</li><li><strong>Test trước hoặc cùng lúc.</strong> Thêm test vào <code>test/order.e2e-spec.ts</code>. Ít nhất ba ca: huỷ thành công; huỷ đơn đã <code>PAID</code> → phải từ chối; huỷ đơn của <strong>người khác</strong> → 404 chứ không phải 403.</li><li><strong>Rồi mới code.</strong> Gợi ý: <code>cancelIfExpired</code> hiện đòi <code>expires_at &lt;= now()</code>, nên không dùng lại thẳng được. Đây là chỗ phải tự quyết — và ghi lại quyết định.</li><li><strong>Chạy <code>npm run check</code></strong> cho tới khi sạch.</li><li><strong>Sửa tài liệu trong cùng commit.</strong> Ba chỗ hay lệch: <code>architecture.md</code>, <code>README.md</code>, <code>CLAUDE.md</code> §Trạng thái hiện tại.</li></ol>
+<ol><li><strong>Spec trước.</strong> Copy <code><code>templates/feature-spec-template.md</code></code> <span class="unavail">(chưa có bản HTML)</span> thành <code>docs/specs/huy-don-chu-dong.md</code>. Trả lời: API ra sao, đơn ở trạng thái nào thì huỷ được, tồn kho xử lý thế nào, có bao nhiêu edge case?</li><li><strong>Test trước hoặc cùng lúc.</strong> Thêm test vào <code>test/order.e2e-spec.ts</code>. Ít nhất ba ca: huỷ thành công; huỷ đơn đã <code>PAID</code> → phải từ chối; huỷ đơn của <strong>người khác</strong> → 404 chứ không phải 403.</li><li><strong>Rồi mới code.</strong> Gợi ý: <code>cancelIfExpired</code> hiện đòi <code>expires_at &lt;= now()</code>, nên không dùng lại thẳng được. Đây là chỗ phải tự quyết — và ghi lại quyết định.</li><li><strong>Chạy <code>npm run check</code></strong> cho tới khi sạch.</li><li><strong>Sửa tài liệu trong cùng commit.</strong> Ba chỗ hay lệch: <code>architecture.md</code>, <code>README.md</code>, <code>CLAUDE.md</code> §Trạng thái hiện tại.</li></ol>
 <h3 id="câu-hỏi-khó-nhất-của-buổi-này">Câu hỏi khó nhất của buổi này</h3>
 <p>Delayed job huỷ đơn quá hạn <strong>vẫn sẽ nổ</strong> 15 phút sau, dù user đã tự huỷ trước đó rồi. Chuyện gì xảy ra? Tồn kho có bị trả về <strong>hai lần</strong> không?</p>
 <blockquote class="note"><p>Trả lời được câu này mà không cần chạy thử, nghĩa là bạn đã hiểu Buổi 2 và Buổi 3 thật.</p></blockquote>
@@ -257,10 +257,10 @@ docker start flashcore-redis</code></pre>
 <ul><li>Vì sao repo bắt viết spec trước khi code?</li><li>Vì sao huỷ đơn của người khác phải trả <strong>404</strong> chứ không phải <strong>403</strong>?</li></ul>
 <hr>
 <h2 id="bản-đồ-tra-cứu-dùng-sau-khi-đã-xong-6-buổi">Bản đồ tra cứu (dùng sau khi đã xong 6 buổi)</h2>
-<div class="table-wrap"><table><thead><tr><th>Cần gì</th><th>Mở</th></tr></thead><tbody><tr><td>"Cái tôi đang gặp tên là gì?"</td><td><a href="glossary.html">@@SLOT0@@</a> — một dòng mỗi mục</td></tr><tr><td>"Nó hoạt động thế nào, hỏng ra sao?"</td><td><a href="tech-playbook.html">@@SLOT0@@</a> — <strong>nguồn kiến thức duy nhất</strong></td></tr><tr><td>"Sửa X thì mở file nào?"</td><td><a href="architecture.html">@@SLOT0@@</a></td></tr><tr><td>"Vì sao lại chọn cách này?"</td><td><code>@@SLOT0@@</code> — 8 ADR, mỗi cái 5–10 dòng</td></tr><tr><td>"Tính năng này hứa gì?"</td><td><code>@@SLOT0@@</code></td></tr><tr><td>"Giờ dự án đang ở đâu?"</td><td><a href="claude-md.html">@@SLOT0@@</a> §Trạng thái hiện tại</td></tr><tr><td>Sắp phỏng vấn</td><td><a href="tech-playbook.html">@@SLOT0@@</a> §Ôn phỏng vấn — 12 câu chốt</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Cần gì</th><th>Mở</th></tr></thead><tbody><tr><td>"Cái tôi đang gặp tên là gì?"</td><td><a href="glossary.html"><code>glossary.md</code></a> — một dòng mỗi mục</td></tr><tr><td>"Nó hoạt động thế nào, hỏng ra sao?"</td><td><a href="tech-playbook.html"><code>tech-playbook.md</code></a> — <strong>nguồn kiến thức duy nhất</strong></td></tr><tr><td>"Sửa X thì mở file nào?"</td><td><a href="architecture.html"><code>architecture.md</code></a></td></tr><tr><td>"Vì sao lại chọn cách này?"</td><td><code><code>adr/</code></code> — 8 ADR, mỗi cái 5–10 dòng</td></tr><tr><td>"Tính năng này hứa gì?"</td><td><code><code>specs/</code></code></td></tr><tr><td>"Giờ dự án đang ở đâu?"</td><td><a href="claude-md.html"><code>CLAUDE.md</code></a> §Trạng thái hiện tại</td></tr><tr><td>Sắp phỏng vấn</td><td><a href="tech-playbook.html"><code>tech-playbook.md</code></a> §Ôn phỏng vấn — 12 câu chốt</td></tr></tbody></table></div>
 <h2 id="lịch-ôn-đừng-bỏ-đây-là-phần-quyết-định-bạn-còn-nhớ-gì-sau-một-tháng">Lịch ôn (đừng bỏ — đây là phần quyết định bạn còn nhớ gì sau một tháng)</h2>
 <p>Trí nhớ rơi rất nhanh nếu chỉ học một lần. Ba lần nhớ lại, giãn cách dần, rẻ hơn nhiều so với học lại từ đầu:</p>
-<div class="table-wrap"><table><thead><tr><th>Khi nào</th><th>Làm gì</th><th>Mất bao lâu</th></tr></thead><tbody><tr><td><strong>Sau 1 ngày</strong></td><td>Gấp tài liệu, nói lại phần <em>Tự kiểm</em> của Buổi 2 và 3</td><td>10 phút</td></tr><tr><td><strong>Sau 1 tuần</strong></td><td>Đọc <a href="tech-playbook.html">@@SLOT0@@</a> §Ôn phỏng vấn — chỉ đọc câu hỏi, tự trả lời, rồi mới xem cột đáp án</td><td>20 phút</td></tr><tr><td><strong>Sau 1 tháng</strong></td><td>Làm lại Thí nghiệm 2 của Buổi 2 (phá code → chạy test → hoàn nguyên)</td><td>15 phút</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Khi nào</th><th>Làm gì</th><th>Mất bao lâu</th></tr></thead><tbody><tr><td><strong>Sau 1 ngày</strong></td><td>Gấp tài liệu, nói lại phần <em>Tự kiểm</em> của Buổi 2 và 3</td><td>10 phút</td></tr><tr><td><strong>Sau 1 tuần</strong></td><td>Đọc <a href="tech-playbook.html"><code>tech-playbook.md</code></a> §Ôn phỏng vấn — chỉ đọc câu hỏi, tự trả lời, rồi mới xem cột đáp án</td><td>20 phút</td></tr><tr><td><strong>Sau 1 tháng</strong></td><td>Làm lại Thí nghiệm 2 của Buổi 2 (phá code → chạy test → hoàn nguyên)</td><td>15 phút</td></tr></tbody></table></div>
 <h2 id="bạn-đã-sẵn-sàng-khi">Bạn đã sẵn sàng khi</h2>
 <p>Nói được thành lời, không cần mở tài liệu:</p>
 <ul><li>☐ Vì sao <code>if (stock &gt; 0) stock--</code> chắc chắn sai — và câu SQL nào chữa nó</li><li>☐ Ba chiến lược chống oversell, mỗi cái thắng khi nào</li><li>☐ Vì sao "ghi DB rồi đẩy queue" mất dữ liệu, và Outbox sửa nó bằng cách nào</li><li>☐ Vì sao consumer phải idempotent, và vì sao gửi email khác đánh dấu <code>PAID</code></li><li>☐ <code>/health</code> và <code>/ready</code> khác nhau ở đâu</li><li>☐ Từ một <code>correlationId</code>, truy hành trình một request qua hai process</li></ul>
