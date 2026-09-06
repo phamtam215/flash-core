@@ -175,6 +175,7 @@ Hồ sơ Phase 0 (đã đóng): [`docs/phase-0-checklist.md`](docs/phase-0-check
 | File | Nội dung |
 |---|---|
 | [`docs/onboarding.md`](docs/onboarding.md) | ★ **Người mới bắt đầu ở đây** — lộ trình 6 buổi, tự tay gây ra lỗi rồi sửa |
+| [`docs/demo-phong-van.md`](docs/demo-phong-van.md) | **Tech stack — mỗi thứ giải quyết vấn đề gì**, và kịch bản demo/thuyết trình khi phỏng vấn |
 | [`docs/README.md`](docs/README.md) | Bản đồ tài liệu: thông tin nào thuộc file nào |
 | [`docs/architecture.md`](docs/architecture.md) | **Bản đồ code: file nào làm gì, sửa X thì mở file nào** |
 | [`docs/SPEC.md`](docs/SPEC.md) | Spec gốc: 8 phase, deliverable, Definition of Done |

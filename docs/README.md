@@ -14,6 +14,7 @@ chép lại. Đây là luật khiến tài liệu không lệch nhau khi code đ
 | **Thứ tự học** cho người mới: học gì trước, phá cái gì để thấy | [`onboarding.md`](onboarding.md) |
 | **Sơ đồ**: nghiệp vụ, vòng đời đơn, vai trò từng module, cơ chế từng phase | [`hoc/`](hoc/index.html) |
 | **Tiến độ hiểu bài** (113 ý, tick trong trình duyệt — không nằm trong git) | [`hoc/assets/track.js`](hoc/assets/track.js) |
+| **Tech stack nào giải quyết vấn đề gì** + kịch bản demo/thuyết trình khi phỏng vấn | [`demo-phong-van.md`](demo-phong-van.md) |
 | **Đang ở phase nào, còn nợ gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
 | Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) |
 | Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) |
@@ -60,6 +61,7 @@ docs/
 ├── README.md              ← mục lục này
 ├── SPEC.md                kế hoạch 8 phase + Definition of Done
 ├── onboarding.md          ★ LỘ TRÌNH CHO NGƯỜI MỚI — 6 buổi, có thực hành
+├── demo-phong-van.md      ★ TECH STACK (vì sao chọn) + kịch bản demo & thuyết trình
 ├── architecture.md        bản đồ code
 ├── tech-playbook.md       ★ NGUỒN KIẾN THỨC DUY NHẤT (cơ chế · bug · số đo · ôn phỏng vấn)
 ├── glossary.md            từ điển: TÊN của các bài toán, 1 dòng/mục

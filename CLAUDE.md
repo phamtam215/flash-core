@@ -35,6 +35,10 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
   và trỏ link về đó. Kèm **bộ theo dõi hiểu bài**: 113 ý, tick vào là % của phase tăng lên, danh
   sách ý nằm ở `docs/hoc/assets/track.js` (nguồn sự thật duy nhất — sửa ý thì sửa ở đó, cả
   checklist lẫn bảng tổng đều sinh ra từ nó). Tiến độ lưu ở `localStorage`, **không vào git**.
+- `docs/demo-phong-van.md` — **tech stack: mỗi công nghệ giải quyết vấn đề gì** (kèm câu trả lời
+  cho "sao không dùng Kafka/microservices/K8s/React"), và **kịch bản demo 8 phút + cách thuyết
+  trình** khi phỏng vấn. Nó KHÔNG chứa kiến thức kỹ thuật — mọi câu "vì sao" trỏ về
+  `tech-playbook.md`, mọi quyết định trỏ về `adr/`, mọi con số trỏ về `specs/`.
 - `docs/architecture.md` — bản đồ code: file nào làm gì, định nghĩa ở đâu, ba quy tắc
   cấu trúc. Đọc trước khi thêm/sửa file trong `src/`.
 - `docs/SPEC.md` — spec gốc: 8 phase, deliverable, Definition of Done
