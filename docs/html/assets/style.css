@@ -272,3 +272,41 @@ del { color: var(--text-muted); }
   margin-top: 8px;
   text-align: center;
 }
+
+/* ── Khung cửa sổ terminal ────────────────────────────────────────────────────────────────
+   Output của terminal để trần trên nền sáng thì đọc như một đoạn văn bản lạc lõng. Bọc khung
+   tối + thanh tiêu đề để mắt nhận ra ngay "đây là thứ chạy trong terminal", ngang với ảnh chụp
+   giao diện ở trên. Vẫn là CHỮ nên copy dán được — hơn hẳn ảnh chụp terminal. */
+
+.content > .term {
+  max-width: min(1140px, 100%);
+  margin: 1.2em auto;
+  background: #14161b;
+  border: 1px solid #2a2f3a;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
+}
+.content > .term::before {
+  content: '● ● ●   ' attr(data-title);
+  display: block;
+  padding: 8px 14px;
+  background: #1e222b;
+  border-bottom: 1px solid #2a2f3a;
+  color: #9aa3b2;
+  font: 500 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+}
+.content > .term pre {
+  margin: 0;
+  max-width: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 14px 16px;
+  color: #e6e8ee;
+  font-size: 12.8px;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+.content > .term code { background: transparent; color: inherit; padding: 0; }

@@ -125,7 +125,7 @@ Giao diện cho thấy **cái gì** xảy ra. Terminal cho thấy **vì sao tin 
 
 #### Cảnh 1 · k6 — 1.000 người bấm, bán ra đúng 100
 
-```
+```console k6 run k6/flash-sale.js
      execution: local
         script: k6/flash-sale.js
 
@@ -169,7 +169,7 @@ Rồi tìm nó trong log của **cả hai** tiến trình:
 grep don-hang-20h00-cua-khach api.log worker.log
 ```
 
-```
+```console grep don-hang-20h00-cua-khach api.log worker.log
 [API]     OrderService      Đặt đơn thành công
 [API]                       POST /orders → 201 (16ms)
 [WORKER]  LoggingMailSender Gửi email (bản log của Phase 4)
@@ -188,7 +188,7 @@ curl -o /dev/null -w "ready:  %{http_code}\n" localhost:3000/ready
 curl -o /dev/null -w "health: %{http_code}\n" localhost:3000/health
 ```
 
-```
+```console docker stop flashcore-redis
 ready:  503
 health: 200
 ```
@@ -213,7 +213,7 @@ restart app thì không chữa được Redis — chỉ thêm thời gian khởi
 curl -s localhost:3000/metrics | grep -E "^orders_placed_total|^outbox_pending"
 ```
 
-```
+```console curl -s localhost:3000/metrics | grep …
 orders_placed_total{result="created"} 1
 inventory_reserve_duration_seconds_count{strategy="optimistic"} 1
 outbox_pending 0
@@ -358,7 +358,7 @@ Mở trang, chỉ vào cột **Tồn kho**.
 
 Đừng nói gì trong ~2 giây đó. Để họ nhìn con số rơi.
 
-```
+```console k6 — 1.000 VU vào SKU có stock = 100
 201 (bán được):    100   ← phải đúng 100
 409 (hết hàng):    900   ← bình thường, KHÔNG phải lỗi
 4xx khác:          0
@@ -400,7 +400,7 @@ liệu"**.
 
 Rồi chạy câu đếm ([lệnh đầy đủ ở onboarding Buổi 3](onboarding.md)):
 
-```
+```console psql — đếm sau khi giết worker giữa chừng
 so_don          = 20
 outbox_con_cho  =  0     ← không sự kiện nào kẹt ⇒ KHÔNG MẤT
 email_da_gui    = 20     ← đúng một dấu mỗi đơn ⇒ KHÔNG TRÙNG

@@ -241,6 +241,20 @@ function toHtml(markdown) {
       i++;
       while (i < lines.length && !/^\s*```/.test(lines[i])) body.push(lines[i++]);
       i++;
+      // ```console — khối OUTPUT của terminal. Bọc thêm một lớp `.term` để CSS vẽ khung cửa
+      // sổ terminal (thanh tiêu đề + ba chấm) quanh nó. Vẫn là CHỮ chứ không phải ảnh: copy
+      // dán được, tìm kiếm được, và không phình dung lượng repo như ảnh chụp.
+      //
+      // Chữ sau `console` (nếu có) thành nhãn trên thanh tiêu đề: ```console Terminal 2 · worker
+      const [fence, ...caption] = lang.split(/\s+/);
+      if (fence === 'console') {
+        out.push(
+          `<div class="term" data-title="${escapeHtml(caption.join(' ') || 'terminal')}">` +
+            `<pre><code>${escapeHtml(body.join('\n'))}</code></pre></div>`,
+        );
+        continue;
+      }
+
       out.push(
         `<pre><code${lang ? ` class="language-${lang}"` : ''}>${escapeHtml(body.join('\n'))}</code></pre>`,
       );
