@@ -40,7 +40,7 @@
 thống. <b>Bắt đầu từ đâu?</b> Cả phase này tồn tại để câu trả lời là "ba giây" chứ không phải
 "ba giờ".</p>
 <p class="meta"><b>Kết quả:</b> 15 integration test mới (tổng 89/89) · 77/77 unit ·
-<code>correlationId</code> đi xuyên cả worker · 8 metric · <code>/ready</code> kiểm cả Redis ·
+<code>correlationId</code> đi xuyên cả worker · 6 metric tự khai + bộ mặc định của Node · <code>/ready</code> kiểm cả Redis ·
 tắt êm 3 bước · trả nợ ghi từ Phase 0.</p>
 
 <div class="box key">
@@ -418,6 +418,10 @@ Nếu nó là biến toàn cục thì test đó sẽ đỏ.</p>
 id được truyền vào từ đâu. Đó là lý do chỉ có đúng <b>hai</b> chỗ trong toàn bộ code gọi
 <code>run()</code>.</p>
 </div></details>
+
+<div class="box key lam-that">
+<p><b>Đọc xong thì đi LÀM.</b> Trang này giải thích <i>vì sao</i>; phần tay chân nằm ở <a href="../onboarding.md"><b>Buổi 4</b> của <code>docs/onboarding.md</code></a> — truy một correlationId qua hai tiến trình, rồi giết Redis xem /ready và /health khác nhau ra sao. Chỉ tick các ý bên dưới sau khi đã làm và <b>nói được thành lời</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
+</div>
 
 <section class="track" id="track" data-phase="p6"></section>
 

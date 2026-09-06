@@ -36,6 +36,22 @@ tài liệu, tự nói thành lời. Đọc lại cho cảm giác quen thuộc �
 > **Nếu chỉ có 2 tiếng:** làm **Buổi 0** và **Buổi 2**. Buổi 2 là phần cốt lõi của cả dự án;
 > mọi thứ còn lại là hạ tầng phục vụ nó.
 
+> **Đi cùng tài liệu này:** [`docs/hoc/index.html`](hoc/index.html) — giáo trình 8 phase, mở
+> bằng trình duyệt. Nó có **sơ đồ** (vòng đời đơn hàng, cơ chế từng phase, đường đi của một
+> request) và **bộ theo dõi 113 ý** để tick khi *nói được thành lời*.
+>
+> Hai file chia việc rõ ràng: **file này bắt LÀM**, giáo trình kia giải thích **VÌ SAO**. Cách
+> dùng tốt nhất là xen kẽ — làm xong buổi thực hành thì mở trang phase tương ứng để xem sơ đồ
+> và tick những ý mình đã nói được:
+>
+> | Buổi ở đây | Trang giáo trình tương ứng |
+> |---|---|
+> | Buổi 1 | [Phase 0](hoc/phase-0.html) · [Phase 1](hoc/phase-1.html) |
+> | **Buổi 2** ⭐ | [Phase 2](hoc/phase-2.html) · [Phase 3](hoc/phase-3.html) ⭐ |
+> | Buổi 3 | [Phase 4](hoc/phase-4.html) ⭐ |
+> | Buổi 4 | [Phase 6](hoc/phase-6.html) |
+> | Buổi 5 | [Phase 5](hoc/phase-5.html) · [Phase 7](hoc/phase-7.html) |
+
 ---
 
 ## Buổi 0 — Chạy được hệ thống (30 phút)
