@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 5 — UI demo</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item active" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 5 — UI demo <span class="tag wip">code xong, chờ review</span></h1>
+<p class="lede">Phase duy nhất không phải backend. Mục tiêu <b>không</b> phải làm giao diện đẹp,
+mà là có một màn hình để <b>nhìn thấy concurrency xảy ra bằng mắt</b>.</p>
+<p class="meta"><b>Kết quả:</b> 3 file tĩnh, <b>không framework, không build step</b> ·
+4 integration test cho phần server phục vụ trang · chạy k6 với trang đang mở: tồn kho rơi về 0
+và <b>dừng ở 0</b>.</p>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<p><code>SPEC.md</code> ban đầu chốt <b>Vite + React + Tailwind</b>. Đến lúc làm thì đổi thành
+<b>một trang HTML tĩnh</b>.</p>
+<p><b>Đó là cắt góc hay là quyết định đúng?</b> Và làm sao phân biệt được hai thứ đó?</p>
+</div>
+
+<h2>Bài toán: FE ở đây là công cụ, không phải sản phẩm</h2>
+
+<p>Câu hỏi bản chất của phase này không phải kỹ thuật, mà là <b>biết dừng ở đâu</b>. Hai thứ đó
+quyết định khác nhau ở mọi bước:</p>
+
+<div class="cols c2">
+<div class="card">
+<h4>Nếu FE là <b>sản phẩm</b></h4>
+<p>Thì phải lo: khả năng tái sử dụng component, state management, routing, accessibility, test
+FE, build tối ưu, hỗ trợ trình duyệt cũ. Mỗi thứ đều đúng — và tốn hàng tuần.</p>
+</div>
+<div class="card ok">
+<h4>Nếu FE là <b>công cụ trực quan hoá</b></h4>
+<p>Thì chỉ có <b>một</b> câu hỏi: <i>nó có làm hiện ra được thứ mình muốn cho người khác thấy
+không?</i> Ở đây là: <b>tồn kho rơi về 0 và dừng đúng ở 0 trong khi 1.000 VU đang bắn.</b> Mọi
+thứ không phục vụ câu đó đều là phạm vi thừa.</p>
+</div>
+</div>
+
+<div class="box why">
+<div class="t">Đáp án cho câu đoán: quyết định đúng — và <a href="../adr/007-ui-la-trang-tinh-mot-file.md">ADR-007</a> là thứ phân biệt</div>
+<p>Cắt góc là <b>làm ít hơn rồi im lặng</b>. Quyết định là <b>làm ít hơn, viết ra vì sao, và ghi
+rõ mình đang mất gì</b>. ADR-007 nói thẳng cái mất: không có component tái dùng, không có type
+safety ở FE, DOM thao tác bằng tay. Và cái được: <b>không có build step</b> — không
+<code>node_modules</code> thứ hai, không cấu hình bundler, sửa file là F5 thấy ngay.</p>
+<p>Với một dự án mà mục tiêu là học <b>backend</b>, thời gian đổ vào build tool là thời gian
+không đổ vào hệ thống. Đó là lý do được ghi trong ADR.</p>
+</div>
+
+<h2>Bốn màn hình, và mỗi màn hình chứng minh điều gì</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 300" role="img" aria-label="Bốn màn hình của trang demo">
+  <defs><marker id="ah5" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box" x="16" y="52" width="190" height="120" rx="8"/>
+  <text class="s-t b" x="111" y="78" text-anchor="middle">① Đăng nhập</text>
+  <line class="s-l" x1="30" y1="90" x2="192" y2="90"/>
+  <text class="s-t sm" x="30" y="112">GET /auth/me</text>
+  <text class="s-t sm m" x="30" y="132">200 → vào thẳng ②</text>
+  <text class="s-t sm m" x="30" y="150">401 → hiện màn này</text>
+
+  <rect class="s-box-a" x="240" y="52" width="190" height="120" rx="8"/>
+  <text class="s-t b" x="335" y="78" text-anchor="middle">② Sự kiện sale</text>
+  <line class="s-l" x1="254" y1="90" x2="416" y2="90"/>
+  <text class="s-t sm" x="254" y="112">GET /products (keyset)</text>
+  <text class="s-t sm b" x="254" y="132">setInterval 1,5 giây</text>
+  <text class="s-t sm m" x="254" y="150">← MÀN ĐÁNG QUAY</text>
+
+  <rect class="s-box" x="464" y="52" width="190" height="120" rx="8"/>
+  <text class="s-t b" x="559" y="78" text-anchor="middle">③ Săn ngay</text>
+  <line class="s-l" x1="478" y1="90" x2="640" y2="90"/>
+  <text class="s-t sm" x="478" y="112">POST /orders</text>
+  <text class="s-t sm m" x="478" y="132">+ Idempotency-Key</text>
+  <text class="s-t sm m" x="478" y="150">đếm ngược tới expiresAt</text>
+
+  <rect class="s-box" x="688" y="52" width="176" height="120" rx="8"/>
+  <text class="s-t b" x="776" y="78" text-anchor="middle">④ Đơn của tôi</text>
+  <line class="s-l" x1="702" y1="90" x2="850" y2="90"/>
+  <text class="s-t sm" x="702" y="112">GET /orders</text>
+  <text class="s-t sm m" x="702" y="132">polling 3 giây</text>
+  <text class="s-t sm m" x="702" y="150">PENDING → PAID</text>
+
+  <g color="var(--muted)">
+    <path class="s-l" d="M206 112 H 234" marker-end="url(#ah5)"/>
+    <path class="s-l" d="M430 112 H 458" marker-end="url(#ah5)"/>
+    <path class="s-l" d="M654 112 H 682" marker-end="url(#ah5)"/>
+  </g>
+
+  <rect class="s-box-ok" x="16" y="204" width="414" height="80" rx="8"/>
+  <text class="s-t sm b" x="34" y="228">Màn ② chứng minh Phase 3</text>
+  <text class="s-t sm" x="34" y="248">Mở trang, chạy k6 1.000 VU: con số tồn kho tụt dần</text>
+  <text class="s-t sm" x="34" y="266">rồi DỪNG Ở 0 — không âm, không nhảy lung tung.</text>
+
+  <rect class="s-box-ok" x="450" y="204" width="414" height="80" rx="8"/>
+  <text class="s-t sm b" x="468" y="228">Màn ③ + ④ chứng minh Phase 4</text>
+  <text class="s-t sm" x="468" y="248">Đếm ngược về 0 → nhịp polling sau, đơn tự đổi sang</text>
+  <text class="s-t sm" x="468" y="266">CANCELLED. Không ai bấm gì — job nền vừa chạy.</text>
+</svg>
+<figcaption>Trang này không thêm tính năng nào cho hệ thống. Giá trị duy nhất của nó là
+<b>biến những con số trong test thành thứ nhìn thấy được</b> — cho chính mình khi debug, và cho
+người xem CV khi không ai đọc log của bạn.</figcaption>
+</figure>
+
+<h2>Bốn quyết định thiết kế</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Quyết định</th><th>Vì sao</th><th>Nếu làm ngược lại</th></tr></thead>
+<tbody>
+<tr><td><b>Cùng origin</b> — Nest tự phục vụ <code>public/</code></td><td>FE và API cùng <code>localhost:3000</code> ⇒ cookie <code>SameSite=Strict</code> tự đi kèm</td><td>Phải cấu hình <code>Allow-Origin</code> + <code>Allow-Credentials</code> ở server và <code>credentials: 'include'</code> ở client — <b>ba chỗ có thể sai</b> cho một demo</td></tr>
+<tr><td><b>Polling 1,5s</b>, không WebSocket</td><td>Cảnh cần quay chỉ dài ~10 giây; polling đủ mượt</td><td>Thêm một tầng hạ tầng, phải qua ADR, mà demo không tốt hơn</td></tr>
+<tr><td><b>FE không tự thanh toán được</b></td><td>Trình duyệt không có <code>PAYMENT_WEBHOOK_SECRET</code></td><td><b>Nếu FE ký được thì việc verify chữ ký ở Phase 4 là vô nghĩa</b></td></tr>
+<tr><td><b>Không sinh dữ liệu mẫu trong FE</b></td><td>Muốn có áo thì tạo qua API hoặc <code>npm run seed</code></td><td>Thêm màn quản trị = mở rộng phạm vi</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<div class="t">CORS — cơ chế ghi lại ở đây dù dự án không phải trả giá cho nó</div>
+<p>Trình duyệt chặn JS ở origin A gọi API ở origin B, trừ khi API <b>tự nói ra</b> là cho phép
+(<code>Access-Control-Allow-Origin</code>). Đây là quy tắc của <b>trình duyệt</b>, không phải của
+server — cùng request đó gọi bằng <code>curl</code> vẫn chạy bình thường.</p>
+<p>Ghi lại để nhận ra ngay khi tách FE ra domain riêng, vì triệu chứng đầu tiên <b>luôn</b> là:
+"gọi bằng curl thì được, mở web thì lỗi". Và khi cookie tham gia thì <code>Allow-Origin</code>
+<b>không được</b> để <code>*</code>.</p>
+</div>
+
+<h2>Cấu trúc file</h2>
+
+<div class="tree">
+<span class="d">public/</span>                     <span class="c">3 file, không build step, không node_modules thứ hai</span>
+├── index.html               <span class="c">4 màn nằm trong cùng một file, ẩn/hiện bằng class</span>
+├── styles.css
+└── app.js                   <span class="c">fetch + render bằng tay; mọi setInterval gom vào mảng timers</span>
+
+src/main.ts                  <span class="new">← useStaticAssets(public, { index: false })</span>
+src/app.controller.ts        <span class="new">← khai TƯỜNG MINH route GET /</span>
+test/ui.e2e-spec.ts          <span class="c">4 test cho phần server phục vụ trang</span>
+</div>
+
+<div class="box why">
+<div class="t">Vì sao <code>index: false</code> và khai route <code>GET /</code> tường minh</div>
+<p>Để mặc định <code>true</code> thì middleware tĩnh <b>chen vào trước router của Nest</b> ở một số
+đường dẫn và làm API trả về HTML — một kiểu lỗi rất khó đoán, vì nó chỉ xảy ra ở vài route.</p>
+<p>Tắt hành vi ngầm đó đi rồi khai <code>GET /</code> ở <code>AppController</code> nghĩa là:
+ý định nằm trong code, không nằm trong giá trị mặc định của thư viện. Đây cũng chính là nội dung
+của test #3 và #4.</p>
+</div>
+
+<h2>Cách code — và bug thật đáng nhớ nhất của phase</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 250" role="img" aria-label="Bug vẽ lại tbody mỗi nhịp polling">
+  <defs><marker id="ah5b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-bad" x="16" y="12" width="410" height="220" rx="10"/>
+  <text class="s-t b" x="36" y="38" fill="var(--bad)">Bản đầu — vẽ lại cả &lt;tbody&gt;</text>
+  <text class="s-t mono sm" x="36" y="60">tbody.innerHTML = rows.map(…).join('')</text>
+
+  <rect class="s-box" x="36" y="76" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="50" y="96">t = 0,0s — nhịp polling: vẽ lại toàn bộ</text>
+  <rect class="s-box-warn" x="36" y="112" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="50" y="132">t = 1,4s — người dùng bấm chuột XUỐNG nút</text>
+  <rect class="s-box-bad" x="36" y="148" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="50" y="168">t = 1,5s — nhịp mới: nút cũ bị XOÁ khỏi DOM</text>
+  <rect class="s-box-bad" x="36" y="184" width="370" height="34" rx="5"/>
+  <text class="s-t sm b" x="221" y="205" text-anchor="middle" fill="var(--bad)">chuột nhả ra → không có click event</text>
+
+  <rect class="s-box-ok" x="454" y="12" width="410" height="220" rx="10"/>
+  <text class="s-t b" x="474" y="38" fill="var(--ok)">Bản đã sửa — cập nhật TẠI CHỖ</text>
+  <text class="s-t mono sm" x="474" y="60">signature đổi mới vẽ lại; còn lại chỉ sửa số</text>
+
+  <rect class="s-box" x="474" y="76" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="488" y="96">so "chữ ký" của danh sách SKU</text>
+  <rect class="s-box-ok" x="474" y="112" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="488" y="132">giống ⇒ chỉ ghi lại text tồn kho + trạng thái nút</text>
+  <rect class="s-box-ok" x="474" y="148" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="488" y="168">nút KHÔNG bị thay ⇒ click luôn tới nơi</text>
+  <rect class="s-box" x="474" y="184" width="370" height="34" rx="5"/>
+  <text class="s-t sm" x="662" y="205" text-anchor="middle">khác ⇒ mới vẽ lại và gắn lại listener</text>
+</svg>
+<figcaption><b>Bug này chỉ xuất hiện khi dùng thật.</b> Không test tự động nào bắt được, không
+console error nào in ra — chỉ có cảm giác "thỉnh thoảng bấm không ăn". Cùng họ với bài học ở
+Phase 2: <b>"cực hiếm" là phỏng đoán cho tới khi có ai đó dùng thật.</b></figcaption>
+</figure>
+
+<h3>Ba chi tiết nhỏ nhưng đúng</h3>
+
+<ul>
+<li><b>Mọi <code>setInterval</code> gom vào một mảng <code>timers</code></b>, dọn sạch khi đổi
+màn. Không dọn thì mỗi lần đổi màn là polling <b>nhân đôi</b> — sau vài phút trang tự bắn hàng
+chục request mỗi giây.</li>
+<li><b>Mỗi lần bấm "Săn ngay" sinh một <code>Idempotency-Key</code> mới</b> bằng
+<code>crypto.randomUUID()</code>, và nút bị khoá ngay lần bấm đầu. Hai lớp bảo vệ cho cùng một
+vấn đề, ở hai phía khác nhau.</li>
+<li><b>409 không phải lỗi hệ thống.</b> Hết hàng thì hiện chữ "Hết hàng" ở đúng dòng đó, không
+làm đỏ cả trang. Đúng tinh thần tách 4xx khỏi 5xx của Phase 3.</li>
+</ul>
+
+<h2>Cách test</h2>
+
+<p>FE không có test tự động — đó là quyết định trong <code>SPEC.md</code> ("AI làm 100%, không
+tính coverage"). Nhưng <b>phần server phục vụ nó thì có</b>, và bốn test đó bảo vệ đúng những chỗ
+việc thêm static asset có thể phá hỏng:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Test</th><th>Nó chặn hồi quy gì</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>GET /</code> → 200, <code>Content-Type: text/html</code></td><td>Trang thật sự được phục vụ</td></tr>
+<tr><td>2</td><td><code>GET /</code> <b>không</b> bị guard chặn</td><td>Không cần đăng nhập mới xem được trang đăng nhập</td></tr>
+<tr><td><b>3</b></td><td><code>GET /health</code> vẫn trả JSON như cũ</td><td><b>Route tĩnh không nuốt route API</b></td></tr>
+<tr><td><b>4</b></td><td><code>GET /khong-ton-tai</code> vẫn trả 404 <b>JSON</b> đúng hình dạng lỗi chung</td><td>Middleware tĩnh không biến mọi 404 thành HTML</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Phần UI kiểm <b>bằng tay</b> theo danh sách edge case trong spec — và cách kiểm quan trọng nhất
+là chạy k6 với trang đang mở.</p>
+
+<h3>Bằng chứng: k6 chạy trong khi trang đang mở</h3>
+
+<pre><code>1.000 VU săn 100 chiếc
+  201 = 100      409 = 900      5xx = 0
+  màn hình: tồn kho tụt dần rồi DỪNG Ở 0
+  DB xác nhận: stock = 0, bán đúng 100</code></pre>
+
+<div class="box key">
+<div class="t">Vì sao cảnh này lại là deliverable, chứ không phải bảng số</div>
+<p>Bảng benchmark của Phase 3 đã chứng minh oversell = 0 rồi. Nhưng bảng số chỉ thuyết phục người
+đã hiểu vấn đề. Con số trên màn hình <b>tụt xuống 0 rồi đứng yên</b> trong khi 1.000 người ảo đang
+bắn — thứ đó thuyết phục được cả người chưa từng nghe tới "lost update". Đó là toàn bộ lý do phase
+này tồn tại.</p>
+</div>
+
+<h2>Tiêu chí qua phase</h2>
+
+<ul class="chk">
+<li class="y">4 màn hình chạy được trên trình duyệt thật — đã chạy đầu-cuối trên Chrome: đăng ký → săn → thanh toán → <code>PAID</code></li>
+<li class="y">4 test server xanh, <code>npm run check</code> sạch (74 unit + 74 integration)</li>
+<li class="y">Chạy k6 trong khi mở màn ②: tồn kho rơi về <b>0 và dừng ở 0</b></li>
+<li class="n"><b>Quay video/GIF ~2 phút cảnh đó</b> — deliverable của phase</li>
+<li class="n">Tự trả lời câu hỏi bản chất của Phase 5</li>
+</ul>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"Sao không dùng React? Nhà tuyển dụng có nghĩ bạn không biết React không?"</summary>
+<div class="ans">
+<p>Câu trả lời đúng không phải "React nặng quá", mà là <b>phạm vi</b>: ở đây FE là <b>công cụ trực
+quan hoá</b>, không phải sản phẩm. Nó có đúng một việc — làm hiện ra cảnh tồn kho rơi về 0 khi
+1.000 VU đang bắn — và một trang tĩnh làm được việc đó.</p>
+<p>Cái được ghi rõ trong <a href="../adr/007-ui-la-trang-tinh-mot-file.md">ADR-007</a>: không build
+step, không <code>node_modules</code> thứ hai, sửa file là F5 thấy ngay. Cái mất cũng ghi rõ:
+không component tái dùng, không type safety ở FE.</p>
+<p><b>Điểm mấu chốt khi bị hỏi:</b> có ADR nghĩa là đây là <i>quyết định</i>, không phải <i>không
+biết làm</i>. Và nói thêm được "nếu FE này thành sản phẩm thật thì tôi đổi ngay, đây là ngưỡng
+để đổi" thì càng rõ.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao trang không tự thanh toán được? Nghe như làm chưa xong."</summary>
+<div class="ans">
+<p>Ngược lại — đó là thứ đang được chứng minh. Webhook thanh toán được ký bằng HMAC với
+<code>PAYMENT_WEBHOOK_SECRET</code>, và trình duyệt <b>không được phép</b> giữ khoá đó (mọi thứ
+trong JS đều đọc được bằng DevTools).</p>
+<p><b>Nếu FE ký được thì việc verify chữ ký ở Phase 4 là vô nghĩa</b> — ai cũng ký được thì chữ ký
+không chứng minh gì. Nên trang chỉ gọi <code>POST /payments/checkout/:id</code> để lấy
+<code>paymentIntentId</code>, rồi hiện ra lệnh <code>send-webhook</code> để copy — đóng vai máy chủ
+của cổng thanh toán.</p>
+</div></details>
+
+<details class="qa"><summary>"Polling 1,5 giây có tốn không? Sao không WebSocket?"</summary>
+<div class="ans">
+<p>Có tốn, và đó là đánh đổi đã cân: mỗi client thêm ~0,7 request/giây. Với một demo vài tab thì
+không đáng kể; với hàng nghìn client thật thì phải đổi.</p>
+<p>WebSocket đổi lại: một tầng hạ tầng mới (kết nối bền, xử lý reconnect, sticky session khi có
+nhiều instance), và theo luật của repo thì <b>công nghệ mới phải qua ADR</b>. Nó không làm demo tốt
+hơn — cảnh cần quay chỉ dài ~10 giây.</p>
+<p>Ngưỡng để đổi: khi số client đồng thời đủ lớn để polling chiếm phần đáng kể tải, hoặc khi cần độ
+trễ dưới 1 giây.</p>
+</div></details>
+
+<details class="qa"><summary>"FE là công cụ hay sản phẩm — khác nhau ở đâu trong cách quyết định?"</summary>
+<div class="ans">
+<p>Khác ở <b>tiêu chí dừng</b>.</p>
+<p>Với sản phẩm, câu hỏi là "còn thiếu gì so với một FE tử tế?" — và danh sách đó không bao giờ hết:
+accessibility, responsive, i18n, test, tối ưu bundle.</p>
+<p>Với công cụ, câu hỏi là "<b>nó đã làm hiện ra được thứ mình cần cho thấy chưa?</b>" — một câu
+hỏi có đáp án đóng. Khi cảnh tồn kho rơi về 0 đã quay được, phase kết thúc; mọi thứ thêm vào sau đó
+là phạm vi thừa, dù bản thân nó là việc tốt.</p>
+<p>Biết mình đang làm loại nào là điều kiện để biết dừng — và đó là câu hỏi bản chất của phase này.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p5"></section>
+
+<div class="pager"><a href="phase-4.html">← Phase 4</a><a href="phase-6.html">Phase 6 — Observability →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

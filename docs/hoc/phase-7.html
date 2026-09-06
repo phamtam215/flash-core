@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 7 — Deploy &amp; FinOps</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item active" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 7 — Deploy &amp; FinOps <span class="tag todo">chưa làm</span></h1>
+<p class="lede">Đưa hệ thống lên chạy thật, <b>với hoá đơn 0 đồng</b>. Và biết chính xác đồng đầu
+tiên sẽ phát sinh ở đâu nếu traffic thật tăng.</p>
+
+<div class="box note">
+<div class="t">Trang này khác các trang trước</div>
+<p>Bảy trang kia mô tả thứ <b>đã làm và đã đo</b>. Trang này mô tả <b>bài toán và tiêu chí</b> của
+một phase chưa bắt đầu — không có số đo, không có bug thật, không có bằng chứng. Mọi con số ở đây
+là <b>đặc tính của nền tảng</b>, không phải kết quả của dự án. Sẽ viết lại khi phase chạy xong.</p>
+</div>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<p>Flash sale mở đúng <b>20:00:00</b>. Hệ thống chạy trên Cloud Run với <code>min-instances = 0</code>
+(để giữ free tier), database là Neon Free có <b>scale-to-zero</b>.</p>
+<p><b>Người bấm "Săn ngay" đầu tiên chờ bao lâu?</b> Và vì sao đó lại là câu hỏi tệ nhất có thể
+xảy ra với một flash sale?</p>
+</div>
+
+<h2>Bài toán: hai ràng buộc kéo ngược nhau</h2>
+
+<div class="cols c2">
+<div class="card">
+<h4>Ràng buộc 1 — phải có API sống</h4>
+<p>Một dòng CV nói "em đã làm hệ thống chống oversell" khác hẳn một dòng có kèm URL bấm vào được.
+Phase này biến dự án từ <i>bài tập</i> thành <i>thứ người khác chạm được</i>.</p>
+</div>
+<div class="card">
+<h4>Ràng buộc 2 — 0 đồng</h4>
+<p>Dự án cá nhân không có ngân sách. Free tier: Cloud Run (us-central1) + Neon Free (0,5GB,
+scale-to-zero, <b>hard cutoff</b>) + Upstash Free (256MB, 500k lệnh/tháng).</p>
+</div>
+</div>
+
+<p>Hai ràng buộc đó tạo ra <b>đúng một đánh đổi trung tâm</b>, và cách trả lời nó là nội dung của
+cả phase:</p>
+
+<figure class="dg">
+<svg viewBox="0 0 880 260" role="img" aria-label="Cold start cộng dồn khi mở flash sale">
+  <defs><marker id="ah7" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <text class="s-t b" x="16" y="24">20:00:00 — request đầu tiên, mọi thứ đang ngủ</text>
+
+  <rect class="s-box" x="16" y="40" width="120" height="46" rx="6"/>
+  <text class="s-t sm" x="76" y="68" text-anchor="middle">người bấm</text>
+
+  <rect class="s-box-warn" x="176" y="40" width="230" height="46" rx="6"/>
+  <text class="s-t sm b" x="291" y="62" text-anchor="middle">container lạnh</text>
+  <text class="s-t sm m" x="291" y="79" text-anchor="middle">kéo image, khởi động Node, dựng Nest</text>
+
+  <rect class="s-box-warn" x="446" y="40" width="230" height="46" rx="6"/>
+  <text class="s-t sm b" x="561" y="62" text-anchor="middle">database lạnh</text>
+  <text class="s-t sm m" x="561" y="79" text-anchor="middle">Neon scale-to-zero phải dậy</text>
+
+  <rect class="s-box-bad" x="716" y="40" width="148" height="46" rx="6"/>
+  <text class="s-t sm b" x="790" y="68" text-anchor="middle">CỘNG DỒN</text>
+
+  <g color="var(--muted)">
+    <path class="s-l" d="M136 63 H 170" marker-end="url(#ah7)"/>
+    <path class="s-l" d="M406 63 H 440" marker-end="url(#ah7)"/>
+    <path class="s-l" d="M676 63 H 710" marker-end="url(#ah7)"/>
+  </g>
+
+  <rect class="s-box-bad" x="16" y="110" width="848" height="52" rx="8"/>
+  <text class="s-t sm b" x="440" y="132" text-anchor="middle" fill="var(--bad)">Với flash sale, request ĐẦU TIÊN rơi đúng vào lúc ĐÔNG NHẤT</text>
+  <text class="s-t sm" x="440" y="150" text-anchor="middle">Không phải "vài người xui" — mà là hàng nghìn người cùng chờ một lần khởi động</text>
+
+  <rect class="s-box" x="16" y="184" width="414" height="64" rx="8"/>
+  <text class="s-t sm b" x="36" y="206">Cách chữa đắt: min-instances = 1</text>
+  <text class="s-t sm" x="36" y="226">Hết cold start, nhưng <tspan class="s-t sm b">mất tiền 24/7</tspan> — kể cả lúc</text>
+  <text class="s-t sm" x="36" y="242">3 giờ sáng không ai dùng. Mất free tier.</text>
+
+  <rect class="s-box-ok" x="450" y="184" width="414" height="64" rx="8"/>
+  <text class="s-t sm b" x="470" y="206">Cách chữa rẻ: hâm nóng trước giờ mở</text>
+  <text class="s-t sm" x="470" y="226">Bắn vài request lúc 19:58. Chỉ dùng được vì</text>
+  <text class="s-t sm" x="470" y="242"><tspan class="s-t sm b">giờ mở sale là biết trước</tspan> — không tổng quát.</text>
+</svg>
+<figcaption><b>Đáp án cho câu đoán:</b> chờ vài giây — và đó là câu hỏi tệ nhất vì với flash sale,
+độ trễ không rải đều mà <b>dồn hết vào giây đầu tiên</b>, đúng lúc đông nhất. Dự án
+<b>chọn chịu</b> cold start để giữ chi phí 0đ, và giải thích được lựa chọn đó chính là câu chuyện
+FinOps đáng kể hơn nhiều so với việc chỉ nói "em đã deploy lên cloud".</figcaption>
+</figure>
+
+<h2>Serverless nhân connection lên — và vì sao cần pooler</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 250" role="img" aria-label="Số connection nhân lên khi có nhiều instance">
+  <defs><marker id="ah7b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-bad" x="16" y="12" width="410" height="226" rx="10"/>
+  <text class="s-t b" x="36" y="38" fill="var(--bad)">Không pooler</text>
+  <g class="s-t sm">
+    <rect class="s-box" x="36" y="54" width="80" height="34" rx="5"/><text x="76" y="76" text-anchor="middle">app ×10</text>
+    <rect class="s-box" x="126" y="54" width="80" height="34" rx="5"/><text x="166" y="76" text-anchor="middle">app ×10</text>
+    <rect class="s-box" x="216" y="54" width="80" height="34" rx="5"/><text x="256" y="76" text-anchor="middle">app ×10</text>
+    <rect class="s-box" x="306" y="54" width="100" height="34" rx="5"/><text x="356" y="76" text-anchor="middle">…× N instance</text>
+  </g>
+  <g color="var(--bad)">
+    <path class="s-l bad" d="M76 88 V 122" marker-end="url(#ah7b)"/>
+    <path class="s-l bad" d="M166 88 V 122" marker-end="url(#ah7b)"/>
+    <path class="s-l bad" d="M256 88 V 122" marker-end="url(#ah7b)"/>
+    <path class="s-l bad" d="M356 88 V 122" marker-end="url(#ah7b)"/>
+  </g>
+  <rect class="s-box-bad" x="36" y="126" width="370" height="48" rx="6"/>
+  <text class="s-t sm b" x="221" y="146" text-anchor="middle">N × pool_size connection</text>
+  <text class="s-t sm" x="221" y="164" text-anchor="middle">vượt max_connections của Postgres</text>
+  <rect class="s-box-bad" x="36" y="188" width="370" height="36" rx="6"/>
+  <text class="s-t mono sm b" x="221" y="211" text-anchor="middle" fill="var(--bad)">FATAL: too many connections</text>
+
+  <rect class="s-box-ok" x="454" y="12" width="410" height="226" rx="10"/>
+  <text class="s-t b" x="474" y="38" fill="var(--ok)">Có pooler (Neon pooler / PgBouncer)</text>
+  <g class="s-t sm">
+    <rect class="s-box" x="474" y="54" width="80" height="34" rx="5"/><text x="514" y="76" text-anchor="middle">app</text>
+    <rect class="s-box" x="564" y="54" width="80" height="34" rx="5"/><text x="604" y="76" text-anchor="middle">app</text>
+    <rect class="s-box" x="654" y="54" width="80" height="34" rx="5"/><text x="694" y="76" text-anchor="middle">app</text>
+    <rect class="s-box" x="744" y="54" width="100" height="34" rx="5"/><text x="794" y="76" text-anchor="middle">…× N</text>
+  </g>
+  <g color="var(--ok)">
+    <path class="s-l ok" d="M514 88 V 110 H 659 V 122" marker-end="url(#ah7b)"/>
+    <path class="s-l ok" d="M604 88 V 122"/>
+    <path class="s-l ok" d="M694 88 V 110 H 659"/>
+    <path class="s-l ok" d="M794 88 V 110 H 700"/>
+  </g>
+  <rect class="s-box-ok" x="474" y="126" width="370" height="48" rx="6"/>
+  <text class="s-t sm b" x="659" y="146" text-anchor="middle">pooler — trả connection về sau MỖI transaction</text>
+  <text class="s-t sm" x="659" y="164" text-anchor="middle">một nhúm connection phục vụ tất cả</text>
+  <rect class="s-box-warn" x="474" y="188" width="370" height="36" rx="6"/>
+  <text class="s-t sm b" x="659" y="211" text-anchor="middle">Đổi lại: KHÔNG giữ session state</text>
+</svg>
+<figcaption><b>Cái giá của transaction pooling phải biết TRƯỚC khi bật:</b> connection được trả về
+pool sau mỗi <i>transaction</i>, không phải mỗi <i>phiên</i>. Nên prepared statement,
+<code>LISTEN/NOTIFY</code> và advisory lock ở mức session sẽ <b>không hoạt động như mong đợi</b>.
+Dự án này dùng khoá ở mức <b>dòng</b> (<code>FOR UPDATE</code>) nên không đụng — nhưng đó là điều
+phải kiểm, không phải điều được cho.</figcaption>
+</figure>
+
+<h2>Phạm vi dự kiến của phase</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Khối</th><th>Nội dung</th><th>Điểm dễ sai</th></tr></thead>
+<tbody>
+<tr><td><b>Hạ tầng</b></td><td>Cloud Run (us-central1) + Neon Postgres + Upstash Redis</td><td>Chọn region gần Việt Nam nghe hợp lý — nhưng <b>mất free tier</b>. Free tier chỉ áp dụng ở một số region cụ thể</td></tr>
+<tr><td><b>Bí mật</b></td><td>Secret Manager, không hardcode, không <code>.env</code> trên cloud</td><td>Log ra biến env khi debug ⇒ secret vào log. Lỡ lọt thì <b>coi như đã lộ</b>, phải xoay vòng — xoá log không đủ</td></tr>
+<tr><td><b>CI/CD</b></td><td>GitHub Actions tự deploy khi merge vào <code>main</code></td><td>Repo mới có CI, chưa có CD. Bước đầu tiên phải là <b>bật integration test trên CI</b></td></tr>
+<tr><td><b>Worker</b></td><td>Chạy như service riêng</td><td>Trên nền tảng tính tiền theo request, CPU có thể <b>bị bóp sau khi response đã trả</b> — job nền chạy chung sẽ treo giữa chừng</td></tr>
+<tr><td><b>FinOps</b></td><td><b>Budget alert $1 ngay ngày đầu</b></td><td>Rẻ hơn mọi cách tối ưu sau đó. Khoản hay bị bỏ sót nhất là <b>egress</b> — tiền trả cho dữ liệu <i>đi ra khỏi</i> cloud</td></tr>
+<tr><td><b>README</b></td><td>"Đọc 3 phút hiểu toàn hệ thống"</td><td>Đây là thứ người tuyển dụng đọc đầu tiên và thường là <b>duy nhất</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box trap">
+<div class="t">Luật cứng đã có sẵn trong <code>CLAUDE.md</code></div>
+<p><b>Không chạy load test hay seed dữ liệu lớn lên môi trường cloud.</b> Neon Free có
+<b>hard cutoff</b> — chạm hạn mức là <b>dừng hẳn</b>, không phải giảm tốc. Một lần chạy k6 1.000 VU
+lên cloud có thể làm database treo giữa tháng.</p>
+<p>Repo có hook <code>guard_cloud_cost.py</code> chặn <code>k6 run</code> / seed /
+<code>migrate reset</code> khi biến kết nối trỏ ra cloud. Đây là ví dụ đúng tinh thần Phase 0:
+<b>chặn bằng máy, không bằng lời dặn.</b></p>
+</div>
+
+<h2>Tiêu chí qua phase (dự kiến)</h2>
+
+<ul class="chk">
+<li class="n">API sống trên Cloud Run, bấm vào URL là chạy</li>
+<li class="n">CI/CD tự động — merge vào <code>main</code> là deploy</li>
+<li class="n">Budget alert $1 đã bật <b>từ ngày đầu</b></li>
+<li class="n">Không secret nào nằm trong repo hay trong image</li>
+<li class="n">README "đọc 3 phút hiểu toàn hệ thống"</li>
+<li class="n">3 câu hỏi bản chất có đáp án</li>
+</ul>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"Cold start ảnh hưởng flash sale thế nào? min-instances giải quyết ra sao?"</summary>
+<div class="ans">
+<p>Scale-to-zero nghĩa là khi không có traffic thì không có instance nào chạy — request
+<b>đầu tiên</b> phải chờ container khởi động. Với hệ thống bình thường thì đó chỉ là "vài người
+xui". Với flash sale mở đúng giờ thì request đầu tiên rơi <b>đúng vào lúc đông nhất</b>, và độ trễ
+còn <b>cộng dồn</b> với việc database scale-to-zero cũng phải dậy.</p>
+<p><code>min-instances = 1</code> giữ sẵn một bản đang chạy nên hết cold start — nhưng
+<b>mất tiền 24/7</b>, kể cả lúc không ai dùng, và mất free tier.</p>
+<p><b>Dự án chọn chịu cold start</b> để giữ 0đ, và dùng cách rẻ hơn: hâm nóng trước giờ mở. Cách
+này chỉ dùng được vì <b>giờ mở sale là biết trước</b> — nó không phải giải pháp tổng quát.</p>
+</div></details>
+
+<details class="qa"><summary>"Connection pooling với serverless — vấn đề gì?"</summary>
+<div class="ans">
+<p>Serverless <b>nhân connection lên</b>: N instance × pool size mỗi instance có thể vượt
+<code>max_connections</code> của database. Triệu chứng là <code>too many connections</code> xuất
+hiện <b>đúng lúc traffic tăng</b> — tức là lúc tệ nhất.</p>
+<p>Chữa bằng pooler (Neon pooler, PgBouncer) ở chế độ <b>transaction pooling</b>: connection được
+trả về pool sau mỗi transaction thay vì mỗi phiên, nên một nhúm connection phục vụ được tất cả.</p>
+<p><b>Cái giá phải biết trước:</b> transaction pooling <b>không giữ session state</b> — prepared
+statement, <code>LISTEN/NOTIFY</code>, advisory lock ở mức session sẽ không hoạt động như mong đợi.
+Dự án này dùng khoá ở mức dòng nên không đụng, nhưng đó là điều phải kiểm.</p>
+</div></details>
+
+<details class="qa"><summary>"Nếu traffic thật tăng, chi phí phát sinh đầu tiên ở đâu?"</summary>
+<div class="ans">
+<p>Theo thứ tự thường gặp:</p>
+<ol>
+<li><b>Neon Free chạm hard cutoff</b> — 0,5GB. Chạm là <b>dừng hẳn</b>, không giảm tốc. Đây là thứ
+làm hệ thống chết chứ không phải làm hoá đơn tăng.</li>
+<li><b>Upstash 500k lệnh/tháng</b> — rate limit và tồn kho Redis đều đếm vào đó.</li>
+<li><b>Cloud Run tính theo request × thời gian × CPU</b> — nếu bật <code>min-instances</code> thì
+thành chi phí cố định 24/7.</li>
+<li><b>Egress</b> — khoản hay bị bỏ sót nhất, vì nó không nằm ở bất kỳ dashboard nào mình hay nhìn.</li>
+</ol>
+<p>Và câu trả lời quan trọng nhất: <b>đặt budget alert $1 ngay ngày đầu bật billing</b>. Nó rẻ hơn
+mọi cách tối ưu sau đó, vì nó biến "phát hiện sau khi nhận hoá đơn" thành "biết trong vài giờ".</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao chọn region us-central1 mà không phải Singapore cho gần Việt Nam?"</summary>
+<div class="ans">
+<p>Vì free tier chỉ áp dụng ở một số region cụ thể, và Singapore không nằm trong đó. Chọn gần
+nghe hợp lý nhưng <b>mất free tier</b> — tức là đổi ~200ms độ trễ lấy một hoá đơn hàng tháng.</p>
+<p>Với một dự án portfolio, độ trễ 200ms không ảnh hưởng tới thứ đang được chứng minh (oversell = 0,
+outbox không mất dữ liệu). Nên đây là <b>đánh đổi có ý thức</b>, và bản thân việc giải thích được
+đánh đổi đó là thứ đáng kể khi phỏng vấn.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p7"></section>
+
+<div class="pager"><a href="phase-6.html">← Phase 6</a><a href="index.html">Về bản đồ →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

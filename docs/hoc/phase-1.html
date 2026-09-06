@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 1 — Auth &amp; Security</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item active" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 1 — Auth &amp; Security <span class="tag done">14/14 test</span></h1>
+<p class="lede">Không phải "làm màn đăng nhập". Câu hỏi thật của phase này là:
+<b>khi refresh token bị đánh cắp, hệ thống biết bằng cách nào?</b></p>
+<p class="meta"><b>Kết quả:</b> 21 unit + 12 integration · Argon2id · Access + Refresh qua HttpOnly
+Cookie · Refresh Token Rotation + reuse detection · rate limit login trên Redis.</p>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<p>User bấm <b>Đăng xuất</b>. Năm phút sau, kẻ trộm dùng <b>access token</b> lấy được trước đó
+để gọi <code>GET /auth/me</code>.</p>
+<p><b>Gọi được không?</b> Và nếu được thì đó là bug hay là thiết kế?</p>
+</div>
+
+<h2>Bài toán</h2>
+
+<p>Hệ thống cần trả lời hai câu hoàn toàn khác nhau, và chúng đòi hai loại token khác nhau:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>Access token</th><th>Refresh token</th></tr></thead>
+<tbody>
+<tr><td>Dùng để</td><td>Gửi kèm <b>mọi</b> request</td><td>Chỉ để đổi lấy access token mới</td></tr>
+<tr><td>Sống</td><td>Ngắn — 15 phút</td><td>Dài — 7 ngày</td></tr>
+<tr><td>Lưu ở server</td><td><b>Không</b> (stateless)</td><td><b>Có</b>, dạng hash</td></tr>
+<tr><td>Thu hồi được</td><td><b>Không</b> — hợp lệ tới lúc hết hạn</td><td>Có</td></tr>
+<tr><td>Cookie</td><td><code>Path=/</code></td><td><code>Path=/auth/refresh</code> — chỉ gửi khi thật sự cần</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box why">
+<div class="t">Đáp án câu đoán ở đầu trang: gọi được, và đó là thiết kế</div>
+<p>JWT là <b>stateless</b> — server không lưu gì, nó chỉ kiểm chữ ký và hạn. Không có chỗ nào để
+"đánh dấu đã logout". Đó chính là lý do access token phải <b>ngắn</b>: cái giá của việc không
+thu hồi được là 15 phút, không phải 7 ngày. Việc thu hồi thật sự xảy ra ở tầng refresh token —
+thứ có lưu trong DB nên xoá được.</p>
+<p>Muốn logout tức thì thì phải trả giá: giữ danh sách đen access token trong Redis và tra ở mỗi
+request — tức là vứt bỏ tính stateless. Dự án <b>không</b> làm, và biết mình đang đổi gì lấy gì.</p>
+</div>
+
+<h2>Cookie, XSS và CSRF — cái nào chặn cái nào</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 300" role="img" aria-label="HttpOnly chặn XSS nhưng không chặn CSRF">
+  <defs><marker id="ah1" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <text class="s-t b" x="16" y="22">XSS — kẻ tấn công chạy được JS trong trang của mình</text>
+  <rect class="s-box" x="16" y="36" width="150" height="60" rx="8"/>
+  <text class="s-t sm" x="91" y="60" text-anchor="middle">JS độc</text>
+  <text class="s-t mono sm" x="91" y="78" text-anchor="middle">document.cookie</text>
+
+  <rect class="s-box-a" x="256" y="36" width="170" height="60" rx="8"/>
+  <text class="s-t sm b" x="341" y="60" text-anchor="middle">Cookie HttpOnly</text>
+  <text class="s-t sm m" x="341" y="78" text-anchor="middle">trình duyệt giấu khỏi JS</text>
+
+  <g color="var(--bad)">
+    <path class="s-l bad" d="M166 66 H 250" marker-end="url(#ah1)"/>
+    <text class="s-t sm" x="208" y="58" text-anchor="middle" fill="var(--bad)">đọc</text>
+    <line class="s-l bad" x1="200" y1="52" x2="216" y2="80" stroke-width="3"/>
+    <line class="s-l bad" x1="216" y1="52" x2="200" y2="80" stroke-width="3"/>
+  </g>
+  <rect class="s-box-ok" x="466" y="36" width="398" height="60" rx="8"/>
+  <text class="s-t sm b" x="486" y="60">CHẶN ĐƯỢC</text>
+  <text class="s-t sm" x="486" y="78">XSS chỉ lấy được thứ JS đọc được. HttpOnly cắt hẳn đường đó.</text>
+
+  <line class="s-l dash" x1="16" y1="124" x2="864" y2="124"/>
+
+  <text class="s-t b" x="16" y="156">CSRF — trang lạ lừa trình duyệt tự gửi request</text>
+  <rect class="s-box" x="16" y="170" width="150" height="72" rx="8"/>
+  <text class="s-t sm" x="91" y="194" text-anchor="middle">trang-la.com</text>
+  <text class="s-t mono sm" x="91" y="212" text-anchor="middle">&lt;form action=</text>
+  <text class="s-t mono sm" x="91" y="228" text-anchor="middle">flash-core/orders&gt;</text>
+
+  <rect class="s-box" x="256" y="170" width="170" height="72" rx="8"/>
+  <text class="s-t sm b" x="341" y="198" text-anchor="middle">Trình duyệt</text>
+  <text class="s-t sm m" x="341" y="218" text-anchor="middle">TỰ ĐỘNG đính cookie</text>
+  <text class="s-t sm m" x="341" y="234" text-anchor="middle">theo domain</text>
+
+  <g color="var(--bad)">
+    <path class="s-l bad" d="M166 206 H 250" marker-end="url(#ah1)"/>
+    <path class="s-l bad" d="M426 206 H 460" marker-end="url(#ah1)"/>
+  </g>
+  <rect class="s-box-bad" x="466" y="170" width="398" height="72" rx="8"/>
+  <text class="s-t sm b" x="486" y="194" fill="var(--bad)">HttpOnly KHÔNG chặn được</text>
+  <text class="s-t sm" x="486" y="214">Kẻ tấn công chưa từng ĐỌC cookie — nó chỉ mượn việc</text>
+  <text class="s-t sm" x="486" y="232">trình duyệt tự GỬI. Hai chuyện độc lập nhau.</text>
+
+  <rect class="s-box-ok" x="466" y="256" width="398" height="34" rx="8"/>
+  <text class="s-t sm b" x="486" y="278">Chặn bằng SameSite=Strict — cookie chỉ đi khi request từ chính site</text>
+</svg>
+<figcaption><b>Đây là chỗ hay hiểu nhầm nhất của cả phase.</b> <code>HttpOnly</code> ngăn việc
+<b>đọc</b>; <code>SameSite</code> ngăn việc <b>gửi</b>. Nói "đã dùng HttpOnly nên an toàn" là mới
+làm được một nửa.</figcaption>
+</figure>
+
+<p>Bốn cờ cookie dự án đặt, mỗi cờ chặn một thứ khác nhau — thiếu cờ nào thì hở đúng chỗ đó:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Cờ</th><th>Nghĩa</th><th>Thiếu nó thì</th></tr></thead>
+<tbody>
+<tr><td><code>HttpOnly</code></td><td>JavaScript không đọc được</td><td>XSS đọc trộm token trong một dòng</td></tr>
+<tr><td><code>Secure</code></td><td>Chỉ gửi qua HTTPS</td><td>Token bay qua mạng dạng thô</td></tr>
+<tr><td><code>SameSite=Strict</code></td><td>Chỉ gửi khi request xuất phát từ chính site</td><td>Dính CSRF</td></tr>
+<tr><td><code>Path=/auth/refresh</code></td><td>Refresh token chỉ đi kèm đúng route đó</td><td>Token dài hạn lộ ra ở mọi request, vô ích</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box trap">
+<div class="t">Bẫy đã gặp</div>
+<p><code>path</code> lúc <b>xoá</b> cookie phải khớp <code>path</code> lúc <b>set</b>. Không khớp
+thì trình duyệt coi là hai cookie khác nhau và cookie cũ không bao giờ mất — logout "thành công"
+mà token vẫn còn.</p>
+</div>
+
+<h2>Rotation + reuse detection — sơ đồ quan trọng nhất của phase</h2>
+
+<p>Luật: <b>mỗi refresh token dùng được đúng một lần.</b> Dùng xong bị đánh dấu
+<code>revokedAt</code> và cấp token mới cùng <code>familyId</code>. Sơ đồ dưới là chuyện xảy ra
+khi token bị copy:</p>
+
+<figure class="dg">
+<svg viewBox="0 0 880 420" role="img" aria-label="Refresh token rotation và reuse detection">
+  <defs><marker id="ah1b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-ok" x="16" y="12" width="200" height="30" rx="6"/>
+  <text class="s-t b" x="116" y="32" text-anchor="middle">Chủ thật</text>
+  <rect class="s-box-a" x="336" y="12" width="208" height="30" rx="6"/>
+  <text class="s-t b" x="440" y="32" text-anchor="middle">Server</text>
+  <rect class="s-box-bad" x="664" y="12" width="200" height="30" rx="6"/>
+  <text class="s-t b" x="764" y="32" text-anchor="middle">Kẻ trộm</text>
+
+  <g class="s-l dash">
+    <line x1="116" y1="50" x2="116" y2="404"/>
+    <line x1="440" y1="50" x2="440" y2="404"/>
+    <line x1="764" y1="50" x2="764" y2="404"/>
+  </g>
+
+  <g color="var(--ok)">
+    <path class="s-l ok" d="M116 82 H 434" marker-end="url(#ah1b)"/>
+    <text class="s-t sm" x="124" y="76">① đăng nhập</text>
+    <path class="s-l ok" d="M434 112 H 122" marker-end="url(#ah1b)"/>
+    <text class="s-t sm" x="124" y="106">② cấp RT1 · family = F</text>
+  </g>
+
+  <g color="var(--bad)">
+    <path class="s-l bad dash" d="M122 148 H 758" marker-end="url(#ah1b)"/>
+    <text class="s-t sm" x="440" y="142" text-anchor="middle" fill="var(--bad)">③ malware copy RT1 khỏi máy</text>
+  </g>
+
+  <g color="var(--bad)">
+    <path class="s-l bad" d="M758 190 H 446" marker-end="url(#ah1b)"/>
+    <text class="s-t sm" x="600" y="184" text-anchor="middle">④ refresh bằng RT1</text>
+    <path class="s-l bad" d="M446 220 H 758" marker-end="url(#ah1b)"/>
+    <text class="s-t sm" x="600" y="214" text-anchor="middle">⑤ RT1 → revoked, cấp RT2 (vẫn family F)</text>
+  </g>
+
+  <rect class="s-box-warn" x="300" y="240" width="280" height="30" rx="6"/>
+  <text class="s-t sm b" x="440" y="260" text-anchor="middle">DB: RT1.revokedAt = now</text>
+
+  <g color="var(--accent)">
+    <path class="s-l a" d="M116 300 H 434" marker-end="url(#ah1b)"/>
+    <text class="s-t sm" x="124" y="294">⑥ chủ thật refresh — vẫn bằng RT1</text>
+  </g>
+
+  <rect class="s-box-bad" x="252" y="318" width="376" height="52" rx="8"/>
+  <text class="s-t sm b" x="440" y="340" text-anchor="middle" fill="var(--bad)">⑦ RT1 đã revoked mà vẫn bị dùng ⇒ REUSE DETECTION</text>
+  <text class="s-t sm" x="440" y="358" text-anchor="middle">thu hồi TOÀN BỘ family F — cả RT2 của kẻ trộm</text>
+
+  <g color="var(--muted)">
+    <path class="s-l" d="M434 392 H 122" marker-end="url(#ah1b)"/>
+    <text class="s-t sm m" x="128" y="386">401 — phải đăng nhập lại</text>
+    <path class="s-l" d="M446 392 H 758" marker-end="url(#ah1b)"/>
+    <text class="s-t sm m" x="620" y="386">401 — mất quyền</text>
+  </g>
+</svg>
+<figcaption><b>Dù ai dùng trước, lần thứ hai luôn lộ.</b> Nếu chủ thật refresh trước thì kẻ trộm
+dính bẫy ở bước sau — cơ chế đối xứng. Cái giá: <b>cả hai</b> bị đăng xuất, vì tại thời điểm đó
+hệ thống không có cách nào biết ai là chủ thật. Đó là đánh đổi có chủ đích, không phải bug.</figcaption>
+</figure>
+
+<h2>Cấu trúc file</h2>
+
+<div class="tree">
+src/modules/<span class="d">auth/</span>
+├── auth.controller.ts       <span class="c">HTTP + gắn cookie. KHÔNG có logic nghiệp vụ</span>
+├── auth.service.ts          <span class="c">Argon2, sinh token, REUSE DETECTION, rate limit</span>
+├── auth.repository.ts       <span class="c">mọi truy cập DB của module gom về đây</span>
+├── auth.dto.ts              <span class="c">schema Zod + type suy ra TỪ schema (một nguồn sự thật)</span>
+├── auth.errors.ts           <span class="c">lỗi nghiệp vụ kế thừa DomainError → filter tự map</span>
+├── auth.cookies.ts          <span class="c">4 cờ bảo mật, mỗi cờ có comment giải thích</span>
+├── access-token.guard.ts    <span class="c">chặn request chưa đăng nhập, đọc token từ cookie</span>
+└── index.ts                 <span class="c">CHỈ export AuthModule + AccessTokenGuard</span>
+
+src/infra/<span class="d">redis/</span>              <span class="new">← module hạ tầng thứ hai, cấu trúc copy y hệt prisma/</span>
+├── redis.service.ts         <span class="c">ioredis + incrementWithExpiry() cho rate limit</span>
+├── redis.module.ts          <span class="c">@Global — một kết nối cho cả app</span>
+└── index.ts
+
+prisma/migrations/20260808000000_init_auth/   <span class="c">users + refresh_tokens</span>
+test/auth.e2e-spec.ts        <span class="c">12 integration test, gồm cả test #8</span>
+</div>
+
+<div class="box note">
+<div class="t">Vì sao <code>index.ts</code> chỉ export đúng hai thứ</div>
+<p><code>AuthModule</code> để app ráp, <code>AccessTokenGuard</code> để module khác bảo vệ
+endpoint. <code>AuthService</code> <b>không</b> được export — module khác không có việc gì phải
+gọi thẳng nó. Danh sách export chính là <b>hợp đồng công khai</b> của module; mỗi thứ thêm vào
+đó là một thứ sau này không sửa được nữa mà không ảnh hưởng người khác.</p>
+</div>
+
+<h2>Cách code — bốn quyết định</h2>
+
+<h3>① Argon2id với tham số OWASP, và biết mình đang trả giá gì</h3>
+
+<pre><code>const ARGON2_OPTIONS = {
+  type: argon2.argon2id,
+  memoryCost: 19456,  // KiB = 19 MiB — MỖI lần hash
+  timeCost: 2,
+  parallelism: 1,
+};</code></pre>
+
+<p>Ba con số này là <b>đánh đổi trực tiếp giữa bảo mật và tải server</b>: tăng lên thì kẻ tấn
+công dò chậm hơn, nhưng mỗi lần đăng nhập cũng tốn RAM và CPU thật của mình. Dưới flash sale,
+hàng nghìn lượt đăng nhập × 19 MiB là con số phải tính tới.</p>
+
+<h3>② Hash giả để hai nhánh tốn thời gian như nhau</h3>
+
+<pre><code>// Luôn chạy verify, kể cả khi KHÔNG tìm thấy user
+const passwordMatches = await argon2.verify(user?.passwordHash ?? DUMMY_HASH, dto.password);
+if (!user || !passwordMatches) { …; throw new InvalidCredentialsError(); }</code></pre>
+
+<div class="box why">
+<div class="t">Vì sao không <code>if (!user) throw</code> luôn cho nhanh</div>
+<p>Vì tốc độ trả lời chính là thông tin. Email không tồn tại → trả lời sau ~1ms; email có thật →
+trả lời sau ~100ms (phải verify). Kẻ tấn công đo thời gian là <b>dò được email nào đã đăng ký</b>
+— đúng thứ mà việc dùng chung một thông báo lỗi đang cố che. Tên gọi: <b>timing attack</b>.</p>
+</div>
+
+<h3>③ Refresh token hash bằng SHA-256, <i>không</i> phải Argon2</h3>
+
+<p>Nghe có vẻ ngược, nhưng đúng: Argon2 cố tình chậm để chống dò <b>mật khẩu</b> — thứ do con
+người đặt nên đoán được. Refresh token là chuỗi ngẫu nhiên do máy sinh, <b>không có gì để
+đoán</b>, nên không cần chậm. Và hàm này chạy ở <b>mọi</b> lần refresh — dùng Argon2 ở đây là tự
+bắn vào chân mình về hiệu năng.</p>
+
+<p>Nhưng <b>vẫn phải hash</b>: DB rò rỉ mà token lưu thô thì kẻ tấn công đăng nhập được ngay.</p>
+
+<h3>④ Rate limit đếm theo <i>email</i>, trên Redis</h3>
+
+<div class="chain">
+<span class="node"><b>login sai</b></span><span class="arw">→</span>
+<span class="node a"><code>INCR ratelimit:login:&lt;email&gt;</code></span><span class="arw">→</span>
+<span class="node"><code>EXPIRE 60</code></span><span class="arw">→</span>
+<span class="node">vượt ngưỡng → <b>429</b></span>
+</div>
+
+<div class="cols c2">
+<div class="card">
+<h4>Vì sao không đếm trong RAM của Node</h4>
+<p>Cloud Run chạy nhiều instance. Mỗi instance đếm riêng thì giới hạn "5 lần/phút" thành 10 với
+2 instance, 25 với 5 instance. Redis là <b>chỗ đếm chung</b>.</p>
+</div>
+<div class="card">
+<h4>Vì sao không đếm trong Postgres</h4>
+<p>Mỗi lần login sai là một lần ghi. Dưới brute-force đó là hàng nghìn lượt ghi mỗi giây đổ vào
+database chính — làm chậm cả việc quan trọng như đặt hàng.</p>
+</div>
+</div>
+
+<div class="box key">
+<div class="t">Đánh đổi đã biết và ghi lại</div>
+<p>Đếm theo email thì kẻ xấu có thể cố tình gõ sai để <b>khoá tài khoản người khác</b> — một
+dạng từ chối dịch vụ. Chấp nhận ở phase này vì cửa sổ chỉ 60 giây. Cách chặn triệt để là đếm
+theo <b>cả</b> email lẫn IP rồi lấy ngưỡng chặt hơn. Đếm theo IP <b>một mình</b> thì vô dụng:
+đổi IP là thoát.</p>
+<p>Một chi tiết sẽ gặp lại ở Phase 3: <code>INCR</code> là thao tác <b>atomic</b> — 100 request
+đồng thời vẫn đếm đúng 100. Đúng tính chất mà chiến lược Redis dựa vào để chống oversell.</p>
+</div>
+
+<h2>Cách test</h2>
+
+<p>Phase này gần như toàn bộ là <b>integration</b>, và đó là chủ đích: rủi ro nằm ở
+<i>tương tác</i> — cookie có thật sự mang cờ không, DB có thật sự lưu hash không, token cũ có
+thật sự hết dùng được không. Mock chỗ đó là kiểm tra chính cái mock mình vừa viết.</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Test</th><th>Nó bảo vệ điều gì</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Đăng ký → DB có user, <code>passwordHash</code> ≠ mật khẩu thô</td><td>Không bao giờ lưu mật khẩu thô</td></tr>
+<tr><td>3</td><td>Đăng nhập → 2 cookie có cờ <code>HttpOnly</code></td><td>Cờ thật sự được đặt, không chỉ có trong ý định</td></tr>
+<tr><td>4</td><td>Sai mật khẩu và email lạ → <b>cùng</b> một response 401</td><td>Không rò rỉ "email này có tồn tại"</td></tr>
+<tr><td>6</td><td><code>/auth/me</code> → body <b>không</b> chứa <code>passwordHash</code></td><td>Rò rỉ dữ liệu qua response</td></tr>
+<tr><td>7</td><td>Refresh hợp lệ → token cũ hết dùng được</td><td>Rotation thật sự xảy ra</td></tr>
+<tr><td><b>8</b> ⭐</td><td><b>Dùng lại refresh token cũ → cả family bị thu hồi</b></td><td><b>Cổng chính của phase</b></td></tr>
+<tr><td>12</td><td>Đăng nhập sai N lần → 429</td><td>Rate limit chạy thật trên Redis</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<div class="t">Bug môi trường gặp thật ở phase này</div>
+<p>Lần chạy integration test đầu tiên báo
+<code>A dynamic import callback was invoked without --experimental-vm-modules</code>. Nguyên
+nhân: Prisma 7 tải query compiler bằng WASM qua <code>await import(...)</code>, mà Jest chạy test
+trong <code>vm.Context</code>. <b>Không lộ ở unit test</b> vì ở đó <code>PrismaService</code>
+luôn bị mock, chưa từng gọi <code>$connect()</code> thật — bug chỉ hiện ra ở đúng phase đầu tiên
+có integration test. Đã thêm cờ vào script <code>test:int</code>.</p>
+</div>
+
+<h2>Tiêu chí qua phase</h2>
+
+<ul class="chk">
+<li class="y"><b>14/14 test case pass</b> — 21 unit + 12 integration trên Postgres/Redis thật</li>
+<li class="y"><b>Test #8 xanh</b> — reuse detection là deliverable của phase theo <code>SPEC.md</code></li>
+<li class="y">Hai quyết định đã chốt và ghi lý do: rate limit trên Redis; access token đọc từ cookie chứ không header <code>Authorization</code></li>
+<li class="y">Nợ ghi rõ, không bỏ lửng: chưa có CSRF token (dựa vào <code>SameSite=Strict</code>), chưa có RBAC, chưa quên-mật-khẩu</li>
+<li class="y">3 câu hỏi bản chất có đáp án <span class="src">→ <a href="../tech-playbook.md">tech-playbook §Phase 1</a></span></li>
+</ul>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"Vì sao Argon2 tốt hơn bcrypt?"</summary>
+<div class="ans">
+<p>Bcrypt chỉ tốn <b>CPU</b>. GPU và ASIC chạy song song hàng triệu lần hash mỗi giây, nên bcrypt
+ngày càng rẻ để dò theo đà tiến của phần cứng.</p>
+<p>Argon2 (biến thể <code>argon2id</code>) là <b>memory-hard</b>: mỗi lần hash bắt buộc cấp một
+lượng RAM cố định — dự án dùng 19 MiB. GPU có nhiều lõi tính nhưng không nhiều RAM tương ứng,
+nên không song song hoá được theo kiểu bcrypt bị. <code>argon2id</code> còn trộn
+<code>argon2i</code> (chống side-channel) với <code>argon2d</code> (chống GPU).</p>
+<p><b>Đánh đổi:</b> tốn RAM + CPU thật của server mỗi lần login.</p>
+</div></details>
+
+<details class="qa"><summary>"HttpOnly chống XSS thế nào, và vì sao vẫn phải lo CSRF?"</summary>
+<div class="ans">
+<p><code>HttpOnly</code> nói với trình duyệt: "JavaScript không được đọc cookie này". XSS chỉ
+<b>đọc</b> được những gì <code>document.cookie</code> cho phép, nên cờ này cắt hẳn con đường đó.</p>
+<p>CSRF là chuyện khác: cookie được trình duyệt <b>tự động gửi kèm</b> mọi request tới đúng
+domain, kể cả request do một trang web khác âm thầm kích hoạt. <code>HttpOnly</code> không ngăn
+việc <b>gửi</b>, chỉ ngăn việc <b>đọc</b> — hai chuyện độc lập. Chặn CSRF cần
+<code>SameSite</code> hoặc CSRF token riêng.</p>
+</div></details>
+
+<details class="qa"><summary>"Refresh Token Rotation phát hiện token bị đánh cắp ra sao?"</summary>
+<div class="ans">
+<p>Mỗi refresh token dùng được <b>đúng một lần</b>: dùng xong bị đánh dấu <code>revokedAt</code>,
+cấp token mới cùng <code>familyId</code>.</p>
+<p>Kẻ trộm dùng trước → chủ thật dùng lại token cũ sau → hệ thống thấy một token đã thu hồi mà
+vẫn bị dùng ⇒ <b>reuse detection</b> → thu hồi cả family. Chủ thật dùng trước thì kẻ trộm dính
+bẫy đó. <b>Dù ai dùng trước, lần thứ hai luôn lộ</b> — đó là toàn bộ ý tưởng.</p>
+<p>Cái giá: cả hai bên bị đăng xuất, vì lúc đó không có cách nào biết ai là chủ thật.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao user thỉnh thoảng bị đăng xuất ngẫu nhiên?"</summary>
+<div class="ans">
+<p>Đây là mặt trái đã biết của rotation: mở <b>hai tab</b>, cả hai cùng refresh gần như đồng
+thời. Tab nhanh hơn xoay token trước; tab chậm gửi token đã bị thu hồi → hệ thống coi là reuse →
+thu hồi cả family → cả hai tab văng ra.</p>
+<p>Hai cách chữa: cho một <b>grace period</b> ngắn (token vừa xoay vẫn chấp nhận thêm vài giây),
+hoặc khoá theo family thay vì từng token. Cả hai đều làm yếu đi khả năng phát hiện trộm — nên nó
+là quyết định nghiệp vụ, không phải bug để "sửa cho hết".</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao dùng cookie mà không phải header <code>Authorization: Bearer</code>?"</summary>
+<div class="ans">
+<p>Vì Phase 5 có UI thật chạy trong trình duyệt. Cookie thì <b>trình duyệt tự nhớ và tự gửi</b> —
+frontend không phải viết một dòng nào để lưu, gắn, hay xoá token. Dùng Bearer thì token phải nằm
+ở <code>localStorage</code>, mà <code>localStorage</code> thì JavaScript đọc được ⇒ XSS lấy được.</p>
+<p><b>Đổi lại:</b> test bằng curl/Postman phiền hơn vì phải giữ cookie jar. Chấp nhận, vì
+<code>supertest</code> trong integration test giữ cookie tự động.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p1"></section>
+
+<div class="pager"><a href="phase-0.html">← Phase 0</a><a href="phase-2.html">Phase 2 — Product &amp; Inventory →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

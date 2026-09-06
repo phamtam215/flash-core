@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 6 — Observability</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item active" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 6 — Observability <span class="tag wip">code xong, chờ review</span></h1>
+<p class="lede">Khách báo: <i>"tôi đặt hàng lúc 8 giờ tối, bị lỗi."</i> Bạn có log JSON của cả hệ
+thống. <b>Bắt đầu từ đâu?</b> Cả phase này tồn tại để câu trả lời là "ba giây" chứ không phải
+"ba giờ".</p>
+<p class="meta"><b>Kết quả:</b> 15 integration test mới (tổng 89/89) · 77/77 unit ·
+<code>correlationId</code> đi xuyên cả worker · 8 metric · <code>/ready</code> kiểm cả Redis ·
+tắt êm 3 bước · trả nợ ghi từ Phase 0.</p>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<p>Một hệ thống có <code>/health</code> kiểm tra <b>cả</b> database. Postgres chớp mất 2 phút.</p>
+<p><b>Chuyện gì xảy ra với các container đang chạy?</b> Và hệ thống có tự phục hồi nhanh hơn hay
+chậm hơn so với khi <code>/health</code> không kiểm gì?</p>
+</div>
+
+<h2>Ba câu hỏi khác nhau, ba công cụ khác nhau</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Câu hỏi</th><th>Công cụ</th><th>Dùng sai thì</th></tr></thead>
+<tbody>
+<tr><td>"Đang có <b>bao nhiêu</b>, nhanh chậm ra sao?"</td><td><b>Metric</b> (Prometheus)</td><td>Nhét id vào nhãn → Prometheus phình bộ nhớ tới chết</td></tr>
+<tr><td>"<b>Chuyện gì</b> đã xảy ra với cái này?"</td><td><b>Log</b> có <code>correlationId</code></td><td>Không có id → mò theo mốc thời gian giữa hàng nghìn dòng</td></tr>
+<tr><td>"Có nên gửi traffic vào đây không?"</td><td><b>Health check</b></td><td>Gộp liveness với readiness → vòng lặp restart giữa lúc có sự cố</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Deliverable: một id đi xuyên hai tiến trình</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 340" role="img" aria-label="correlationId đi xuyên hai tiến trình">
+  <defs><marker id="ah6" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-a" x="16" y="30" width="404" height="160" rx="10"/>
+  <text class="s-t b" x="36" y="54">Tiến trình API</text>
+  <rect class="s-box" x="36" y="66" width="364" height="32" rx="5"/>
+  <text class="s-t sm" x="50" y="87">middleware: lấy x-correlation-id, hoặc sinh UUID</text>
+  <rect class="s-box-ok" x="36" y="104" width="364" height="32" rx="5"/>
+  <text class="s-t mono sm b" x="50" y="125">runWithCorrelationId(id, …)  ← ALS chỗ 1/2</text>
+  <rect class="s-box" x="36" y="142" width="364" height="32" rx="5"/>
+  <text class="s-t sm" x="50" y="163">mọi log bên trong tự mang id — không ai truyền tay</text>
+
+  <rect class="s-box" x="16" y="228" width="404" height="90" rx="10"/>
+  <text class="s-t b" x="36" y="252">Postgres · outbox_events.payload</text>
+  <text class="s-t mono sm" x="36" y="276">{ orderId, userId, totalVnd,</text>
+  <text class="s-t mono sm b" x="36" y="296">  correlationId: getCorrelationId() }</text>
+  <text class="s-t sm m" x="36" y="312">ghi trong CÙNG transaction với đơn</text>
+
+  <path class="s-l a" d="M218 190 V 224" marker-end="url(#ah6)" color="var(--accent)"/>
+
+  <rect class="s-box-a" x="460" y="30" width="404" height="160" rx="10"/>
+  <text class="s-t b" x="480" y="54">Tiến trình Worker</text>
+  <rect class="s-box" x="480" y="66" width="364" height="32" rx="5"/>
+  <text class="s-t sm" x="494" y="87">relay chuyển tiếp payload NGUYÊN VẸN vào job</text>
+  <rect class="s-box-ok" x="480" y="104" width="364" height="32" rx="5"/>
+  <text class="s-t mono sm b" x="494" y="125">runWithCorrelationId(job.data…) ← ALS chỗ 2/2</text>
+  <rect class="s-box" x="480" y="142" width="364" height="32" rx="5"/>
+  <text class="s-t sm" x="494" y="163">log gửi email mang ĐÚNG id của request đã tạo ra nó</text>
+
+  <path class="s-l a" d="M420 274 H 662 V 194" marker-end="url(#ah6)" color="var(--accent)"/>
+  <text class="s-t sm m" x="440" y="266">id đi qua DB, không qua RAM</text>
+
+  <rect class="s-box-ok" x="460" y="228" width="404" height="90" rx="10"/>
+  <text class="s-t sm b" x="480" y="252">Kết quả: một lệnh grep ra cả chuỗi</text>
+  <text class="s-t mono sm" x="480" y="274">request vào → trừ kho → ghi outbox →</text>
+  <text class="s-t mono sm" x="480" y="292">relay đẩy → job gửi mail → hỏng vì lý do gì</text>
+  <text class="s-t sm b" x="480" y="312">Ba giây thay vì ba giờ.</text>
+</svg>
+<figcaption><b>Chỉ có ĐÚNG HAI chỗ trong toàn bộ code gọi <code>runWithCorrelationId</code></b> —
+middleware HTTP và <code>JobProcessor</code>. Đó là chủ đích: <code>AsyncLocalStorage</code> là
+"phép màu ngầm", nên số điểm nạp phải đếm được trên đầu ngón tay, và mỗi điểm phải được comment kỹ.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t"><code>AsyncLocalStorage</code> — và vì sao nó KHÔNG phải biến toàn cục</div>
+<p>Nó là kho lưu trữ đi theo <b>ngữ cảnh bất đồng bộ</b>: mọi thứ chạy bên trong
+<code>run()</code> — kể cả sau <code>await</code>, kể cả trong callback lồng mấy tầng — đều đọc
+được cùng một giá trị. Node tự nối ngữ cảnh qua các mắt xích async.</p>
+<p><b>Hai request song song có hai store riêng biệt, không thấy nhau.</b> Đó chính là điều kiện để
+nó dùng được ở server — biến toàn cục thật thì request thứ hai sẽ ghi đè lên id của request thứ
+nhất.</p>
+<p><b>Vì sao không truyền tham số?</b> Vì mọi service sẽ phải nhận thêm một tham số chẳng liên quan
+gì tới nghiệp vụ của nó, và <b>chỉ cần một chỗ quên là đứt chuỗi</b> — mà chỗ quên đó không có test
+nào bắt được. Cái giá phải trả: đọc <code>OrderService</code> sẽ không thấy id được truyền vào từ
+đâu. Đánh đổi ghi ở <a href="../adr/008-correlationid-dung-asynclocalstorage.md">ADR-008</a>.</p>
+</div>
+
+<h2><code>/health</code> vs <code>/ready</code> — và đáp án cho câu đoán</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 300" role="img" aria-label="Liveness và readiness fail theo hai cách khác nhau">
+  <defs><marker id="ah6b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-bad" x="16" y="12" width="410" height="276" rx="10"/>
+  <text class="s-t b" x="36" y="38" fill="var(--bad)">SAI — /health cũng kiểm database</text>
+
+  <rect class="s-box" x="36" y="54" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="50" y="74">Postgres chớp 2 phút</text>
+  <path class="s-l bad" d="M221 84 V 96" marker-end="url(#ah6b)" color="var(--bad)"/>
+  <rect class="s-box" x="36" y="100" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="50" y="120">/health trả 503 → liveness FAIL</text>
+  <path class="s-l bad" d="M221 130 V 142" marker-end="url(#ah6b)" color="var(--bad)"/>
+  <rect class="s-box-bad" x="36" y="146" width="370" height="30" rx="5"/>
+  <text class="s-t sm b" x="50" y="166">orchestrator RESTART container</text>
+  <path class="s-l bad" d="M221 176 V 188" marker-end="url(#ah6b)" color="var(--bad)"/>
+  <rect class="s-box" x="36" y="192" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="50" y="212">container mới lên, DB vẫn chưa dậy → fail tiếp</text>
+
+  <rect class="s-box-bad" x="36" y="234" width="370" height="42" rx="6"/>
+  <text class="s-t sm b" x="221" y="254" text-anchor="middle" fill="var(--bad)">VÒNG LẶP RESTART giữa lúc đang có sự cố</text>
+  <text class="s-t sm" x="221" y="271" text-anchor="middle">mất luôn những request app VẪN xử lý được</text>
+
+  <rect class="s-box-ok" x="454" y="12" width="410" height="276" rx="10"/>
+  <text class="s-t b" x="474" y="38" fill="var(--ok)">ĐÚNG — tách hai câu hỏi</text>
+
+  <rect class="s-box" x="474" y="54" width="370" height="46" rx="5"/>
+  <text class="s-t sm b" x="488" y="74">/health — "process còn sống không?"</text>
+  <text class="s-t sm m" x="488" y="92">KHÔNG chạm DB/Redis · fail ⇒ restart</text>
+
+  <rect class="s-box" x="474" y="108" width="370" height="60" rx="5"/>
+  <text class="s-t sm b" x="488" y="128">/ready — "có nên gửi traffic không?"</text>
+  <text class="s-t sm m" x="488" y="146">kiểm database + redis + cờ shuttingDown</text>
+  <text class="s-t sm m" x="488" y="162">fail ⇒ NGỪNG GỬI, không restart</text>
+
+  <rect class="s-box-ok" x="474" y="180" width="370" height="30" rx="5"/>
+  <text class="s-t sm" x="488" y="200">DB chớp → /ready 503 → LB tạm ngừng gửi</text>
+  <path class="s-l ok" d="M659 210 V 222" marker-end="url(#ah6b)" color="var(--ok)"/>
+  <rect class="s-box-ok" x="474" y="226" width="370" height="50" rx="6"/>
+  <text class="s-t sm b" x="659" y="246" text-anchor="middle" fill="var(--ok)">container vẫn SỐNG, tự phục hồi khi DB trở lại</text>
+  <text class="s-t sm" x="659" y="264" text-anchor="middle">không mất thời gian khởi động lại</text>
+</svg>
+<figcaption><b>Đáp án câu đoán: hệ thống phục hồi CHẬM HƠN.</b> Restart app không chữa được
+database — nó chỉ thêm thời gian khởi động vào giữa sự cố, và giết luôn những request mà app vẫn
+xử lý được. Đây là <b>lỗi cấu hình phổ biến nhất khi deploy</b>.</figcaption>
+</figure>
+
+<h3>Món nợ từ Phase 0, trả ở đây</h3>
+
+<p>Phase 0 đã ghi lại một chỗ chưa ổn: <code>/ready</code> trả 503, mà exception filter phân loại
+<code>status &gt;= 500</code> là lỗi hệ thống nên log ở mức <b><code>error</code></b>.</p>
+
+<div class="box trap">
+<div class="t">Vì sao đó là vấn đề thật, không phải chuyện thẩm mỹ</div>
+<p>Cloud Run gọi <code>/ready</code> vài giây một lần. Postgres chớp 2 phút ⇒ hàng chục dòng
+<code>error</code> cho một sự cố vận hành <b>bình thường</b>. Đến khi gắn cảnh báo theo số dòng
+<code>error</code>, chuông kêu inh ỏi vì chuyện không cần ai dậy lúc 3 giờ sáng.</p>
+<p><b>Và cảnh báo kêu sai vài lần là người ta bắt đầu tắt tiếng nó</b> — lần thứ n, khi có sự cố
+thật, không ai nghe. Đó mới là thiệt hại thật.</p>
+<p><b>Cách sửa đã chọn:</b> cho lớp lỗi tự khai <code>DomainError.logLevel</code>, thay vì gắn luật
+của một endpoint vào filter dùng chung cho cả app. Sạch hơn về ranh giới, đổi lại phải thêm khái
+niệm "mức log" vào lớp lỗi.</p>
+<p><b>Và vì sao đợi tới Phase 6 mới sửa:</b> Phase 0 chưa có cảnh báo nên chưa ai đau. Sửa lúc đó
+là đoán mò một yêu cầu chưa tồn tại. Đây là <b>nợ kỹ thuật có ghi chép</b> — khác hẳn nợ bị quên.</p>
+</div>
+
+<h2>Metrics — và luật cardinality</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 240" role="img" aria-label="Cardinality của nhãn metric">
+  <rect class="s-box-bad" x="16" y="12" width="410" height="212" rx="10"/>
+  <text class="s-t b" x="36" y="38" fill="var(--bad)">SAI</text>
+  <text class="s-t mono sm" x="36" y="62">orders_total{orderId="a1b2…"}</text>
+  <text class="s-t mono sm" x="36" y="82">orders_total{orderId="c3d4…"}</text>
+  <text class="s-t mono sm" x="36" y="102">orders_total{orderId="e5f6…"}</text>
+  <text class="s-t mono sm m" x="36" y="122">…mỗi đơn một dòng, mãi mãi</text>
+  <rect class="s-box-bad" x="36" y="140" width="370" height="66" rx="6"/>
+  <text class="s-t sm b" x="221" y="162" text-anchor="middle" fill="var(--bad)">Prometheus lưu MỘT chuỗi thời gian</text>
+  <text class="s-t sm b" x="221" y="180" text-anchor="middle" fill="var(--bad)">cho MỖI tổ hợp nhãn</text>
+  <text class="s-t sm" x="221" y="198" text-anchor="middle">bộ nhớ tăng tuyến tính theo lưu lượng → chết</text>
+
+  <rect class="s-box-ok" x="454" y="12" width="410" height="212" rx="10"/>
+  <text class="s-t b" x="474" y="38" fill="var(--ok)">ĐÚNG — nhãn chỉ nhận TẬP ĐÓNG</text>
+  <text class="s-t mono sm" x="474" y="62">orders_placed_total{result="created"}</text>
+  <text class="s-t mono sm" x="474" y="82">orders_placed_total{result="out_of_stock"}</text>
+  <text class="s-t mono sm" x="474" y="102">orders_placed_total{result="duplicate"}</text>
+  <text class="s-t mono sm" x="474" y="122">orders_placed_total{result="sku_not_found"}</text>
+  <rect class="s-box-ok" x="474" y="140" width="370" height="66" rx="6"/>
+  <text class="s-t sm b" x="659" y="162" text-anchor="middle" fill="var(--ok)">4 chuỗi. Mãi mãi 4 chuỗi.</text>
+  <text class="s-t sm" x="659" y="180" text-anchor="middle">Muốn tra theo orderId? Đó là việc của LOG,</text>
+  <text class="s-t sm" x="659" y="198" text-anchor="middle">bằng correlationId — không phải của metric.</text>
+</svg>
+<figcaption>Lỗi cardinality phổ biến nhất là nhãn <code>route</code> chứa <b>đường dẫn thật</b>
+(<code>/orders/9722-…</code>) thay vì <b>mẫu route</b> (<code>/orders/:id</code>). Nó chỉ lộ ra khi
+đã có lưu lượng thật — tức là lộ ra ở production.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t">Vì sao <code>orders_placed_total{result}</code> đếm trong service, không ở interceptor</div>
+<p>Interceptor chỉ nhìn thấy <b><code>409</code></b>. Nó không phân biệt được "hết hàng" với "SKU
+không tồn tại" — mà đó lại là hai chuyện hoàn toàn khác nhau: một cái là bán hết hàng (bình
+thường), một cái là có ai đó đang bắn vào SKU không có thật (đáng nghi).</p>
+<p>Chỉ chỗ ném lỗi mới biết lý do. Vì vậy metric hạ tầng (<code>http_requests_total</code>) đặt ở
+interceptor, còn metric nghiệp vụ đặt ở <b>nơi biết lý do</b>. Đây là phần đáng giá hơn của bộ
+metric — <code>http_requests_total{status="409"}</code> không trả lời được câu hỏi thật sự đáng hỏi.</p>
+</div>
+
+<p>Tám metric của dự án, chia hai nhóm:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Loại</th><th>Metric</th><th>Câu hỏi nó trả lời</th></tr></thead>
+<tbody>
+<tr><td>Counter</td><td><code>http_requests_total{method,route,status}</code></td><td>Tải và tỉ lệ lỗi</td></tr>
+<tr><td>Histogram</td><td><code>http_request_duration_seconds</code></td><td>p95/p99 — thứ duy nhất cho ra đúng</td></tr>
+<tr><td><b>Counter</b></td><td><code>orders_placed_total{result}</code></td><td><b>Bán hết hàng, hay đang bị bắn vào SKU ma?</b></td></tr>
+<tr><td><b>Histogram</b></td><td><code>inventory_reserve_duration_seconds{strategy}</code></td><td><b>Nối thẳng với benchmark Phase 3 — so sánh tiếp trên môi trường thật</b></td></tr>
+<tr><td><b>Gauge</b></td><td><code>outbox_pending</code></td><td><b>Tăng đều ⇒ relay đã chết</b> — nhìn thấy rất lâu trước khi ai báo "không nhận được email"</td></tr>
+<tr><td>Counter</td><td><code>queue_jobs_total{job,outcome}</code></td><td>Job hỏng bao nhiêu, ở loại nào</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<div class="t">Hai chi tiết nhỏ mà sai thì metric vô dụng</div>
+<ul>
+<li><b>Đếm cả nhánh <code>catch</code>, TRƯỚC khi ném lại.</b> Ném rồi thì không còn chỗ nào đếm
+được nữa, và tỉ lệ hỏng của job sẽ <b>luôn bằng 0</b> — nhìn đẹp mà vô dụng.</li>
+<li><b><code>METRICS_ENABLED=false</code> phải trả <code>404</code>, không phải 200 với trang
+rỗng.</b> Trang rỗng làm Prometheus tưởng scrape <i>thành công</i> với 0 metric — im lặng và sai.</li>
+</ul>
+</div>
+
+<h2>Tắt êm — ba bước, bước giữa hay bị bỏ</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 190" role="img" aria-label="Ba bước graceful shutdown">
+  <defs><marker id="ah6c" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-warn" x="16" y="40" width="150" height="60" rx="8"/>
+  <text class="s-t sm b" x="91" y="66" text-anchor="middle">SIGTERM</text>
+  <text class="s-t sm m" x="91" y="84" text-anchor="middle">cloud đang deploy</text>
+
+  <rect class="s-box" x="216" y="40" width="180" height="60" rx="8"/>
+  <text class="s-t sm b" x="306" y="62" text-anchor="middle">① /ready → 503 NGAY</text>
+  <text class="s-t sm m" x="306" y="80" text-anchor="middle">báo LB: đừng gửi nữa</text>
+
+  <rect class="s-box-ok" x="446" y="40" width="180" height="60" rx="8"/>
+  <text class="s-t sm b" x="536" y="62" text-anchor="middle">② CHỜ vài giây</text>
+  <text class="s-t mono sm" x="536" y="80" text-anchor="middle">SHUTDOWN_GRACE_MS</text>
+
+  <rect class="s-box" x="676" y="40" width="188" height="60" rx="8"/>
+  <text class="s-t sm b" x="770" y="62" text-anchor="middle">③ app.close()</text>
+  <text class="s-t sm m" x="770" y="80" text-anchor="middle">đóng pool, Redis, queue</text>
+
+  <g color="var(--muted)">
+    <path class="s-l" d="M166 70 H 210" marker-end="url(#ah6c)"/>
+    <path class="s-l" d="M396 70 H 440" marker-end="url(#ah6c)"/>
+    <path class="s-l" d="M626 70 H 670" marker-end="url(#ah6c)"/>
+  </g>
+
+  <rect class="s-box-bad" x="16" y="122" width="848" height="56" rx="8"/>
+  <text class="s-t sm b" x="36" y="144" fill="var(--bad)">Bỏ bước ②:</text>
+  <text class="s-t sm" x="120" y="144">load balancer chưa kịp nhận ra instance đã rút, vẫn đang gửi request — và app đóng ngay giữa chừng.</text>
+  <text class="s-t sm b" x="36" y="166">Triệu chứng:</text>
+  <text class="s-t sm" x="120" y="166">"mỗi lần deploy có vài đơn lỗi" — không ai lần ra được, vì log không cho thấy gì bất thường.</text>
+</svg>
+<figcaption>Bước ② là bước <b>duy nhất</b> thật sự cứu được request, và cũng là bước hay bị bỏ nhất
+— vì nhìn thì nó chỉ là một câu <code>sleep</code> vô nghĩa. Gọi <code>shutdown</code> hai lần
+(Ctrl+C hai phát) thì bỏ qua lần sau: đóng chồng lên nhau giữa chừng còn tệ hơn không đóng.</figcaption>
+</figure>
+
+<h2>Cấu trúc file</h2>
+
+<div class="tree">
+src/common/<span class="d">correlation/</span>
+├── correlation.store.ts     <span class="c">AsyncLocalStorage — runWithCorrelationId + getCorrelationId</span>
+├── correlation.middleware.ts <span class="c">chỗ nạp ALS số 1/2</span>
+└── index.ts
+
+src/infra/<span class="d">metrics/</span>
+├── metrics.service.ts       <span class="c">nơi DUY NHẤT định nghĩa metric — 8 cái, comment luật cardinality</span>
+├── metrics.interceptor.ts   <span class="c">đếm HTTP; nhãn route là MẪU, không phải đường dẫn thật</span>
+├── metrics.controller.ts    <span class="c">GET /metrics — 404 khi tắt</span>
+└── index.ts
+
+src/modules/health/health.service.ts   <span class="new">← thêm redis + cờ shuttingDown</span>
+src/common/errors/domain.error.ts      <span class="new">← thêm logLevel (trả nợ Phase 0)</span>
+src/main.ts                            <span class="new">← tắt êm 3 bước</span>
+src/worker/job.processor.ts            <span class="new">← chỗ nạp ALS số 2/2</span>
+test/observability.e2e-spec.ts         <span class="c">15 test mới</span>
+</div>
+
+<h2>Cách test</h2>
+
+<p>Điểm khó của phase này: <b>đa số thứ cần test là "hiệu ứng phụ"</b> — một dòng log, một nhãn
+metric, một status code lúc đang tắt. Không có giá trị trả về để so sánh. Bốn kiểu test dùng ở đây:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Test</th><th>Kỹ thuật</th></tr></thead>
+<tbody>
+<tr><td><b>3</b> ⭐</td><td>Đặt đơn → dòng <code>outbox_events</code> mang đúng <code>correlationId</code> của request</td><td>Kiểm <b>trong DB</b>, không kiểm log — dữ liệu bền hơn</td></tr>
+<tr><td><b>5</b> ⭐</td><td><code>JobProcessor</code> chạy job → log của service bên trong mang đúng id đó</td><td>Bắt log bằng một transport Pino giả</td></tr>
+<tr><td>7</td><td>Hai job song song → hai id khác nhau, không lẫn</td><td><b>Chứng minh ALS không phải biến toàn cục</b></td></tr>
+<tr><td>8</td><td><code>/ready</code> khi Redis chết → 503, <code>checks.redis = 'down'</code>, <code>database = 'up'</code></td><td>Dừng container Redis thật</td></tr>
+<tr><td>9</td><td><code>/ready</code> 503 → log mức <code>warn</code>, <b>không</b> phải <code>error</code></td><td>Đọc mức log — đây là test cho món nợ Phase 0</td></tr>
+<tr><td>13</td><td>Đặt đơn khi hết hàng → <code>{result="out_of_stock"}</code> tăng, <b>không</b> phải <code>created</code></td><td>Scrape <code>/metrics</code> trước và sau, so hiệu</td></tr>
+<tr><td>14</td><td>Nhãn <code>route</code> <b>không chứa uuid</b></td><td>Regex trên output <code>/metrics</code> — chặn lỗi cardinality trước khi ra production</td></tr>
+<tr><td><b>16</b> ⭐</td><td>SIGTERM → <code>/ready</code> chuyển 503 <b>trước khi</b> process thoát</td><td>Gửi tín hiệu thật rồi poll</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<div class="t">Một thay đổi hạ tầng đáng nhớ ở phase này</div>
+<p><code>test/infra-fixture.ts</code> giờ <b>tự reset schema</b> khi dùng
+<code>TEST_DATABASE_URL</code>, và <b>từ chối chạy nếu tên database không kết thúc bằng
+<code>_test</code></b>. Lý do rất cụ thể: một lệnh reset chạy nhầm vào database dev là mất toàn bộ
+dữ liệu đang làm việc. Chặn bằng <b>máy</b>, không bằng "nhớ đặt đúng biến".</p>
+</div>
+
+<h2>Tiêu chí qua phase</h2>
+
+<ul class="chk">
+<li class="y"><b>15 integration test mới xanh</b> (tổng 89/89), unit 77/77, <code>npm run check</code> sạch</li>
+<li class="y">Ba món nợ đã trả: <code>correlationId</code> đứt ở biên process · <code>/ready</code> không kiểm Redis · 503 log mức <code>error</code></li>
+<li class="y"><b>ADR-008</b> cho quyết định <code>AsyncLocalStorage</code></li>
+<li class="y">Kiến thức mới ghi vào <code>tech-playbook.md</code> §Phase 6</li>
+<li class="n"><b>Deliverable:</b> đặt một đơn, lấy <code>correlationId</code> ở response header, <code>grep</code> ra được <b>cả</b> log của request <b>lẫn</b> log của job gửi email — dán kết quả vào spec</li>
+<li class="n">Tự trả lời 3 câu hỏi bản chất của Phase 6</li>
+</ul>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"<code>/health</code> và <code>/ready</code> khác nhau thế nào? Cloud Run dùng chúng ra sao?"</summary>
+<div class="ans">
+<p><b><code>/health</code> (liveness)</b> trả lời "process này còn sống, chưa treo không?" — fail
+thì orchestrator <b>restart container</b>. Vì vậy nó <b>không được</b> chạm database hay Redis.</p>
+<p><b><code>/ready</code> (readiness)</b> trả lời "có nên gửi traffic vào instance này không?" —
+ở đây mới kiểm dependency. Fail thì <b>ngừng gửi</b>, không restart; container vẫn sống và tự phục
+hồi khi dependency trở lại.</p>
+<p><b>Gộp hai cái là lỗi đắt:</b> DB chớp → liveness fail → restart container → container mới lại
+fail tiếp vì DB vẫn chưa dậy → vòng lặp restart giữa lúc đang có sự cố, và mất luôn những request
+mà app vẫn xử lý được.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao KHÔNG được đặt <code>orderId</code> vào nhãn của metric?"</summary>
+<div class="ans">
+<p>Vì Prometheus lưu <b>một chuỗi thời gian riêng cho mỗi tổ hợp nhãn</b>. Thêm
+<code>orderId</code> nghĩa là mỗi đơn hàng sinh ra một chuỗi mới, và bộ nhớ tăng <b>vô hạn theo lưu
+lượng</b> cho tới khi Prometheus chết.</p>
+<p>Nhãn chỉ được nhận giá trị trong một <b>tập đóng, biết trước</b>: mẫu route, status code, tên
+chiến lược, tên job. Muốn tra theo <code>orderId</code> thì đó là việc của <b>log</b> — hai công cụ
+trả lời hai câu khác nhau: metric nói <i>"đang có bao nhiêu, nhanh chậm ra sao"</i>, log nói
+<i>"chuyện gì đã xảy ra với cái này"</i>.</p>
+<p>Biến thể phổ biến nhất của lỗi này: nhãn <code>route</code> chứa đường dẫn thật thay vì mẫu.</p>
+</div></details>
+
+<details class="qa"><summary>"Graceful shutdown làm sai thì mất gì?"</summary>
+<div class="ans">
+<p>Container bị giết giữa chừng: request đang xử lý bị đứt, job đang chạy mất. Và triệu chứng rất
+khó lần — "mỗi lần deploy có vài đơn lỗi", không có log nào bất thường.</p>
+<p>Ba bước, đúng thứ tự: (1) <code>/ready</code> trả 503 ngay → báo load balancer đừng gửi nữa;
+(2) <b>chờ vài giây</b> → cho LB kịp nhận ra, và cho request đang chạy kịp xong; (3) mới
+<code>app.close()</code>.</p>
+<p><b>Bước 2 hay bị bỏ nhất</b> vì nhìn thì nó chỉ là một câu <code>sleep</code> vô nghĩa — nhưng
+nó là bước duy nhất thật sự cứu được request.</p>
+</div></details>
+
+<details class="qa"><summary>"Log thế nào để debug được mà không lộ dữ liệu nhạy cảm?"</summary>
+<div class="ans">
+<p>Ba thứ không bao giờ log: <b>mật khẩu / token / cookie</b> (log thường được gom về nơi nhiều
+người xem được — log token là phát token), <b>số thẻ và CVV</b>, và <b>toàn bộ
+<code>req.headers</code></b> (trong đó có <code>authorization</code> và <code>cookie</code>).</p>
+<p>Cách chặn: <code>redact.paths</code> ở <b>tầng logger</b>, không trông vào việc từng người nhớ
+đừng log. Cách sau chắc chắn hỏng ở lần thứ n.</p>
+<p>Và để vẫn debug được: log <b>structured JSON</b> với <code>correlationId</code>, cộng với id
+nghiệp vụ không nhạy cảm (<code>orderId</code>, <code>skuId</code>). Đủ để lần ra chuyện gì đã xảy
+ra mà không cầm theo bí mật nào.</p>
+</div></details>
+
+<details class="qa"><summary>"<code>AsyncLocalStorage</code> có phải biến toàn cục không? Hai request song song thì sao?"</summary>
+<div class="ans">
+<p><b>Không.</b> Nó là kho lưu trữ đi theo <i>ngữ cảnh bất đồng bộ</i>: hai request song song có
+hai store hoàn toàn riêng, không thấy nhau. Node nối ngữ cảnh qua các mắt xích async, nên giá trị
+sống xuyên <code>await</code> và callback lồng nhau — đúng điều kiện để nó dùng được ở server.</p>
+<p>Đây là nội dung của test #7: chạy hai job song song, khẳng định hai id khác nhau và không lẫn.
+Nếu nó là biến toàn cục thì test đó sẽ đỏ.</p>
+<p><b>Cái giá</b> phải nói ra khi bị hỏi: "phép màu ngầm" — đọc <code>OrderService</code> không thấy
+id được truyền vào từ đâu. Đó là lý do chỉ có đúng <b>hai</b> chỗ trong toàn bộ code gọi
+<code>run()</code>.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p6"></section>
+
+<div class="pager"><a href="phase-5.html">← Phase 5</a><a href="phase-7.html">Phase 7 — Deploy &amp; FinOps →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

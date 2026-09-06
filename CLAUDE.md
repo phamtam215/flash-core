@@ -28,6 +28,13 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
 - `docs/onboarding.md` — **lộ trình cho người mới** (6 buổi, có bài thực hành phá code rồi
   sửa). Nó KHÔNG chứa kiến thức — nó sở hữu *thứ tự học* và các bài thực hành, còn kiến thức
   vẫn trỏ về `tech-playbook.md`. Khi Tâm hỏi "học lại từ đâu", trỏ vào file này.
+- `docs/hoc/index.html` — **giáo trình 8 phase** (HTML, mở bằng trình duyệt). Sở hữu *sơ đồ*:
+  nghiệp vụ + vòng đời đơn hàng + vai trò từng module ở trang đầu, rồi mỗi phase một trang có
+  sơ đồ cơ chế, cấu trúc file, cách code, cách test, tiêu chí qua phase và mục "bị chỉ vào thì
+  trả lời thế nào". Nó KHÔNG giữ kiến thức mới — mọi câu "vì sao" bám sát `tech-playbook.md`
+  và trỏ link về đó. Kèm **bộ theo dõi hiểu bài**: 113 ý, tick vào là % của phase tăng lên, danh
+  sách ý nằm ở `docs/hoc/assets/track.js` (nguồn sự thật duy nhất — sửa ý thì sửa ở đó, cả
+  checklist lẫn bảng tổng đều sinh ra từ nó). Tiến độ lưu ở `localStorage`, **không vào git**.
 - `docs/architecture.md` — bản đồ code: file nào làm gì, định nghĩa ở đâu, ba quy tắc
   cấu trúc. Đọc trước khi thêm/sửa file trong `src/`.
 - `docs/SPEC.md` — spec gốc: 8 phase, deliverable, Definition of Done

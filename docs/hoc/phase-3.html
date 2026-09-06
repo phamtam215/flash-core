@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 3 — Order &amp; Concurrency</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item active" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 3 — Order &amp; Concurrency <span class="tag star">⭐ phase quan trọng nhất</span></h1>
+<p class="lede">20:00 mở sale. 1.000 người bấm "Săn ngay" trong 3 giây vào một mẫu
+<b>chỉ có 100 chiếc</b>. Phải bán ra <b>đúng 100</b>. Cả dự án tồn tại vì câu này.</p>
+<p class="meta"><b>Kết quả:</b> 49/49 integration · 54/54 unit · 3 chiến lược đổi bằng một biến
+env · benchmark 1.000 VU · <b>oversell = 0 ở cả bốn cấu hình</b>.</p>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<p>Đoạn code sau chạy trong một API bán hàng. Tồn kho còn <b>đúng 1 chiếc</b>, hai người bấm mua
+<b>cùng lúc</b>:</p>
+<pre><code>const sku = await db.findSku(skuId);
+if (sku.stock &gt; 0) {
+  await db.updateStock(skuId, sku.stock - 1);
+  await db.createOrder(...);
+}</code></pre>
+<p>1. Bán ra bao nhiêu chiếc? &nbsp; 2. Tồn kho cuối bằng bao nhiêu? &nbsp;
+3. <b>Database có báo lỗi gì không?</b></p>
+</div>
+
+<h2>Vì sao <code>if (stock &gt; 0) stock--</code> <i>chắc chắn</i> sai</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 400" role="img" aria-label="Lost update: hai request đan xen nhau">
+  <defs><marker id="ah3" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box" x="16" y="12" width="230" height="30" rx="6"/>
+  <text class="s-t b" x="131" y="32" text-anchor="middle">Request A (Node)</text>
+  <rect class="s-box-a" x="326" y="12" width="228" height="30" rx="6"/>
+  <text class="s-t b" x="440" y="32" text-anchor="middle">Postgres · product_skus</text>
+  <rect class="s-box" x="634" y="12" width="230" height="30" rx="6"/>
+  <text class="s-t b" x="749" y="32" text-anchor="middle">Request B (Node)</text>
+
+  <g class="s-l dash">
+    <line x1="131" y1="50" x2="131" y2="330"/>
+    <line x1="440" y1="50" x2="440" y2="330"/>
+    <line x1="749" y1="50" x2="749" y2="330"/>
+  </g>
+
+  <text class="s-t sm m" x="16" y="70">thời gian ↓</text>
+  <rect class="s-box-ok" x="378" y="58" width="124" height="26" rx="5"/>
+  <text class="s-t mono sm b" x="440" y="76" text-anchor="middle">stock = 1</text>
+
+  <g color="var(--muted)">
+    <path class="s-l" d="M131 108 H 434" marker-end="url(#ah3)"/>
+    <text class="s-t sm" x="139" y="102">① SELECT stock → nhận về 1</text>
+    <path class="s-l" d="M749 140 H 446" marker-end="url(#ah3)"/>
+    <text class="s-t sm" x="470" y="134">② SELECT stock → cũng nhận về 1</text>
+  </g>
+
+  <rect class="s-box-warn" x="86" y="158" width="180" height="44" rx="6"/>
+  <text class="s-t sm b" x="176" y="178" text-anchor="middle">if (1 &gt; 0) → "còn hàng!"</text>
+  <text class="s-t sm m" x="176" y="194" text-anchor="middle">quyết định trong RAM</text>
+
+  <rect class="s-box-warn" x="614" y="158" width="180" height="44" rx="6"/>
+  <text class="s-t sm b" x="704" y="178" text-anchor="middle">if (1 &gt; 0) → "còn hàng!"</text>
+  <text class="s-t sm m" x="704" y="194" text-anchor="middle">quyết định trong RAM</text>
+
+  <g color="var(--bad)">
+    <path class="s-l bad" d="M131 232 H 434" marker-end="url(#ah3)"/>
+    <text class="s-t sm" x="139" y="226">③ UPDATE stock = 0</text>
+    <path class="s-l bad" d="M749 268 H 446" marker-end="url(#ah3)"/>
+    <text class="s-t sm" x="530" y="262">④ UPDATE stock = 0</text>
+  </g>
+
+  <rect class="s-box-bad" x="378" y="288" width="124" height="26" rx="5"/>
+  <text class="s-t mono sm b" x="440" y="306" text-anchor="middle">stock = 0</text>
+
+  <rect class="s-box-bad" x="16" y="342" width="848" height="48" rx="8"/>
+  <text class="s-t b" x="440" y="364" text-anchor="middle" fill="var(--bad)">Bán 2 chiếc trong khi chỉ có 1. Tồn kho = 0 (đúng ra phải là −1).</text>
+  <text class="s-t sm" x="440" y="382" text-anchor="middle">Và Postgres KHÔNG báo lỗi gì cả — không exception, không cảnh báo.</text>
+</svg>
+<figcaption><b>Tên gọi: <i>lost update</i>.</b> Điều kiện được kiểm tra trong <b>RAM của Node</b>,
+tại một thời điểm <b>đã cũ</b>. Nơi duy nhất biết sự thật là dòng trong Postgres. Giữa "đọc" và
+"ghi" luôn có một khoảng trống, và dưới tải thì khoảng trống đó <b>luôn</b> có request khác chen
+vào — không phải may rủi, mà là điều tất yếu khi đủ người bấm.</figcaption>
+</figure>
+
+<div class="box trap">
+<div class="t">Câu số 3 mới là câu quan trọng nhất</div>
+<p><b>Database không báo lỗi gì cả.</b> Không exception, không cảnh báo, không dòng log nào đỏ.
+Tiền vẫn thu, hàng thì không có. Đây là lý do loại bug này sống sót qua CI xanh 92% coverage —
+nó không hỏng, nó chỉ <b>sai</b>.</p>
+</div>
+
+<h2>Cách chữa: đưa điều kiện vào <i>chính câu ghi</i></h2>
+
+<pre><code>UPDATE product_skus
+SET stock = stock - $1, version = version + 1, updated_at = now()
+WHERE id = $2 AND is_active = true AND stock &gt;= $1
+RETURNING price_vnd</code></pre>
+
+<p>Khác biệt duy nhất so với bản hỏng: <b><code>stock &gt;= $1</code> nằm bên trong câu
+<code>UPDATE</code></b>. Đây là cả bài học của phase, gói trong một dòng SQL.</p>
+
+<figure class="dg">
+<svg viewBox="0 0 880 300" role="img" aria-label="Postgres chờ khoá rồi đánh giá lại WHERE">
+  <defs><marker id="ah3b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box" x="16" y="12" width="230" height="28" rx="6"/>
+  <text class="s-t b" x="131" y="31" text-anchor="middle">Request A</text>
+  <rect class="s-box-a" x="326" y="12" width="228" height="28" rx="6"/>
+  <text class="s-t b" x="440" y="31" text-anchor="middle">Postgres</text>
+  <rect class="s-box" x="634" y="12" width="230" height="28" rx="6"/>
+  <text class="s-t b" x="749" y="31" text-anchor="middle">Request B</text>
+
+  <g class="s-l dash">
+    <line x1="131" y1="48" x2="131" y2="272"/>
+    <line x1="440" y1="48" x2="440" y2="272"/>
+    <line x1="749" y1="48" x2="749" y2="272"/>
+  </g>
+
+  <rect class="s-box-ok" x="378" y="54" width="124" height="24" rx="5"/>
+  <text class="s-t mono sm b" x="440" y="71" text-anchor="middle">stock = 1</text>
+
+  <g color="var(--ok)">
+    <path class="s-l ok" d="M131 104 H 434" marker-end="url(#ah3b)"/>
+    <text class="s-t sm" x="139" y="98">UPDATE … WHERE stock &gt;= 1</text>
+  </g>
+  <rect class="s-box-ok" x="360" y="114" width="160" height="24" rx="5"/>
+  <text class="s-t sm b" x="440" y="131" text-anchor="middle">1 dòng · KHOÁ dòng</text>
+
+  <g color="var(--warn)">
+    <path class="s-l" d="M749 158 H 446" marker-end="url(#ah3b)" stroke="var(--warn)"/>
+    <text class="s-t sm" x="480" y="152">UPDATE … WHERE stock &gt;= 1</text>
+  </g>
+  <rect class="s-box-warn" x="352" y="168" width="176" height="40" rx="5"/>
+  <text class="s-t sm b" x="440" y="186" text-anchor="middle">B phải CHỜ</text>
+  <text class="s-t sm" x="440" y="202" text-anchor="middle">A chưa commit</text>
+
+  <rect class="s-box-ok" x="378" y="220" width="124" height="24" rx="5"/>
+  <text class="s-t mono sm b" x="440" y="237" text-anchor="middle">stock = 0</text>
+
+  <rect class="s-box-bad" x="560" y="252" width="304" height="40" rx="6"/>
+  <text class="s-t sm b" x="712" y="270" text-anchor="middle">Postgres ĐÁNH GIÁ LẠI WHERE trên bản mới</text>
+  <text class="s-t sm" x="712" y="286" text-anchor="middle">0 &gt;= 1 sai → 0 dòng → B nhận 409</text>
+  <path class="s-l bad" d="M446 244 H 556 V 252" marker-end="url(#ah3b)" color="var(--bad)"/>
+</svg>
+<figcaption><b>Đây là cơ chế then chốt, và nó đúng ngay ở Read Committed</b> — mức isolation mặc
+định của Postgres, <b>không</b> cần transaction, <b>không</b> cần đổi isolation level. Khi
+<code>UPDATE</code> gặp một dòng đang bị khoá, Postgres <b>chờ</b>, rồi <b>đánh giá lại điều kiện
+<code>WHERE</code> trên phiên bản mới nhất</b>. Nhờ vậy <code>stock &gt;= ?</code> không bao giờ
+được kiểm tra trên dữ liệu cũ.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t">Hệ quả ít người biết: cột <code>version</code> KHÔNG bắt buộc để chống oversell</div>
+<p>Câu <code>UPDATE … WHERE stock &gt;= ?</code> tự nó đã đủ. Cột <code>version</code> cần khi phải
+update <b>nhiều field phụ thuộc nhau</b> và muốn biết "dữ liệu tôi đọc lúc nãy còn nguyên không".
+Ở đây nó được giữ để phục vụ đúng vai trò optimistic lock kinh điển và để đo số lần retry — không
+phải vì thiếu nó thì bán vượt.</p>
+</div>
+
+<h2>Ba chiến lược, một interface</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 330" role="img" aria-label="Ba chiến lược chống oversell">
+  <rect class="s-box-a" x="240" y="10" width="400" height="46" rx="8"/>
+  <text class="s-t b" x="440" y="32" text-anchor="middle">interface InventoryReserver</text>
+  <text class="s-t mono sm" x="440" y="49" text-anchor="middle">reserve(skuId, qty) · release(skuId, qty)</text>
+  <text class="s-t sm m" x="660" y="36">đổi bằng INVENTORY_STRATEGY trong .env</text>
+
+  <g class="s-l"><path d="M340 56 V 76 H 150 V 96"/><path d="M440 56 V 96"/><path d="M540 56 V 76 H 730 V 96"/></g>
+
+  <rect class="s-box" x="16" y="96" width="268" height="200" rx="10"/>
+  <text class="s-t b" x="34" y="120">A · Optimistic</text>
+  <text class="s-t sm m" x="34" y="140">không khoá gì cả</text>
+  <line class="s-l" x1="16" y1="152" x2="284" y2="152"/>
+  <text class="s-t mono sm" x="34" y="172">UPDATE … WHERE stock &gt;= ?</text>
+  <text class="s-t sm" x="34" y="194">0 dòng ⇒ phải hỏi THÊM một câu</text>
+  <text class="s-t sm" x="34" y="212">để tách "hết hàng" khỏi "không có SKU"</text>
+  <text class="s-t sm b" x="34" y="240">Thắng khi</text>
+  <text class="s-t sm" x="34" y="258">tranh chấp thấp — không ai phải chờ</text>
+  <text class="s-t sm b" x="34" y="278">Thua khi</text>
+  <text class="s-t sm" x="34" y="292">tranh chấp gắt — 2 round-trip mỗi lần thua</text>
+
+  <rect class="s-box-ok" x="306" y="96" width="268" height="200" rx="10"/>
+  <text class="s-t b" x="324" y="120">B · Pessimistic</text>
+  <text class="s-t sm m" x="324" y="140">khoá trước, đọc sau</text>
+  <line class="s-l" x1="306" y1="152" x2="574" y2="152"/>
+  <text class="s-t mono sm" x="324" y="172">SELECT … FOR UPDATE</text>
+  <text class="s-t sm" x="324" y="194">kiểm tra trong RAM ở đây LÀ an toàn —</text>
+  <text class="s-t sm" x="324" y="212">dòng đang bị khoá độc quyền</text>
+  <text class="s-t sm b" x="324" y="240">Thắng khi</text>
+  <text class="s-t sm" x="324" y="258">tranh chấp gắt, cần công bằng</text>
+  <text class="s-t sm b" x="324" y="278">Thua khi</text>
+  <text class="s-t sm" x="324" y="292">mỗi người chờ vẫn GIỮ một connection</text>
+
+  <rect class="s-box" x="596" y="96" width="268" height="200" rx="10"/>
+  <text class="s-t b" x="614" y="120">C · Redis atomic</text>
+  <text class="s-t sm m" x="614" y="140">quyết định trong RAM của Redis</text>
+  <line class="s-l" x1="596" y1="152" x2="864" y2="152"/>
+  <text class="s-t mono sm" x="614" y="172">EVAL &lt;Lua&gt; — GET + DECRBY</text>
+  <text class="s-t sm" x="614" y="194">một lệnh, không ai chen ngang được</text>
+  <text class="s-t sm" x="614" y="212">rồi mới ghi Postgres</text>
+  <text class="s-t sm b" x="614" y="240">Thắng khi</text>
+  <text class="s-t sm" x="614" y="258">cần throughput tối đa</text>
+  <text class="s-t sm b" x="614" y="278">Thua khi</text>
+  <text class="s-t sm" x="614" y="292">Redis trừ xong, DB lỗi ⇒ HAI KHO LỆCH</text>
+</svg>
+<figcaption>Một interface + một token DI = ba cách cài đặt chạy trên <b>cùng một luồng nghiệp
+vụ</b>. Đó là điều kiện để benchmark so sánh <b>công bằng</b>: nếu ba chiến lược có ba luồng khác
+nhau thì con số đo được không nói lên điều gì về chính chiến lược.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t">Vì sao chiến lược C bắt buộc phải là Lua, không phải GET rồi DECRBY từ Node</div>
+<p>Redis thực thi lệnh <b>tuần tự trên một luồng</b>, nên một script Lua chạy trọn vẹn không bị
+chen ngang. Còn <code>GET</code> rồi <code>DECRBY</code> từ Node lại đúng là read-modify-write —
+chỉ <b>đổi chỗ</b> race condition từ Postgres sang Redis, không chữa được gì.</p>
+</div>
+
+<h2>Cấu trúc file</h2>
+
+<div class="tree">
+src/modules/<span class="d">order/</span>
+├── order.controller.ts       <span class="c">201 khi tạo mới · 200 khi Idempotency-Key trùng</span>
+├── order.service.ts          <span class="c">reserve → tạo đơn; hoàn kho khi key trùng</span>
+├── order.repository.ts       <span class="c">MỌI câu SQL chạm tồn kho nằm ở đây (ADR-003)</span>
+├── inventory-reserver.ts     <span class="c">interface chung + token DI</span>
+├── <span class="d">strategies/</span>
+│   ├── optimistic.reserver.ts    <span class="c">3 lần thử, backoff 50ms × 2ⁿ + jitter ±30%</span>
+│   ├── pessimistic.reserver.ts   <span class="c">gọi lockAndDecrementStock</span>
+│   └── redis.reserver.ts         <span class="c">Lua script + bù trừ ngược khi DB lỗi</span>
+├── order.module.ts           <span class="c">factory — chỗ DUY NHẤT biết biến INVENTORY_STRATEGY</span>
+├── order.dto.ts              <span class="c">Zod: KHÔNG khai field price (snapshot price)</span>
+├── order.errors.ts           <span class="c">hết hàng = 409, KHÔNG phải 500</span>
+└── index.ts
+
+src/common/<span class="d">pagination/</span>cursor.ts   <span class="new">← chuyển từ product/ ra vì đã có 2 module dùng</span>
+k6/flash-sale.js              <span class="c">1.000 VU; đếm RIÊNG 201 / 409 / 4xx / 5xx</span>
+</div>
+
+<div class="box note">
+<div class="t">ADR-003 — ai được phép ghi tồn kho</div>
+<p>Bảng <code>product_skus</code> thuộc module <code>product</code>, nhưng module
+<code>order</code> mới là nơi trừ kho. Quyết định đã chốt: <b><code>order</code> được ghi hai cột
+<code>stock</code> và <code>version</code>, nhưng CHỈ trong <code>order.repository.ts</code> và
+CHỈ hai cột đó.</b></p>
+<p>Các file trong <code>strategies/</code> chỉ chứa <b>chính sách</b> (vòng retry, phối hợp với
+Redis), <b>không chứa câu SQL nào</b>. Nếu SQL rải ra đó thì món nợ kiến trúc này lan ra và không
+ai còn kiểm soát được ai đang ghi tồn kho.</p>
+</div>
+
+<h2>Cách code — ba thứ ngoài chuyện tồn kho</h2>
+
+<h3>① Idempotency-Key: để DB làm trọng tài</h3>
+
+<div class="cols c2">
+<div class="card bad">
+<h4>Cách sai</h4>
+<pre><code>const existed = await db.findByKey(key);
+if (existed) return existed;
+await db.createOrder(...);</code></pre>
+<p>Giữa hai bước, request thứ hai chen vào được. <b>Chính nó cũng là một read-modify-write</b> —
+đúng cái bug mà cả phase đang chống.</p>
+</div>
+<div class="card ok">
+<h4>Cách của dự án</h4>
+<pre><code>try { INSERT … }   // UNIQUE(user_id, idempotency_key)
+catch (e) { if (isUnique(e)) return null; }</code></pre>
+<p>Cứ <code>INSERT</code> rồi bắt lỗi <code>P2002</code>. <b>Chỉ có một nơi phân xử: chính
+database.</b></p>
+</div>
+</div>
+
+<h3>② Snapshot price: client không được gửi giá</h3>
+
+<div class="chain">
+<span class="node">client gửi <code>{ skuId, quantity }</code></span><span class="arw">→</span>
+<span class="node a">Zod <b>không khai</b> field <code>price</code> ⇒ bị loại ở biên</span><span class="arw">→</span>
+<span class="node">giá lấy từ <code>RETURNING price_vnd</code> lúc trừ kho</span><span class="arw">→</span>
+<span class="node">chép vào <code>order_items.unit_price_vnd</code></span>
+</div>
+
+<p>Sale kết thúc, giá SKU về giá gốc — đơn đã chốt <b>không đổi theo</b>, vì giá được <b>chép</b>
+vào dòng đơn chứ không đọc lại từ SKU. Và giá lấy đúng ở câu <code>UPDATE</code> vừa trừ kho, tức
+là giá tại <b>đúng thời điểm</b> giành được hàng.</p>
+
+<h3>③ Hết hàng là <code>409</code>, không phải <code>500</code></h3>
+
+<p>"Hết hàng" là một <b>trạng thái nghiệp vụ bình thường</b> — hệ thống hoạt động đúng. Trả 500
+biến nó thành lỗi hệ thống, và hệ quả rất cụ thể: benchmark 1.000 VU sẽ báo "error rate 90%"
+trong khi thực tế không có gì hỏng. <b>Trộn 4xx với 5xx làm error rate mất hết ý nghĩa.</b></p>
+
+<h3>④ Thứ tự reserve-trước-insert-sau, và cái giá của nó</h3>
+
+<p>Lần bấm thứ hai (trùng <code>Idempotency-Key</code>) sẽ <b>trừ kho rồi mới phát hiện trùng</b>,
+nên phải hoàn lại. Nghe như thiết kế dở — nhưng đảo ngược lại (insert đơn trước) cũng không thoát:
+với chiến lược Redis, <code>reserve</code> nằm <b>ngoài</b> transaction của Postgres nên vẫn phải
+bù trừ ở nhánh lỗi. Không có thứ tự nào tránh được hoàn toàn, nên dự án chọn <b>một luồng chung
+cho cả ba chiến lược</b> để benchmark so sánh công bằng.</p>
+
+<h2>Cách test — vì sao ở đây mock là sai</h2>
+
+<div class="box trap">
+<div class="t">Đêm flash sale, hệ thống bán quá 50 áo. Mở CI ra: xanh, coverage 92%.</div>
+<p>Lý do: service tồn kho được test với một repository <b>mock</b>. Mock trả về đúng số lượng mọi
+lúc, nên <code>if (stock &gt; 0) stock--</code> trông hoàn toàn đúng. <b>Race condition không tồn
+tại trong thế giới của mock</b> — mock không có transaction, không có lock, không có hai request
+cùng lúc.</p>
+<p>Một câu nên nhớ cả dự án: <b>coverage đo phần code đã chạy, không đo phần rủi ro đã được kiểm
+chứng.</b></p>
+</div>
+
+<p>Vì vậy cổng chính của phase là một integration test trên Postgres thật:</p>
+
+<pre><code>// test #8 — chạy 3 lần, mỗi lần một INVENTORY_STRATEGY
+200 request song song → SKU có stock = 100
+kỳ vọng:  đúng 100 × 201  ·  đúng 100 × 409  ·  stock = 0  ·  0 lỗi 5xx</code></pre>
+
+<div class="box note">
+<div class="t">Một bẫy của công cụ test, gặp thật ở đúng test này</div>
+<p>Bắn 200 request bằng <code>supertest</code> thì đỏ <code>read ECONNRESET</code> — vì
+<b>supertest tự <code>listen()</code> rồi ĐÓNG server sau mỗi request</b>, request này bị cắt
+socket vì request khác vừa xong. Dấu hiệu kèm theo:
+<code>MaxListenersExceededWarning</code>.</p>
+<p>Cách đúng: cho app <code>listen(0)</code> <b>một lần</b> rồi bắn bằng <code>fetch</code> vào
+cổng thật — cũng chính là cách k6 bắn.</p>
+</div>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Test</th><th>Nó bảo vệ điều gì</th></tr></thead>
+<tbody>
+<tr><td>2</td><td>Cùng <code>Idempotency-Key</code> 2 lần → 1 đơn, lần 2 trả 200, stock trừ <b>một</b> lần</td><td>Bấm hai lần không ăn hai suất hàng</td></tr>
+<tr><td><b>8</b> ⭐</td><td><b>200 request song song → đúng 100 đơn, ở cả ba chiến lược</b></td><td><b>Cổng chính. Chưa xanh thì chưa có gì để nói</b></td></tr>
+<tr><td>9</td><td>Đặt xong đổi <code>price_vnd</code> → giá trên đơn không đổi</td><td>Snapshot price thật sự là snapshot</td></tr>
+<tr><td>12</td><td><code>GET /orders/:id</code> của user khác → <b>404</b>, không phải 403</td><td>403 là tự xác nhận "đơn này có tồn tại"</td></tr>
+<tr><td>13</td><td>Pessimistic: 2 transaction song song, cái sau <b>chờ</b> cái trước</td><td>Khoá thật sự có tác dụng (chạy ngoài transaction là vô hiệu)</td></tr>
+<tr><td>15</td><td>Redis trừ xong, DB ghi lỗi → Redis được <code>INCRBY</code> trả lại + log <code>error</code></td><td>Không im lặng sửa số khi hai kho lệch</td></tr>
+<tr><td><b>16</b> ⭐</td><td>k6 1.000 VU, 3 chiến lược</td><td><b>Evidence CV</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Số đo thật — và ba kết quả ngược trực giác</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Chiến lược</th><th>Pool</th><th>p95 (ms)</th><th>rps</th><th>5xx</th><th>Oversell</th></tr></thead>
+<tbody>
+<tr><td>optimistic</td><td>10</td><td>2 063</td><td>476</td><td>0</td><td><b>0</b></td></tr>
+<tr><td><b>pessimistic</b></td><td>10</td><td><b>492</b></td><td><b>1 580</b></td><td>0</td><td><b>0</b></td></tr>
+<tr><td>pessimistic</td><td>50</td><td>969</td><td>993</td><td>0</td><td><b>0</b></td></tr>
+<tr><td>redis</td><td>10</td><td>1 393</td><td>481</td><td>0</td><td><b>0</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="cols c3">
+<div class="card">
+<h4>① Pessimistic nhanh nhất</h4>
+<p>Ngược hẳn kỳ vọng. Lý do: <b>900/1.000 request rơi vào "hết hàng"</b>. Ở ca đó pessimistic tốn
+<b>1</b> round-trip, còn optimistic tốn <b>2</b> — <code>UPDATE</code> ghi 0 dòng rồi phải hỏi
+thêm một câu để tách 404 khỏi 409.</p>
+<p><b>Đường đi phổ biến nhất lại là đường tốn gấp đôi.</b></p>
+</div>
+<div class="card">
+<h4>② Pool 50 chậm hơn pool 10</h4>
+<p>Nới pool chỉ <b>chuyển</b> phần chờ khoá từ hàng đợi trong app (rẻ) vào bên trong Postgres
+(đắt).</p>
+<p>Bài học: <b>xếp hàng bên ngoài DB, đừng dồn vào trong DB.</b> Và pool size là một phần của
+<i>kết quả</i> benchmark, không phải hằng số.</p>
+</div>
+<div class="card">
+<h4>③ Redis chưa nhanh hơn</h4>
+<p>Vì Phase 3 vẫn <b>ghi DB đồng bộ</b> ngay trong request. Ưu thế của Redis chỉ hiện ra khi có
+outbox + async persist ở Phase 4.</p>
+<p>Số hôm nay là <b>mốc để so sánh sau</b>, không phải kết luận cuối.</p>
+</div>
+</div>
+
+<div class="box key">
+<div class="t">Cách đọc một báo cáo benchmark cho đúng</div>
+<p>20:00 mở sale, p95 nhảy lên 4s và "30% request lỗi". Nhìn vội thì kết luận "DB không chịu
+nổi". Nhưng tách số ra: <b>5xx = 0</b>, toàn bộ là 409 (hết hàng) — hoàn toàn bình thường, vì chỉ
+có 100 chiếc. Còn p95 4s là do pool 10 connection trong khi 200 transaction đang xếp hàng chờ khoá.</p>
+<p>Hai luật: <b>luôn tách 4xx khỏi 5xx trước khi kết luận</b>, và <b>"pessimistic chậm quá" rất
+hay thật ra là hết connection pool, không phải lock contention</b> — hai nguyên nhân khác nhau,
+triệu chứng giống hệt nhau. Xem <code>pg_stat_activity</code> để phân biệt.</p>
+</div>
+
+<h2>Tiêu chí qua phase</h2>
+
+<ul class="chk">
+<li class="y">Test #1–15 xanh, và <b>#8 xanh với CẢ BA</b> <code>INVENTORY_STRATEGY</code></li>
+<li class="y">Test #16: báo cáo k6 3 chiến lược — throughput / p95 / error rate <b>tách 4xx và 5xx</b> + kết luận khi nào dùng cái nào</li>
+<li class="y"><code>DATABASE_POOL_MAX</code> thử ở ≥2 giá trị — chứng minh hiểu "pool exhaustion khác lock contention"</li>
+<li class="y"><b>ADR-003</b> chốt module nào sở hữu logic trừ kho</li>
+<li class="y"><code>npm run check</code> sạch · <code>architecture.md</code> cập nhật</li>
+<li class="n">Tâm tự trả lời 3 câu hỏi bản chất — <b>mục duy nhất còn lại của Phase 3</b></li>
+</ul>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"Vì sao <code>if (stock &gt; 0) stock--</code> <i>chắc chắn</i> sai, không phải 'hiếm khi' sai?"</summary>
+<div class="ans">
+<p>Điều kiện được kiểm tra trong <b>RAM của Node</b>, tại một thời điểm đã cũ. Nơi duy nhất biết
+sự thật là dòng trong Postgres. Giữa "đọc" và "ghi" luôn có một khoảng trống, và dưới tải thì
+khoảng trống đó <i>luôn</i> có request khác chen vào — không phải may rủi mà là điều tất yếu khi
+đủ người bấm.</p>
+<p>Cách chữa duy nhất đúng: <b>đưa điều kiện vào cùng câu lệnh ghi</b>
+(<code>UPDATE … WHERE stock &gt;= ?</code>), để chính database đánh giá nó tại thời điểm ghi.</p>
+</div></details>
+
+<details class="qa"><summary>"Isolation level mặc định của Postgres là gì? Nó cho phép anomaly nào?"</summary>
+<div class="ans">
+<p><b>Read Committed.</b> Chặn được <i>dirty read</i>, nhưng vẫn cho phép:</p>
+<ul>
+<li><b>non-repeatable read</b> — đọc cùng một dòng hai lần trong một transaction, ra hai giá trị;</li>
+<li><b>phantom read</b> — chạy cùng một điều kiện hai lần, số dòng khác nhau.</li>
+</ul>
+<p>Điều ít người để ý: <b>nâng lên Repeatable Read hay Serializable KHÔNG bỏ được việc phải
+retry</b> — chúng chuyển lỗi từ "dữ liệu sai" sang "transaction bị huỷ" (<code>40001</code>).
+Không viết vòng retry thì đổi isolation level chỉ làm hỏng theo cách khác.</p>
+<p>Và dự án này <b>không cần đổi</b>: câu <code>UPDATE … WHERE stock &gt;= ?</code> đã an toàn ngay
+ở Read Committed, vì khi gặp dòng đang bị khoá, Postgres chờ rồi <b>đánh giá lại
+<code>WHERE</code> trên phiên bản mới nhất</b>.</p>
+</div></details>
+
+<details class="qa"><summary>"Optimistic hay pessimistic thì tốt hơn?"</summary>
+<div class="ans">
+<p><b>Đo, đừng đoán</b> — và câu trả lời phụ thuộc vào <i>hình dạng của tải</i>, không phải vào
+bản thân thuật toán.</p>
+<p>Ít tranh chấp → optimistic (không ai phải chờ). Tranh chấp gắt → pessimistic có thể thắng, vì
+optimistic thua rồi phải làm lại. Dự án này đo được pessimistic nhanh nhất ở kịch bản 90% request
+là "hết hàng" — vì ở ca đó nó tốn 1 round-trip còn optimistic tốn 2.</p>
+<p>Nói được con số cụ thể kèm <b>lý do</b> mới là câu trả lời; nói "optimistic nhanh hơn" là học
+thuộc.</p>
+</div></details>
+
+<details class="qa"><summary>"Deadlock xảy ra thế nào? Ở đây có lo không?"</summary>
+<div class="ans">
+<p>Hai transaction khoá hai dòng theo <b>thứ tự ngược nhau</b> rồi chờ nhau: A khoá dòng 1 rồi
+xin dòng 2, B khoá dòng 2 rồi xin dòng 1. Cả hai treo, Postgres phát hiện và giết một bên với
+mã <code>40P01</code>.</p>
+<p><b>Ở phase này chưa lo</b>, vì mỗi đơn chỉ chạm <b>một</b> SKU nên chỉ khoá một dòng. Nhưng khi
+một đơn có nhiều SKU thì bắt buộc phải khoá theo <b>một thứ tự cố định</b> —
+<code>ORDER BY id</code> — nếu không sẽ deadlock ngẫu nhiên. Điều này đã được ghi sẵn trong
+comment của <code>lockAndDecrementStock</code>.</p>
+</div></details>
+
+<details class="qa"><summary>"Redis chết sau khi trừ kho nhưng trước khi ghi DB thì sao?"</summary>
+<div class="ans">
+<p>Hai kho dữ liệu lệch nhau, và <b>không transaction nào cứu được</b> — Redis không nằm trong
+ACID của Postgres.</p>
+<p>Hướng lệch: Redis đã trừ mà DB chưa ⇒ hệ thống <i>tưởng</i> đã bán trong khi chưa ⇒ <b>bán
+thiếu, không bán vượt</b>. An toàn hơn, nhưng vẫn là lệch.</p>
+<p>Phase 3 xử lý bằng <b>bù trừ ngược + log mức <code>error</code></b>; nếu cả bù trừ cũng hỏng
+thì <b>log rõ, không im lặng sửa số</b>, để reconcile job có dấu vết lần lại. Đường đi đúng về sau
+là <b>Outbox</b> (Phase 4): ghi ý định vào DB trong cùng transaction rồi mới đẩy ra ngoài.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao <code>FOR UPDATE</code> phải nằm trong transaction?"</summary>
+<div class="ans">
+<p>Vì khoá do <code>FOR UPDATE</code> tạo ra được giữ tới khi <b>transaction</b> kết thúc. Chạy
+nó ngoài transaction thì Postgres tự động commit ngay sau câu lệnh, khoá nhả lập tức, và giữa
+<code>SELECT</code> với <code>UPDATE</code> lại có đúng cái khe hở cũ.</p>
+<p><b>Bug này im lặng:</b> test đơn lẻ vẫn xanh, code trông đúng, chỉ vỡ dưới tải. Đó là lý do
+phải dùng <code>$transaction</code> interactive của Prisma và dùng <code>$queryRaw</code> — Prisma
+không có API cho <code>FOR UPDATE</code>.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p3"></section>
+
+<div class="pager"><a href="phase-2.html">← Phase 2</a><a href="phase-4.html">Phase 4 — Async, Queue &amp; Payment →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

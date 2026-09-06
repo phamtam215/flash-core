@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 2 — Product &amp; Inventory</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item active" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 2 — Product &amp; Inventory <span class="tag done">28 int + 43 unit</span></h1>
+<p class="lede">Phase đầu tiên chạm dữ liệu lớn. Bài học của nó gói trong một câu:
+<b>kết luận rút ra từ bảng 200 dòng gần như luôn sai.</b></p>
+<p class="meta"><b>Kết quả:</b> CRUD Product + SKU biến thể (size × màu) · cursor pagination ·
+GIN index cho JSONB · seed thật 10.000 Product / 100.000 SKU · 2 bằng chứng <code>EXPLAIN</code>.</p>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<p>Bảng <code>product_skus</code> có 100.000 dòng và <b>đã có index đầy đủ</b> trên
+<code>(created_at, id)</code>. Hai câu query lấy đúng 20 dòng ở cùng một vị trí — dòng thứ 80.000:</p>
+<pre><code>-- A
+SELECT * FROM product_skus ORDER BY created_at, id OFFSET 80000 LIMIT 20;
+-- B
+SELECT * FROM product_skus WHERE (created_at, id) &gt; ($1, $2) ORDER BY created_at, id LIMIT 20;</code></pre>
+<p><b>Chênh nhau bao nhiêu lần?</b> Đoán một con số trước khi kéo xuống.</p>
+</div>
+
+<h2>Bài toán</h2>
+
+<p>Một mẫu áo hot không phải "một món hàng". Nó là <b>một mẫu × nhiều biến thể</b>, và tồn kho
+nằm ở biến thể chứ không ở mẫu. Size M màu đen hết hàng không có nghĩa size L màu trắng cũng hết.</p>
+
+<figure class="dg">
+<svg viewBox="0 0 880 260" role="img" aria-label="Mô hình dữ liệu Product và ProductSku">
+  <defs><marker id="ah2" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-a" x="16" y="40" width="270" height="176" rx="10"/>
+  <text class="s-t b" x="34" y="66">products</text>
+  <line class="s-l" x1="16" y1="78" x2="286" y2="78"/>
+  <text class="s-t mono" x="34" y="100">id · name · slug (UNIQUE)</text>
+  <text class="s-t mono" x="34" y="122">status: ACTIVE | ARCHIVED</text>
+  <text class="s-t mono" x="34" y="144">attributes  JSONB  + GIN</text>
+  <text class="s-t sm m" x="34" y="166">"chất liệu, hoạ tiết" — tuỳ mẫu</text>
+  <text class="s-t mono" x="34" y="192">created_at · id  ← index cho keyset</text>
+
+  <path class="s-l a" d="M286 128 H 366" marker-end="url(#ah2)" color="var(--accent)"/>
+  <text class="s-t sm b" x="326" y="120" text-anchor="middle">1 : N</text>
+
+  <rect class="s-box" x="376" y="40" width="300" height="176" rx="10"/>
+  <text class="s-t b" x="394" y="66">product_skus</text>
+  <line class="s-l" x1="376" y1="78" x2="676" y2="78"/>
+  <text class="s-t mono" x="394" y="100">size · color   ← CỘT THẬT, không JSONB</text>
+  <text class="s-t mono" x="394" y="122">UNIQUE (product_id, size, color)</text>
+  <text class="s-t mono" x="394" y="144">price_vnd  Int  (VND, không float)</text>
+  <text class="s-t mono" x="394" y="166">stock      Int</text>
+  <text class="s-t mono" x="394" y="192">sku_code   UNIQUE · is_active</text>
+
+  <rect class="s-box-ok" x="706" y="96" width="158" height="64" rx="8"/>
+  <text class="s-t sm b" x="785" y="120" text-anchor="middle">CHECK</text>
+  <text class="s-t mono sm" x="785" y="138" text-anchor="middle">stock &gt;= 0</text>
+  <text class="s-t sm m" x="785" y="154" text-anchor="middle">lưới an toàn cuối</text>
+  <path class="s-l ok" d="M676 128 H 700" marker-end="url(#ah2)" color="var(--ok)"/>
+</svg>
+<figcaption><b>Hai quyết định nằm ngay trong sơ đồ.</b> (1) <code>size</code> và
+<code>color</code> là <b>cột thật</b>, không nhét vào JSONB — vì chúng cần ràng buộc và cần
+<code>UNIQUE</code>, mà JSONB thì gõ nhầm <code>"coton"</code> database vẫn nhận.
+(2) <code>CHECK (stock &gt;= 0)</code> tạo ở phase này nhưng phần thưởng đến ở Phase 3: nó biến
+một vụ bán vượt <b>im lặng</b> thành một lỗi <b>ồn ào</b>.</figcaption>
+</figure>
+
+<h2>Offset vs keyset — đáp án cho câu đoán</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 300" role="img" aria-label="So sánh offset pagination và keyset pagination">
+  <defs><marker id="ah2b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <text class="s-t b" x="16" y="26">A — OFFSET 80000: đi từ đầu, đếm bỏ 80.000 dòng</text>
+  <rect class="s-box" x="16" y="40" width="700" height="34" rx="5"/>
+  <rect class="s-box-bad" x="16" y="40" width="560" height="34" rx="5"/>
+  <rect class="s-box-ok" x="576" y="40" width="20" height="34" rx="3"/>
+  <text class="s-t sm" x="296" y="62" text-anchor="middle">đọc rồi VỨT ĐI — 80.000 dòng</text>
+  <text class="s-t sm m" x="660" y="62" text-anchor="middle">…còn lại</text>
+  <text class="s-t sm b" x="586" y="94" text-anchor="middle">20 dòng cần</text>
+  <g color="var(--bad)">
+    <path class="s-l bad" d="M20 108 H 572" marker-end="url(#ah2b)"/>
+    <text class="s-t sm" x="296" y="126" text-anchor="middle" fill="var(--bad)">lật từng trang một, dù đã biết thứ tự</text>
+  </g>
+  <rect class="s-box-bad" x="736" y="40" width="128" height="76" rx="8"/>
+  <text class="s-t sm b" x="800" y="64" text-anchor="middle">78.563 buffer</text>
+  <text class="s-t sm b" x="800" y="84" text-anchor="middle">88 ms</text>
+  <text class="s-t sm m" x="800" y="104" text-anchor="middle">trang càng sâu càng chậm</text>
+
+  <line class="s-l dash" x1="16" y1="150" x2="864" y2="150"/>
+
+  <text class="s-t b" x="16" y="180">B — WHERE (created_at, id) &gt; (mốc): nhảy thẳng tới chỗ cần</text>
+  <rect class="s-box" x="16" y="194" width="700" height="34" rx="5"/>
+  <rect class="s-box-ok" x="576" y="194" width="20" height="34" rx="3"/>
+  <text class="s-t sm m" x="296" y="216" text-anchor="middle">không đụng tới</text>
+  <text class="s-t sm b" x="586" y="248" text-anchor="middle">20 dòng cần</text>
+  <g color="var(--ok)">
+    <path class="s-l ok" d="M120 262 C 260 300, 460 300, 578 236" marker-end="url(#ah2b)"/>
+    <text class="s-t sm" x="330" y="288" text-anchor="middle" fill="var(--ok)">như tra từ điển: biết chữ cái là mở thẳng đúng phần</text>
+  </g>
+  <rect class="s-box-ok" x="736" y="194" width="128" height="76" rx="8"/>
+  <text class="s-t sm b" x="800" y="218" text-anchor="middle">22 buffer</text>
+  <text class="s-t sm b" x="800" y="238" text-anchor="middle">1,8 ms</text>
+  <text class="s-t sm m" x="800" y="258" text-anchor="middle">trang 2 hay 20.000 đều vậy</text>
+</svg>
+<figcaption>Số đo thật, <code>EXPLAIN (ANALYZE, BUFFERS)</code> trên 100.000 dòng seed của chính
+repo này — <b>~50 lần</b>. Điều đáng chú ý nhất: <b>cả hai dùng CHUNG một index.</b> Khác biệt
+không nằm ở "có index hay không", mà ở <b>cách index được dùng</b>. Đó là lý do "thêm index đi"
+không phải câu trả lời cho mọi câu hỏi hiệu năng.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t">Đánh đổi của keyset — phải nói ra khi bị hỏi</div>
+<p>Offset cho nhảy tới <b>trang bất kỳ</b> (bấm "trang 47") một cách trực tiếp. Keyset chỉ đi
+tiếp/lùi tuần tự từ một mốc — không có "trang 47" nếu chưa đi qua. Nên keyset hợp với
+<b>cuộn vô hạn</b>, không hợp với UI có dãy số trang bấm được. Dự án chọn keyset vì API
+<code>GET /skus</code> chịu tải 100k dòng và giao diện là kiểu cuộn.</p>
+</div>
+
+<h2>GIN index — và bài học "index không tự động thắng"</h2>
+
+<p>Cùng câu <code>WHERE attributes @&gt; '{"material":"cotton"}'</code> trên bảng
+<code>products</code> 10.000 dòng, 50% số dòng khớp điều kiện:</p>
+
+<div class="cols c2">
+<div class="card ok">
+<h4>Seq Scan — KHÔNG có GIN</h4>
+<p><b>200</b> buffer · <b>1,65 ms</b></p>
+<p>Quét thẳng toàn bảng.</p>
+</div>
+<div class="card bad">
+<h4>Bitmap Heap Scan — CÓ GIN</h4>
+<p><b>207</b> buffer · <b>1,92 ms</b></p>
+<p>Tra index rồi <code>Recheck Cond</code> đọc lại dòng thật.</p>
+</div>
+</div>
+
+<div class="box trap">
+<div class="t">Seq Scan thắng, dù có GIN index đàng hoàng</div>
+<p>GIN phải làm <b>thêm hai việc</b>: tra cấu trúc index để biết dòng nào khớp, rồi
+<code>Recheck Cond</code> — đọc lại dòng thật từ bảng để xác nhận. Hai bước phụ đó chỉ đáng giá
+khi chúng giúp <b>bỏ qua</b> phần lớn dữ liệu. Ở đây bảng chỉ 10.000 dòng và <b>một nửa</b> số
+dòng khớp, nên đọc thẳng 200 trang rẻ hơn "tra rồi đọc lại".</p>
+<p><b>Quy tắc ngón tay cái:</b> index (loại nào cũng vậy) đáng giá khi nó giúp bỏ qua phần lớn dữ
+liệu — bảng càng lớn, hoặc điều kiện lọc càng <i>hiếm</i>, index càng thắng đậm.
+<b>Luôn <code>EXPLAIN</code> để biết, đừng suy đoán.</b></p>
+</div>
+
+<p>Và một bước hay bị quên: <b><code>ANALYZE</code> sau khi seed</b>. Postgres chọn plan dựa trên
+<i>statistics</i>, không dựa trên câu SQL mình viết. Statistics cũ ⇒ planner đoán sai ⇒ mọi kết
+luận sau đó vô nghĩa. Trong <code>EXPLAIN</code>, thứ đáng nhìn <b>đầu tiên</b> là
+<code>rows</code> (ước lượng) lệch <code>actual rows</code> bao nhiêu lần — lệch lớn nghĩa là
+planner đang mù.</p>
+
+<h2>Cấu trúc file</h2>
+
+<div class="tree">
+src/modules/<span class="d">product/</span>
+├── product.controller.ts    <span class="c">CRUD; route ghi dùng AccessTokenGuard (import từ ../auth)</span>
+├── product.service.ts       <span class="c">check-tồn-tại-trước-khi-ghi, decode cursor</span>
+├── product.repository.ts    <span class="c">MỌI truy cập DB, kể cả câu WHERE của keyset</span>
+├── product.dto.ts           <span class="c">Zod: Product/SKU/cursor query — chặn limit &gt; 100</span>
+├── product.errors.ts        <span class="c">kế thừa DomainError</span>
+├── product.cursor.ts        <span class="c">encode/decode base64url (createdAt, id)</span>
+├── product.slug.ts          <span class="c">slugify tiếng Việt + sinh sku_code</span>
+└── index.ts                 <span class="c">chỉ export ProductModule</span>
+
+src/common/<span class="d">pagination/</span>cursor.ts   <span class="new">← Phase 3 chuyển ra đây vì đã có 2 module dùng</span>
+prisma/seed/seed-skus.ts     <span class="c">seed 100k — dùng pg thẳng, KHÔNG qua Prisma Client</span>
+prisma/migrations/20260829120000_add_product_sku/
+</div>
+
+<div class="box note">
+<div class="t">Vì sao <code>cursor.ts</code> ban đầu nằm trong <code>product/</code></div>
+<p>Luật của repo: <b>chỉ thứ có ≥2 module dùng mới được vào <code>common/</code></b>. Lúc Phase 2
+chỉ có một module dùng nên nó nằm trong module đó — đúng chỗ. Đến Phase 3, module
+<code>order</code> cũng cần, lúc đó mới chuyển ra. Làm ngược lại (đoán trước rồi để sẵn vào
+<code>common/</code>) là cách <code>common/</code> phình thành bãi rác trong mọi dự án.</p>
+</div>
+
+<h2>Cách code</h2>
+
+<h3>① Cursor: mã hoá <i>vị trí</i>, không mã hoá <i>số trang</i></h3>
+
+<pre><code>// cursor = base64url( JSON({ createdAt, id }) ) — mốc của DÒNG CUỐI trang trước
+WHERE (created_at, id) &lt; (cursor.createdAt, cursor.id)   -- DESC
+ORDER BY created_at DESC, id DESC
+LIMIT limit + 1        -- lấy DƯ 1 dòng để biết "còn trang sau không"</code></pre>
+
+<div class="cols c2">
+<div class="card">
+<h4>Vì sao phải có <code>id</code> trong cursor</h4>
+<p><code>created_at</code> có thể trùng — hai SKU tạo trong cùng một mili giây. Chỉ dùng
+<code>created_at</code> thì hoặc <b>lặp</b> dòng, hoặc <b>nhảy cóc</b> mất dòng. Cặp
+<code>(created_at, id)</code> là duy nhất tuyệt đối.</p>
+</div>
+<div class="card">
+<h4>Vì sao <code>LIMIT limit + 1</code></h4>
+<p>Để biết có trang sau hay không mà <b>không phải <code>COUNT(*)</code></b> — trên 100k dòng,
+một câu <code>COUNT</code> đắt hơn cả câu lấy dữ liệu. Lấy dư một dòng, thấy có thì cắt bỏ và
+trả <code>nextCursor</code>.</p>
+</div>
+</div>
+
+<h3>② Cursor hỏng phải là 400, không phải 500</h3>
+
+<p>Client gửi <code>?cursor=abc-khong-decode-duoc</code> — đó là lỗi <b>của phía gọi</b>. Trả
+<code>400 INVALID_CURSOR</code>. Để nó văng thành 500 thì error rate của hệ thống bị nhiễu bởi
+những thứ không phải lỗi của hệ thống, và đến Phase 6 khi gắn cảnh báo theo tỉ lệ 5xx thì chuông
+kêu sai.</p>
+
+<h3>③ Một bug thật, và bài học đắt nhất của phase</h3>
+
+<div class="box trap">
+<div class="t">"Cực hiếm" là phỏng đoán, không phải sự thật</div>
+<p><code>generateSkuCode</code> cắt slug còn 16 ký tự đầu để đặt tên mã SKU. Comment trong code
+ghi rằng hai slug khác nhau ra cùng một mã là ca "cực hiếm".</p>
+<p>Đến Phase 3, script seed benchmark tạo hàng loạt product có slug dài chung tiền tố — ca "cực
+hiếm" đó xảy ra <b>100% số lần</b>, vỡ <code>UNIQUE(sku_code)</code>, API trả 500. Đã sửa bằng
+cách thêm 4 ký tự băm FNV-1a của <b>slug đầy đủ</b>.</p>
+<p><b>Bài học:</b> mọi câu "hiếm khi xảy ra" trong comment đều là một giả định chưa kiểm chứng.
+Cách kiểm duy nhất là dùng thật, ở quy mô thật.</p>
+</div>
+
+<h3>④ Seed 100k: không phải mọi script đều nên dùng ORM</h3>
+
+<p>Script seed chạy bằng <code>ts-node</code> và <b>không</b> import Prisma Client — nó dùng
+<code>pg</code> thẳng. Lý do kỹ thuật: Prisma 7 sinh import kèm đuôi <code>.js</code> nhưng file
+thật là <code>.ts</code>; Jest có <code>moduleNameMapper</code> xử lý, <code>nest build</code>
+biên dịch ra <code>.js</code> thật, còn <code>ts-node</code> thì không có tầng nào remap. Lý do
+nghiệp vụ: bulk insert 100.000 dòng không cần API kiểu ORM.</p>
+
+<p>Một bug nữa gặp khi seed: <b>thiếu <code>updated_at</code></b> khi <code>INSERT</code> thẳng.
+Prisma tự điền <code>@updatedAt</code>, SQL thô thì không.</p>
+
+<h2>Cách test</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Test</th><th>Loại</th><th>Nó bảo vệ điều gì</th></tr></thead>
+<tbody>
+<tr><td>4</td><td>Thêm SKU trùng <code>(size, color)</code> → 409</td><td>int</td><td><code>UNIQUE</code> ở DB thật sự tồn tại</td></tr>
+<tr><td>6</td><td><code>PATCH</code> stock = -5 → 400, DB không đổi</td><td>unit</td><td>Zod chặn ở biên</td></tr>
+<tr><td><b>7</b></td><td><code>UPDATE … SET stock = -1</code> bằng SQL thô → Postgres từ chối, đúng tên constraint</td><td>int</td><td><b>Lưới an toàn cuối vẫn giữ khi tầng ứng dụng bị bỏ qua</b></td></tr>
+<tr><td>8</td><td>Trang 1 + trang 2 = đúng 40 item, không trùng</td><td>int</td><td>Cursor không lặp, không nhảy cóc</td></tr>
+<tr><td>11</td><td>Product có 50 SKU → đếm số query Prisma = <b>2</b></td><td>int</td><td><b>Chống N+1</b> — đo bằng số, không bằng cảm giác</td></tr>
+<tr><td>13</td><td>2 <code>PATCH</code> stock đồng thời → cả hai 200, giá trị cuối khớp cái ghi sau</td><td>int</td><td>Ghi nhận lost update <b>là hiện tượng có thật</b>, để Phase 3 chữa</td></tr>
+<tr><td><b>14, 15</b></td><td><code>EXPLAIN (ANALYZE, BUFFERS)</code> — offset vs keyset, và GIN</td><td>manual</td><td><b>Bằng chứng, không phải Jest test</b></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box why">
+<div class="t">Test #7 và test #11 là hai kiểu test đáng học</div>
+<p><b>#7 tấn công từ dưới:</b> nó cố tình <b>bỏ qua</b> code của mình và ghi thẳng SQL, để chứng
+minh rằng ràng buộc nằm ở <b>database</b> chứ không chỉ nằm ở validate. Một test đi qua đường
+chính thì không bao giờ phát hiện được việc constraint bị quên trong migration.</p>
+<p><b>#11 đo cái không nhìn thấy:</b> N+1 không làm test đỏ, không làm code xấu — nó chỉ làm
+API chậm dần khi dữ liệu lớn lên. Cách duy nhất để nó không âm thầm quay lại là <b>đếm số
+query</b> và khoá con số đó bằng một test.</p>
+</div>
+
+<h2>Tiêu chí qua phase</h2>
+
+<ul class="chk">
+<li class="y"><b>28/28 integration + 43/43 unit</b> xanh</li>
+<li class="y">Test #14: bằng chứng <code>EXPLAIN</code> offset sâu vs keyset trên <b>100.000 dòng thật</b></li>
+<li class="y">Test #15: bằng chứng trước/sau GIN — <b>kể cả khi kết quả ngược kỳ vọng</b>, phải ghi rõ lý do</li>
+<li class="y">Seed chạy thật: 10.000 Product / 100.000 ProductSku</li>
+<li class="y"><code>npm run check</code> sạch · <code>architecture.md</code> cập nhật</li>
+<li class="y">3 câu hỏi bản chất có đáp án <span class="src">→ <a href="../tech-playbook.md">tech-playbook §Phase 2</a></span></li>
+</ul>
+
+<div class="box note">
+<div class="t">Vì sao "kết quả ngược kỳ vọng" vẫn tính là qua phase</div>
+<p>Spec viết sẵn kỳ vọng: sau khi thêm GIN thì plan phải đổi sang Bitmap Heap Scan. Thực tế
+planner vẫn chọn Seq Scan. Nếu tiêu chí là "phải ra đúng như đoán" thì sẽ có động cơ chỉnh dữ
+liệu cho khớp — và bài học biến mất. Tiêu chí đúng là <b>có số đo thật và giải thích được số
+đó</b>. Ở đây kết quả "sai kỳ vọng" lại là bài học giá trị nhất của cả phase.</p>
+</div>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"Cursor và offset pagination khác nhau thế nào khi dữ liệu lớn?"</summary>
+<div class="ans">
+<p><code>OFFSET N</code> bắt Postgres đi qua index/bảng, <b>đếm bỏ qua N dòng</b> rồi mới lấy —
+chi phí tăng <b>tuyến tính</b> theo N. Keyset dùng <code>WHERE (created_at, id) &lt; (mốc)</code>
+để index <b>nhảy thẳng</b> tới vị trí — chi phí gần như hằng số bất kể trang mấy.</p>
+<p>Số thật đo được: cùng vị trí dòng 80.000/100.000, offset đọc 78.563 block / 88ms; keyset đọc
+22 block / 1,8ms. <b>Cùng một index</b>, khác nhau ở cách dùng.</p>
+<p><b>Đánh đổi:</b> offset nhảy được tới trang bất kỳ; keyset chỉ đi tuần tự từ một mốc.</p>
+</div></details>
+
+<details class="qa"><summary>"GIN và B-tree hợp với loại truy vấn nào?"</summary>
+<div class="ans">
+<p><b>B-tree:</b> mỗi dòng ứng với <b>một</b> giá trị trong cây — hợp <code>=</code>,
+<code>&lt;</code>, <code>&gt;</code>, <code>BETWEEN</code>, <code>ORDER BY</code>. Đúng kiểu cột
+<code>size</code>, <code>price_vnd</code>, <code>created_at</code>.</p>
+<p><b>GIN</b> (Generalized Inverted iNdex): hợp giá trị có <b>nhiều phần tử trong một ô</b> —
+mỗi phần tử (một key JSONB, một từ trong văn bản, một phần tử mảng) trỏ ngược lại danh sách dòng
+chứa nó, giống mục lục cuối sách. Hợp cho <code>@&gt;</code> (containment), toán tử mảng,
+full-text.</p>
+<p>Và: có GIN <b>không</b> có nghĩa nó luôn thắng — xem số đo test #15.</p>
+</div></details>
+
+<details class="qa"><summary>"Khi nào JSONB là lựa chọn tệ?"</summary>
+<div class="ans">
+<ul>
+<li><b>Cần ràng buộc tập giá trị đóng:</b> JSONB không <code>CHECK</code> được nội dung bên trong
+— gõ nhầm <code>"coton"</code> database vẫn nhận. Đây đúng là lý do <code>size</code> và
+<code>color</code> là cột thật.</li>
+<li><b>Cần join hoặc lọc cao tần trên đúng field đó:</b> so sánh containment JSONB luôn tốn hơn
+so sánh bằng trên cột có index, và JSONB không làm khoá ngoại được.</li>
+<li><b>Bảng nhỏ hoặc field ít khi bị lọc:</b> GIN có phí ghi — mỗi <code>INSERT</code>/<code>UPDATE</code>
+phải cập nhật index. Trả phí đó mà ít khi query theo field ấy là lỗ.</li>
+<li><b>Cần đổi cấu trúc về sau:</b> "linh hoạt" đổi lại là <b>im lặng</b> — không có migration tự
+động kiểu đổi kiểu cột, phải tự viết script backfill.</li>
+</ul>
+</div></details>
+
+<details class="qa"><summary>"Có index rồi mà query vẫn chậm — nghĩ gì đầu tiên?"</summary>
+<div class="ans">
+<p>Theo thứ tự:</p>
+<ol>
+<li><b>Statistics cũ.</b> Chạy <code>ANALYZE</code>. Đã gặp ca query 8ms trên dev thành 900ms trên
+staging — không phải thiếu index, mà planner chọn Seq Scan vì statistics cũ; <code>ANALYZE</code>
+xong còn 12ms.</li>
+<li><b>Cột bị bọc hàm:</b> <code>WHERE lower(email) = …</code> làm index trên <code>email</code>
+vô dụng. Cần <i>expression index</i> trên đúng biểu thức đó.</li>
+<li><b>Điều kiện không "hiếm" đủ:</b> lọc ra một nửa bảng thì Seq Scan có thể vẫn rẻ hơn.</li>
+<li><b>Đọc <code>Buffers: shared read</code> vs <code>hit</code></b> trước khi mừng — lần chạy thứ
+hai nhanh có thể chỉ vì cache.</li>
+</ol>
+</div></details>
+
+<details class="qa"><summary>"Vì sao tiền lưu bằng <code>Int</code> chứ không <code>Float</code>?"</summary>
+<div class="ans">
+<p>Số thực dấu chấm động không biểu diễn chính xác được nhiều giá trị thập phân, nên cộng dồn
+nhiều lần sẽ lệch — kiểu <code>0.1 + 0.2 ≠ 0.3</code>. Với tiền thì một đồng lệch là một lỗi
+kế toán, không phải sai số cho phép.</p>
+<p>VND không có phần thập phân nên <code>Int</code> là khớp tự nhiên. Với tiền tệ có phần lẻ thì
+cách chuẩn là lưu <b>số nguyên đơn vị nhỏ nhất</b> (cent), hoặc dùng kiểu
+<code>NUMERIC/DECIMAL</code> của database.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p2"></section>
+
+<div class="pager"><a href="phase-1.html">← Phase 1</a><a href="phase-3.html">Phase 3 — Order &amp; Concurrency →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

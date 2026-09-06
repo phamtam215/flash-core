@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 4 — Async, Queue &amp; Payment</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item active" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 4 — Async, Queue &amp; Payment <span class="tag done">đã đóng 2026-09-05</span></h1>
+<p class="lede">Phase 3 hỏi "hai người bấm cùng lúc thì sao". Phase 4 hỏi câu khó hơn:
+<b>tiến trình bị giết giữa chừng thì mất gì?</b></p>
+<p class="meta"><b>Kết quả:</b> 21 integration test mới (tổng 70/70) · 74/74 unit · 3 ADR mới ·
+demo "rút dây mạng" chạy tay: <b>20 đơn / 0 sự kiện kẹt / 20 email</b>.</p>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<pre><code>await db.save(order);      // ①
+await queue.add(job);      // ②</code></pre>
+<p>Tiến trình bị giết đúng giữa ① và ②.</p>
+<p>1. Chuyện gì xảy ra? &nbsp; 2. <b>Bọc <code>try/catch</code> quanh hai dòng này có cứu được
+không?</b> &nbsp; 3. Đảo thứ tự hai dòng thì sao?</p>
+</div>
+
+<h2>Bài toán: dual write</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 320" role="img" aria-label="Dual write và cách Outbox giải quyết">
+  <defs><marker id="ah4" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <text class="s-t b" x="16" y="22">SAI — hai kho lưu trữ, không transaction nào bao được cả hai</text>
+  <rect class="s-box" x="16" y="36" width="150" height="66" rx="8"/>
+  <text class="s-t sm b" x="91" y="62" text-anchor="middle">Request</text>
+  <text class="s-t sm m" x="91" y="82" text-anchor="middle">đặt đơn</text>
+
+  <rect class="s-box-ok" x="286" y="36" width="180" height="66" rx="8"/>
+  <text class="s-t sm b" x="376" y="62" text-anchor="middle">① Postgres</text>
+  <text class="s-t sm" x="376" y="82" text-anchor="middle">đơn đã COMMIT</text>
+
+  <rect class="s-box-bad" x="586" y="36" width="180" height="66" rx="8"/>
+  <text class="s-t sm b" x="676" y="62" text-anchor="middle">② Redis / queue</text>
+  <text class="s-t sm" x="676" y="82" text-anchor="middle">chưa có gì</text>
+
+  <path class="s-l" d="M166 69 H 280" marker-end="url(#ah4)" color="var(--muted)"/>
+  <g color="var(--bad)">
+    <path class="s-l bad" d="M466 69 H 520" marker-end="url(#ah4)"/>
+    <line class="s-l bad" x1="536" y1="52" x2="562" y2="88" stroke-width="3"/>
+    <line class="s-l bad" x1="562" y1="52" x2="536" y2="88" stroke-width="3"/>
+    <text class="s-t sm b" x="549" y="112" text-anchor="middle" fill="var(--bad)">CHẾT Ở ĐÂY</text>
+  </g>
+  <text class="s-t sm" x="16" y="128">⇒ Đơn tồn tại nhưng email KHÔNG BAO GIỜ được gửi. try/catch vô dụng — lệnh ① đã commit, không rollback lại được.</text>
+
+  <line class="s-l dash" x1="16" y1="148" x2="864" y2="148"/>
+
+  <text class="s-t b" x="16" y="176">ĐÚNG — ghi Ý ĐỊNH vào cùng nơi với dữ liệu</text>
+  <rect class="s-box" x="16" y="190" width="150" height="66" rx="8"/>
+  <text class="s-t sm b" x="91" y="216" text-anchor="middle">Request</text>
+  <text class="s-t sm m" x="91" y="236" text-anchor="middle">đặt đơn</text>
+
+  <rect class="s-box-a" x="216" y="182" width="300" height="82" rx="8"/>
+  <text class="s-t sm b" x="366" y="204" text-anchor="middle">MỘT transaction Postgres</text>
+  <rect class="s-box-ok" x="230" y="214" width="130" height="38" rx="5"/>
+  <text class="s-t sm" x="295" y="238" text-anchor="middle">orders + items</text>
+  <rect class="s-box-ok" x="372" y="214" width="130" height="38" rx="5"/>
+  <text class="s-t sm" x="437" y="238" text-anchor="middle">outbox_events</text>
+  <text class="s-t sm b" x="366" y="282" text-anchor="middle">hoặc cả hai cùng có, hoặc cả hai cùng không</text>
+
+  <rect class="s-box" x="566" y="190" width="140" height="66" rx="8"/>
+  <text class="s-t sm b" x="636" y="212" text-anchor="middle">Relay (worker)</text>
+  <text class="s-t sm m" x="636" y="230" text-anchor="middle">quét bảng</text>
+  <text class="s-t sm m" x="636" y="246" text-anchor="middle">SKIP LOCKED</text>
+
+  <rect class="s-box" x="736" y="190" width="128" height="66" rx="8"/>
+  <text class="s-t sm b" x="800" y="220" text-anchor="middle">queue</text>
+  <text class="s-t sm m" x="800" y="240" text-anchor="middle">BullMQ</text>
+
+  <path class="s-l" d="M166 223 H 210" marker-end="url(#ah4)" color="var(--muted)"/>
+  <path class="s-l" d="M516 223 H 560" marker-end="url(#ah4)" color="var(--muted)"/>
+  <path class="s-l" d="M706 223 H 730" marker-end="url(#ah4)" color="var(--muted)"/>
+  <text class="s-t sm" x="16" y="304">⇒ "Đẩy ra ngoài" vẫn hỏng được, nhưng giờ nó hỏng AN TOÀN: dòng vẫn nằm ở PENDING, nhịp quét sau đẩy lại.</text>
+</svg>
+<figcaption><b>Outbox không cho exactly-once.</b> Nó chuyển bài toán từ "có thể <b>mất</b>" sang
+"có thể <b>trùng</b>" — và trùng thì consumer idempotent xử lý được, còn mất thì không có cách
+nào cứu. Đó là toàn bộ giá trị của pattern này, nói bằng một câu.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t">Đáp án cho câu đoán: đảo thứ tự cũng hỏng, chỉ đổi kiểu</div>
+<p>Đẩy queue trước rồi mới ghi DB thì job chạy cho một đơn <b>chưa từng tồn tại</b>. Không có thứ
+tự nào đúng, vì <b>bài toán không nằm ở thứ tự</b> — nó nằm ở chỗ có hai kho lưu trữ mà không
+transaction nào bao được cả hai. Outbox đổi câu hỏi: thay vì cố ghi hai nơi cùng lúc, ghi
+<b>ý định</b> vào cùng nơi với dữ liệu.</p>
+</div>
+
+<h2>Thứ tự trong relay — chỗ dễ viết ngược nhất, và đã viết ngược thật</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 330" role="img" aria-label="So sánh hai thứ tự trong outbox relay">
+  <defs><marker id="ah4b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box-bad" x="16" y="12" width="410" height="300" rx="10"/>
+  <text class="s-t b" x="36" y="38" fill="var(--bad)">Bản ĐẦU TIÊN của dự án — sai</text>
+  <text class="s-t sm m" x="36" y="58">đánh dấu → commit → rồi mới đẩy</text>
+
+  <rect class="s-box" x="36" y="74" width="370" height="34" rx="5"/>
+  <text class="s-t mono sm" x="50" y="96">UPDATE … SET status = 'DISPATCHED'</text>
+  <rect class="s-box" x="36" y="118" width="370" height="34" rx="5"/>
+  <text class="s-t mono sm" x="50" y="140">COMMIT</text>
+  <g color="var(--bad)">
+    <line class="s-l bad" x1="200" y1="160" x2="238" y2="196" stroke-width="3"/>
+    <line class="s-l bad" x1="238" y1="160" x2="200" y2="196" stroke-width="3"/>
+    <text class="s-t sm b" x="290" y="182" fill="var(--bad)">process bị giết</text>
+  </g>
+  <rect class="s-box" x="36" y="206" width="370" height="34" rx="5"/>
+  <text class="s-t mono sm m" x="50" y="228">queue.add(job)   ← không bao giờ chạy</text>
+
+  <rect class="s-box-bad" x="36" y="252" width="370" height="48" rx="6"/>
+  <text class="s-t sm b" x="221" y="272" text-anchor="middle" fill="var(--bad)">Dòng nằm lại DISPATCHED vĩnh viễn</text>
+  <text class="s-t sm" x="221" y="290" text-anchor="middle">không ai đẩy nữa · KHÔNG AI BIẾT · email mất</text>
+
+  <rect class="s-box-ok" x="454" y="12" width="410" height="300" rx="10"/>
+  <text class="s-t b" x="474" y="38" fill="var(--ok)">Bản đã sửa — ADR-006</text>
+  <text class="s-t sm m" x="474" y="58">đẩy → đánh dấu, trong CÙNG một transaction</text>
+
+  <rect class="s-box" x="474" y="74" width="370" height="34" rx="5"/>
+  <text class="s-t mono sm" x="488" y="96">SELECT … FOR UPDATE SKIP LOCKED</text>
+  <rect class="s-box" x="474" y="118" width="370" height="34" rx="5"/>
+  <text class="s-t mono sm" x="488" y="140">queue.add(job)     ← đẩy TRƯỚC</text>
+  <g color="var(--warn)">
+    <line class="s-l" x1="638" y1="160" x2="676" y2="196" stroke-width="3" stroke="var(--warn)"/>
+    <line class="s-l" x1="676" y1="160" x2="638" y2="196" stroke-width="3" stroke="var(--warn)"/>
+    <text class="s-t sm b" x="728" y="182" fill="var(--warn)">process bị giết</text>
+  </g>
+  <rect class="s-box" x="474" y="206" width="370" height="34" rx="5"/>
+  <text class="s-t mono sm m" x="488" y="228">UPDATE … 'DISPATCHED' + COMMIT</text>
+
+  <rect class="s-box-ok" x="474" y="252" width="370" height="48" rx="6"/>
+  <text class="s-t sm b" x="659" y="272" text-anchor="middle" fill="var(--ok)">ROLLBACK → dòng quay lại PENDING</text>
+  <text class="s-t sm" x="659" y="290" text-anchor="middle">nhịp sau đẩy lại · cùng lắm là TRÙNG, không MẤT</text>
+</svg>
+<figcaption><b>Đây là lỗi thật của dự án này, và nó sống sót qua toàn bộ bộ test.</b> Bản đầu viết
+đúng tên pattern, đúng bảng, đúng cột — chỉ sai thứ tự, và vẫn mất dữ liệu im lặng đúng thứ Outbox
+sinh ra để chống. <b>Pattern viết đúng tên mà sai thứ tự thì không còn là pattern đó nữa.</b></figcaption>
+</figure>
+
+<div class="box note">
+<div class="t">Vì sao chấp nhận gọi ra ngoài <i>bên trong</i> transaction</div>
+<p><code>CLAUDE.md</code> cấm gọi API ngoài trong transaction — luật đó đúng cho đường request:
+giữ khoá trên dòng nghiệp vụ nóng trong lúc chờ mạng là cách làm sập hệ thống. Ở relay là
+<b>ngoại lệ có ý thức</b>, vì ba điều kiện cùng đúng:</p>
+<ol>
+<li>Dòng bị khoá là dòng <b>outbox</b> — không ai ngoài relay đụng tới;</li>
+<li>Worker khác gặp khoá thì <code>SKIP LOCKED</code> cho đi tiếp <b>ngay</b>, không xếp hàng;</li>
+<li>Redis nằm cùng hạ tầng, và transaction có trần thời gian (15 giây).</li>
+</ol>
+<p>Không có ngoại lệ này thì <b>không có cách nào giữ được "không mất"</b>. Ghi ở
+<a href="../adr/006-relay-giu-transaction-khi-day-queue.md">ADR-006</a>.</p>
+</div>
+
+<h3><code>SKIP LOCKED</code> — vế còn lại của cặp</h3>
+
+<p>Outbox lo <b>"không mất"</b>; <code>FOR UPDATE SKIP LOCKED</code> lo <b>"nhiều worker không
+giẫm nhau"</b>. Bỏ <code>SKIP LOCKED</code> đi thì 5 worker biến thành <b>1 worker chậm</b> — tất
+cả cùng xếp hàng chờ đúng dòng đầu tiên.</p>
+
+<h2>Hai đường huỷ đơn — và vì sao tồn kho chỉ trả một lần</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 260" role="img" aria-label="Hai đường huỷ đơn quá hạn">
+  <defs><marker id="ah4c" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box" x="16" y="30" width="230" height="70" rx="8"/>
+  <text class="s-t sm b" x="131" y="54" text-anchor="middle">Đường 1 — delayed job</text>
+  <text class="s-t sm m" x="131" y="72" text-anchor="middle">hẹn sẵn lúc tạo đơn</text>
+  <text class="s-t sm m" x="131" y="88" text-anchor="middle">đúng giờ, nhưng nằm trong Redis</text>
+
+  <rect class="s-box" x="16" y="150" width="230" height="70" rx="8"/>
+  <text class="s-t sm b" x="131" y="174" text-anchor="middle">Đường 2 — sweeper</text>
+  <text class="s-t sm m" x="131" y="192" text-anchor="middle">quét DB mỗi 60 giây</text>
+  <text class="s-t sm m" x="131" y="208" text-anchor="middle">chậm hơn, nhưng DB là sự thật</text>
+
+  <path class="s-l" d="M246 65 H 320 V 112" marker-end="url(#ah4c)" color="var(--muted)"/>
+  <path class="s-l" d="M246 185 H 320 V 148" marker-end="url(#ah4c)" color="var(--muted)"/>
+
+  <rect class="s-box-a" x="336" y="98" width="290" height="64" rx="8"/>
+  <text class="s-t mono sm b" x="481" y="122" text-anchor="middle">UPDATE orders SET status='CANCELLED'</text>
+  <text class="s-t mono sm b" x="481" y="140" text-anchor="middle">WHERE id=? AND status='PENDING'</text>
+  <text class="s-t sm m" x="481" y="156" text-anchor="middle">điều kiện nằm TRONG câu ghi</text>
+
+  <path class="s-l ok" d="M626 116 H 690" marker-end="url(#ah4c)" color="var(--ok)"/>
+  <rect class="s-box-ok" x="700" y="94" width="164" height="46" rx="6"/>
+  <text class="s-t sm b" x="782" y="114" text-anchor="middle">1 dòng bị ảnh hưởng</text>
+  <text class="s-t sm" x="782" y="132" text-anchor="middle">→ TRẢ KHO</text>
+
+  <path class="s-l" d="M626 146 H 690" marker-end="url(#ah4c)" color="var(--muted)"/>
+  <rect class="s-box" x="700" y="152" width="164" height="46" rx="6"/>
+  <text class="s-t sm b" x="782" y="172" text-anchor="middle">0 dòng bị ảnh hưởng</text>
+  <text class="s-t sm" x="782" y="190" text-anchor="middle">→ thoát êm, KHÔNG trả</text>
+</svg>
+<figcaption><b>Thứ tự là tất cả:</b> trả kho <b>SAU</b> khi <code>UPDATE</code> đã đổi được trạng
+thái, không phải trước. Đảo lại thì cả hai đường cùng trả và tồn kho phồng lên. Đây đúng là bài
+học của Phase 3 lặp lại ở tầng job — <b>đưa điều kiện vào chính câu ghi, rồi đọc số dòng bị ảnh
+hưởng để biết mình có thắng không.</b></figcaption>
+</figure>
+
+<h2>Hai consumer, hai bảo đảm khác nhau</h2>
+
+<p>Đây là chỗ tinh tế nhất của phase, và là thứ khiến câu trả lời phỏng vấn "vì sao consumer phải
+idempotent" trở nên có sức nặng. Dự án có đúng hai consumer, đặt cạnh nhau thì thấy ngay ranh giới:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Consumer</th><th>Hệ quả nằm ở đâu</th><th>Cách chống trùng</th><th>Bảo đảm đạt được</th></tr></thead>
+<tbody>
+<tr><td>Đánh dấu đơn <code>PAID</code></td><td><b>Trong DB</b></td><td>Dấu + hệ quả trong <b>cùng một transaction</b></td><td><b>Exactly-once processing</b> thật sự</td></tr>
+<tr><td>Gửi email xác nhận</td><td><b>Ngoài DB</b> (SMTP)</td><td>Ghi dấu → gửi → hỏng thì trả dấu</td><td>Phải <b>chọn</b>: không trùng, đổi lại có thể mất</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box key">
+<div class="t">Một câu đáng nhớ</div>
+<p><b>Idempotency là miễn phí khi hệ quả nằm trong DB, và là một quyết định nghiệp vụ khi nó ra
+ngoài.</b> Dự án chọn ghi dấu <i>trước</i> khi gửi mail — chấp nhận rủi ro mất một email nếu
+process chết đúng khe giữa hai bước, để đổi lấy chắc chắn không gửi trùng
+(<a href="../adr/004-ghi-dau-truoc-khi-gui-mail.md">ADR-004</a>).</p>
+</div>
+
+<h2>Webhook thanh toán — ba chi tiết, sai cái nào cũng hỏng im lặng</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 230" role="img" aria-label="Các bước verify chữ ký webhook">
+  <defs><marker id="ah4d" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+  <text class="s-t mono sm" x="16" y="24">X-Payment-Signature: t=1757000000,v1=&lt;hex hmac-sha256&gt;</text>
+
+  <rect class="s-box" x="16" y="44" width="190" height="72" rx="8"/>
+  <text class="s-t sm b" x="111" y="68" text-anchor="middle">① RAW body</text>
+  <text class="s-t sm" x="111" y="88" text-anchor="middle">đúng chuỗi byte cổng gửi</text>
+  <text class="s-t sm m" x="111" y="105" text-anchor="middle">main.ts: rawBody: true</text>
+
+  <rect class="s-box" x="238" y="44" width="190" height="72" rx="8"/>
+  <text class="s-t sm b" x="333" y="68" text-anchor="middle">② HMAC-SHA256</text>
+  <text class="s-t mono sm" x="333" y="88" text-anchor="middle">hmac(`${t}.${raw}`)</text>
+  <text class="s-t sm m" x="333" y="105" text-anchor="middle">t nằm TRONG phần được ký</text>
+
+  <rect class="s-box" x="460" y="44" width="190" height="72" rx="8"/>
+  <text class="s-t sm b" x="555" y="68" text-anchor="middle">③ timingSafeEqual</text>
+  <text class="s-t sm" x="555" y="88" text-anchor="middle">so sánh hằng thời gian</text>
+  <text class="s-t sm m" x="555" y="105" text-anchor="middle">không phải ===</text>
+
+  <rect class="s-box-ok" x="682" y="44" width="182" height="72" rx="8"/>
+  <text class="s-t sm b" x="773" y="68" text-anchor="middle">④ kiểm hạn |now − t|</text>
+  <text class="s-t sm" x="773" y="88" text-anchor="middle">SAU khi chữ ký đã đúng</text>
+  <text class="s-t sm m" x="773" y="105" text-anchor="middle">chống replay</text>
+
+  <g color="var(--muted)">
+    <path class="s-l" d="M206 80 H 232" marker-end="url(#ah4d)"/>
+    <path class="s-l" d="M428 80 H 454" marker-end="url(#ah4d)"/>
+    <path class="s-l" d="M650 80 H 676" marker-end="url(#ah4d)"/>
+  </g>
+
+  <rect class="s-box-bad" x="16" y="136" width="272" height="80" rx="8"/>
+  <text class="s-t sm b" x="32" y="158" fill="var(--bad)">Sai ① thì sao</text>
+  <text class="s-t sm" x="32" y="178">parse JSON rồi stringify lại ⇒ đổi</text>
+  <text class="s-t sm" x="32" y="194">thứ tự khoá và khoảng trắng ⇒</text>
+  <text class="s-t sm" x="32" y="210">"chữ ký LUÔN sai", không rõ vì sao</text>
+
+  <rect class="s-box-bad" x="304" y="136" width="272" height="80" rx="8"/>
+  <text class="s-t sm b" x="320" y="158" fill="var(--bad)">Sai ③ thì sao</text>
+  <text class="s-t sm" x="320" y="178">so sánh chuỗi dừng ở byte đầu khác</text>
+  <text class="s-t sm" x="320" y="194">nhau ⇒ thời gian trả lời rò rỉ độ dài</text>
+  <text class="s-t sm" x="320" y="210">tiền tố đúng ⇒ dò dần từng byte</text>
+
+  <rect class="s-box-bad" x="592" y="136" width="272" height="80" rx="8"/>
+  <text class="s-t sm b" x="608" y="158" fill="var(--bad)">Thiếu ④ thì sao</text>
+  <text class="s-t sm" x="608" y="178">một chữ ký hợp lệ bắt được trên</text>
+  <text class="s-t sm" x="608" y="194">đường truyền dùng lại được</text>
+  <text class="s-t sm" x="608" y="210">MÃI MÃI — replay attack</text>
+</svg>
+<figcaption>Kiểm hạn phải nằm <b>sau</b> bước so chữ ký: trả lời "hết hạn" cho một chữ ký sai là
+tự tiết lộ rằng phần còn lại đúng. Thứ tự bốn bước này không phải chuyện thẩm mỹ.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t">Vì sao webhook cần chữ ký mà API thường thì không</div>
+<p>Vì webhook là <b>endpoint công khai không có đăng nhập</b>. Nó phải mở cho máy chủ của cổng
+thanh toán gọi vào, mà máy đó không mang access token nào. Không verify thì bất kỳ ai biết URL
+cũng gửi được một JSON <code>{"orderId": "…", "type": "payment.succeeded"}</code> và
+<b>đánh dấu đơn của người khác là đã trả tiền</b> — mất hàng thật, không thu được tiền thật.</p>
+<p>Và Phase 5 làm lộ ra điều này rất rõ: trang demo <b>không tự thanh toán được</b>, nó chỉ hiện
+ra lệnh <code>send-webhook</code> để copy — vì trình duyệt không có khoá bí mật. <b>Nếu FE ký được
+thì việc verify chữ ký là vô nghĩa.</b> Đó không phải hạn chế của demo, mà là thứ đang được chứng
+minh.</p>
+</div>
+
+<h2>Cấu trúc file</h2>
+
+<div class="tree">
+src/<span class="d">infra/queue/</span>
+├── queue.constants.ts        <span class="c">tên queue + 5 tên job + payload — nguồn sự thật duy nhất</span>
+├── queue.service.ts          <span class="c">Queue + kết nối RIÊNG · retry/backoff/jitter</span>
+└── queue.module.ts
+
+src/modules/<span class="d">outbox/</span>
+├── outbox.repository.ts      <span class="c">dispatchBatch — nơi thứ tự đẩy/đánh-dấu quyết định mọi thứ</span>
+├── outbox.relay.ts           <span class="c">quét, định tuyến sự kiện ra job</span>
+├── idempotency.repository.ts <span class="c">runOnceInTransaction (trong DB) vs claim/release (ngoài DB)</span>
+└── index.ts
+
+src/modules/<span class="d">payment/</span>
+├── payment.signature.ts      <span class="c">HMAC + timingSafeEqual — thuần hàm, dễ unit test</span>
+├── payment.controller.ts     <span class="c">verify trên req.rawBody rồi trả 2xx NHANH</span>
+└── payment.service.ts        <span class="c">markPaid · refund_requests</span>
+
+src/modules/<span class="d">mail/</span>              <span class="c">cổng gửi mail giả lập + PermanentMailError</span>
+src/modules/order/order.expiry.service.ts   <span class="new">← hai đường huỷ đơn</span>
+src/modules/order/order.notifier.ts
+src/<span class="d">worker/</span>job.processor.ts    <span class="new">← định tuyến job, cố tình MỎNG</span>
+src/worker.ts                 <span class="c">điểm vào thứ hai — nest start --entryFile worker</span>
+</div>
+
+<div class="box trap">
+<div class="t">Ba bẫy hạ tầng đã gặp thật ở phase này</div>
+<ul>
+<li><b>BullMQ ném <code>MaxRetriesPerRequestError</code> khi queue đang RẢNH.</b> Worker chạy lệnh
+blocking (<code>BZPOPMIN</code>) để chờ job, ioredis bắt buộc <code>maxRetriesPerRequest: null</code>
+cho kiểu kết nối đó. Nhưng <code>RedisService</code> cố tình đặt <code>1</code> vì rate limit phải
+hỏng nhanh ⇒ <b>hai nhu cầu ngược nhau, phải là hai kết nối</b>. Dùng chung thì chạy được lúc đầu
+rồi mới nổ.</li>
+<li><b><code>QUEUE_PREFIX</code>.</b> BullMQ chia job cho <b>mọi</b> tiến trình cùng Redis và cùng
+tiền tố — worker đang chạy trên máy dev sẽ <b>nuốt job của integration test</b>. Triệu chứng: test
+báo "0 email" dù code đúng.</li>
+<li><b><code>ts-node</code> không chạy được worker.</b> Prisma 7 sinh import kèm đuôi
+<code>.js</code> nhưng file thật là <code>.ts</code>; Jest có <code>moduleNameMapper</code>,
+<code>ts-node</code> thì không. Phải dùng <code>nest start --entryFile worker</code>.</li>
+</ul>
+</div>
+
+<h2>Cách test — và test nào thật sự đáng giá</h2>
+
+<p>21 test integration, nhưng bốn cái dưới đây là phần thịt:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Test</th><th>Nó chứng minh điều gì</th></tr></thead>
+<tbody>
+<tr><td>4</td><td>Hai relay song song trên 50 dòng → tổng job đúng 50, không trùng</td><td><code>SKIP LOCKED</code> thật sự chia việc</td></tr>
+<tr><td><b>8</b> ⭐</td><td><b>Delayed job + sweeper cùng chạy trên một đơn → stock chỉ tăng MỘT lần</b></td><td>Huỷ đơn idempotent — cổng chính #1</td></tr>
+<tr><td>14</td><td>Webhook tới đơn đã <code>CANCELLED</code> → đơn vẫn <code>CANCELLED</code>, có 1 dòng <code>refund_requests</code>, có log <code>error</code></td><td>Tiền thật đã chuyển thì hệ thống không im lặng</td></tr>
+<tr><td><b>18</b> ⭐</td><td><b>"Rút dây mạng": 20 đơn → giết worker giữa chừng → bật lại → đúng 20 email, không hơn</b></td><td>Không mất, không trùng — cổng chính #2</td></tr>
+<tr><td>19</td><td>Đẩy queue hỏng giữa lô → <b>cả lô</b> về <code>PENDING</code></td><td>Thứ tự trong relay đúng (test cho ADR-006)</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<div class="t">Luật vàng khi test async: tuyệt đối không <code>sleep(500)</code> rồi assert</div>
+<p>Đó là nguồn flaky số một. Chờ theo <b>điều kiện</b> — poll cho tới khi trạng thái đổi, có
+timeout tổng. Và <b>khẳng định trên đối tượng của test này</b>, không trên tổng số: test dùng chung
+DB, relay sẽ lấy cả dư âm của test trước.</p>
+</div>
+
+<h3>Demo "rút dây mạng" — ba con số phải ra</h3>
+
+<pre><code>so_don          = 20    đặt được 20 đơn
+outbox_con_cho  =  0    không sự kiện nào kẹt lại     ← &gt; 0 nghĩa là MẤT dữ liệu
+email_da_gui    = 20    đúng một dấu cho mỗi đơn      ← 21 là TRÙNG · 19 là MẤT</code></pre>
+
+<p>Đây là deliverable của phase theo <code>SPEC.md</code>, và đã chạy tay trên môi trường dev
+thật ngày 2026-09-05: <b>20 / 0 / 20</b>.</p>
+
+<h2>Tiêu chí qua phase</h2>
+
+<ul class="chk">
+<li class="y"><b>21 integration test mới xanh</b> (tổng 70/70), unit 74/74, <code>npm run check</code> sạch</li>
+<li class="y"><b>Test #8 và #18 xanh</b> — hai cổng chính</li>
+<li class="y">Chạy <b>bằng tay</b> trên môi trường dev thật: API + worker + Postgres/Redis compose</li>
+<li class="y">Demo "rút dây mạng" chạy tay, số liệu dán vào spec</li>
+<li class="y">Migration viết tay chạy đúng qua <code>prisma migrate deploy</code></li>
+<li class="y">3 ADR: <a href="../adr/004-ghi-dau-truoc-khi-gui-mail.md">004</a> ·
+<a href="../adr/005-worker-chay-process-rieng.md">005</a> ·
+<a href="../adr/006-relay-giu-transaction-khi-day-queue.md">006</a></li>
+<li class="y">4 câu hỏi bản chất có đáp án <span class="src">→ <a href="../tech-playbook.md">tech-playbook §Phase 4</a></span></li>
+</ul>
+
+<div class="box key">
+<div class="t">Vì sao "chạy tay" lại là một mục của Definition of Done</div>
+<p>Vì bộ test <b>đã từng xanh</b> trong khi relay viết sai thứ tự và mất dữ liệu im lặng. Test
+kiểm được thứ mình nghĩ ra để kiểm; nó không kiểm được thứ mình chưa nghĩ tới. Giết worker bằng
+tay giữa chừng rồi tự đếm ba con số là cách rẻ nhất để chạm vào loại lỗi đó.</p>
+</div>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"At-least-once và exactly-once khác nhau thế nào? Vì sao exactly-once 'không tồn tại'?"</summary>
+<div class="ans">
+<p>Ba mức bảo đảm của tầng <b>giao vận</b>: <i>at-most-once</i> (có thể mất, không bao giờ trùng),
+<i>at-least-once</i> (không bao giờ mất, có thể trùng), <i>exactly-once</i> (không mất không trùng).</p>
+<p>Mức thứ ba không tồn tại ở tầng giao vận, lý do rất đơn giản: <b>người gửi không phân biệt được
+"chưa gửi tới" với "gửi tới rồi nhưng phản hồi bị mất"</b>. Đứng trước hai khả năng đó chỉ có hai
+lựa chọn — gửi lại (có thể trùng) hoặc bỏ qua (có thể mất). Không có lựa chọn thứ ba.</p>
+<p>Vì vậy hệ thống thực tế chọn <b>at-least-once + consumer idempotent</b>, kết quả gọi là
+<i>exactly-once <b>processing</b></i>: message có thể tới hai lần, nhưng <b>hiệu ứng</b> chỉ xảy
+ra một lần. Chữ "processing" là chỗ khác nhau, không phải chữ trang trí.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao consumer phải idempotent?"</summary>
+<div class="ans">
+<p>Vì nó là <b>nơi duy nhất còn có thể chặn</b>. Queue đã cố hết sức và vẫn giao trùng được; đến
+lượt consumer, nó có DB trong tay nên nó chặn được — bằng một dấu <code>INSERT</code> vào
+<code>processed_events</code> với khoá <code>(event_id, consumer)</code>, để <b>UNIQUE của DB làm
+trọng tài</b>.</p>
+<p>Đúng cùng một cơ chế với <code>Idempotency-Key</code> ở Phase 3, và cách sai cũng y hệt:
+<code>SELECT</code> xem đã xử lý chưa rồi mới xử lý — hai worker song song lọt qua khe giữa hai
+bước đó.</p>
+<p>Rồi nói thêm phần ít ai nói: <b>idempotency miễn phí khi hệ quả nằm trong DB</b> (dấu và hệ quả
+cùng một transaction), và là <b>quyết định nghiệp vụ khi hệ quả ra ngoài</b> (gửi email — phải
+chọn giữa "có thể mất" và "có thể trùng").</p>
+</div></details>
+
+<details class="qa"><summary>"Outbox giải quyết gì mà 'ghi DB rồi push queue' không giải quyết được?"</summary>
+<div class="ans">
+<p>Nó giải quyết <b>dual write</b>: hai hệ thống lưu trữ khác nhau, không transaction nào bao được
+cả hai. Chết giữa hai lệnh thì đơn tồn tại mà email không bao giờ gửi, và
+<b><code>try/catch</code> không cứu được</b> — lệnh đầu đã commit rồi. Đảo thứ tự cũng hỏng, chỉ
+đổi kiểu: job chạy cho một đơn chưa từng tồn tại.</p>
+<p>Outbox đổi câu hỏi: ghi <b>ý định</b> vào cùng nơi với dữ liệu (<code>tx.order.create</code> +
+<code>tx.outboxEvent.create</code> trong một transaction), rồi một tiến trình riêng đọc bảng đó và
+đẩy ra queue. Việc "đẩy ra ngoài" vẫn hỏng được, nhưng giờ nó hỏng <b>an toàn</b>.</p>
+<p><b>Nhưng chỉ khi thứ tự trong relay viết đúng.</b> Bản đầu của dự án này viết ngược và vẫn mất
+dữ liệu im lặng, mà không một test nào đỏ.</p>
+</div></details>
+
+<details class="qa"><summary>"Webhook 'đã thanh toán' đến SAU khi đơn đã tự huỷ thì xử lý sao?"</summary>
+<div class="ans">
+<p>Đây là ca <b>tiền thật đã chuyển mà hàng không còn</b>: khách bấm trả tiền lúc phút 14:58, cổng
+xử lý chậm, webhook về lúc 15:03 — đơn đã tự huỷ, hàng đã trả về kho, có thể người khác đã mua mất.</p>
+<p>Ba cách <b>sai</b>, mỗi cách sai một kiểu:</p>
+<ol>
+<li><b>Bỏ qua webhook</b> — khách mất tiền, hệ thống im lặng. Tệ nhất.</li>
+<li><b>Hồi sinh đơn thành <code>PAID</code></b> — nghe hợp lý nhất nên nguy hiểm nhất: hàng đã trả
+về kho và có thể đã bán cho người khác, nên đơn này tạo <b>oversell ở đường sau</b>.</li>
+<li><b>Tự động hoàn tiền mà không ghi lại</b> — số dư đúng, nhưng không ai biết chuyện đã xảy ra.</li>
+</ol>
+<p>Cách <b>đúng</b>: giữ nguyên <code>CANCELLED</code>, ghi một bản ghi <code>refund_requests</code>
+đầy đủ (đơn, <code>paymentIntentId</code>, số tiền, lý do, <code>correlationId</code>), log mức
+<code>error</code>, rồi để quy trình nghiệp vụ xử lý. <code>UNIQUE(payment_intent_id)</code> chặn
+webhook lặp tạo hai yêu cầu hoàn tiền.</p>
+<p>Nguyên tắc gói lại: <b>tiền thật đã chuyển thì hệ thống không được im lặng, và cũng không được
+tự ý sửa số.</b> Việc của code là ghi lại đủ để người khác quyết định được.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao worker phải là tiến trình riêng chứ không chạy chung với API?"</summary>
+<div class="ans">
+<p>Ba lý do, theo <a href="../adr/005-worker-chay-process-rieng.md">ADR-005</a>:</p>
+<ul>
+<li><b>Hai loại tải khác nhau.</b> API phải trả lời nhanh; worker làm việc nặng và được phép chậm.
+Chạy chung thì một job nặng làm tăng latency của mọi request.</li>
+<li><b>Scale độc lập.</b> Flash sale cần nhiều instance API, không cần nhiều worker.</li>
+<li><b>Trên nền tảng tính tiền theo request</b> (Cloud Run), CPU có thể bị bóp sau khi response đã
+trả — job nền chạy chung sẽ bị treo giữa chừng.</li>
+</ul>
+<p>Chúng dùng <b>cùng một codebase</b>, chỉ khác điểm vào (<code>main.ts</code> vs
+<code>worker.ts</code>) — nên không có chuyện logic nghiệp vụ bị viết hai lần.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao backoff phải có jitter?"</summary>
+<div class="ans">
+<p>Vì nếu 500 job cùng fail lúc SMTP sập, và tất cả đều retry sau đúng 2 giây, thì chúng sẽ
+<b>cùng thức dậy một lúc</b> và đập chết dịch vụ vừa mới hồi phục. Tên gọi: <b>thundering herd</b>.</p>
+<p>Jitter là cộng thêm một lượng ngẫu nhiên (dự án dùng ±30%) để làm phân tán thời điểm thử lại.
+Nó quan trọng <b>ngang</b> với bản thân backoff, không phải chi tiết làm đẹp.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p4"></section>
+
+<div class="pager"><a href="phase-3.html">← Phase 3</a><a href="phase-5.html">Phase 5 — UI demo →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

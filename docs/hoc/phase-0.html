@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 0 — Nền móng &amp; ranh giới</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item active" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Phase 0 — Nền móng &amp; ranh giới <span class="tag done">đã đóng 2026-08-08</span></h1>
+<p class="lede">Phase duy nhất không có tính năng nào cho người dùng. Nó quyết định
+<b>sáu tháng nữa code này còn sửa được hay không</b> — và đó là thứ đắt nhất trong mọi dự án.</p>
+<p class="meta"><b>Kết quả:</b> 16/16 test · CI xanh từ máy sạch · 2 ADR · ESLint chặn import sâu ·
+<b>Code sinh ra:</b> ~990 dòng.</p>
+
+<div class="box key">
+<div class="t">Đoán thử trước khi đọc</div>
+<p>Một dự án chia thư mục rất đẹp: <code>modules/auth/</code>, <code>modules/order/</code>,
+<code>modules/product/</code>. Nhưng trong <code>order.service.ts</code> có dòng
+<code>import { AuthService } from '../auth/auth.service'</code>.</p>
+<p><b>Dự án đó có "ranh giới module" không?</b> Trả lời trong đầu, rồi đọc tiếp.</p>
+</div>
+
+<h2>Bài toán</h2>
+
+<p>Chủ dự án viết spec, AI viết code. Nghĩa là code sẽ được sinh ra <b>nhanh hơn tốc độ đọc</b>.
+Trong hoàn cảnh đó có đúng hai thứ giữ cho dự án không sụp:</p>
+
+<div class="cols c2">
+<div class="card">
+<h4>1. Ranh giới do máy giữ, không do người nhớ</h4>
+<p>Quy ước "đừng import sâu vào module khác" sẽ bị phá — không phải vì ai đó cố tình, mà vì
+đến lần thứ n thì không ai nhớ. Và nó bị phá <b>im lặng</b>: không test nào đỏ. Muốn ranh giới
+tồn tại thật thì phải có <b>máy</b> chặn.</p>
+</div>
+<div class="card">
+<h4>2. Sai cấu hình phải chết lúc khởi động</h4>
+<p>Thiếu một biến môi trường mà app vẫn lên được, thì nó sẽ chết lúc 3 giờ sáng, ở request đầu
+tiên chạm tới biến đó, với thông báo lỗi chẳng liên quan gì. Rẻ nhất là <b>chết ngay lúc
+<code>npm run dev</code></b>.</p>
+</div>
+</div>
+
+<h3>Vì sao là Modular Monolith, không phải microservices</h3>
+
+<p>Đây là quyết định đầu tiên và ảnh hưởng tới mọi phase sau (<a href="../adr/001-modular-monolith.md">ADR-001</a>).
+Ba cách chia một hệ thống:</p>
+
+<figure class="dg">
+<svg viewBox="0 0 880 250" role="img" aria-label="So sánh monolith, modular monolith và microservices">
+  <!-- Monolith thường -->
+  <rect class="s-box-bad" x="12" y="40" width="270" height="170" rx="10"/>
+  <text class="s-t b" x="147" y="30" text-anchor="middle">Monolith thường</text>
+  <g class="s-t sm">
+    <circle cx="70" cy="90" r="20" class="s-box"/><text x="70" y="94" text-anchor="middle">auth</text>
+    <circle cx="200" cy="90" r="20" class="s-box"/><text x="200" y="94" text-anchor="middle">order</text>
+    <circle cx="70" cy="165" r="20" class="s-box"/><text x="70" y="169" text-anchor="middle">sku</text>
+    <circle cx="200" cy="165" r="20" class="s-box"/><text x="200" y="169" text-anchor="middle">mail</text>
+  </g>
+  <g class="s-l bad">
+    <line x1="90" y1="90" x2="180" y2="90"/><line x1="70" y1="110" x2="70" y2="145"/>
+    <line x1="200" y1="110" x2="200" y2="145"/><line x1="90" y1="165" x2="180" y2="165"/>
+    <line x1="88" y1="105" x2="182" y2="150"/><line x1="182" y1="105" x2="88" y2="150"/>
+  </g>
+  <text class="s-t sm m" x="147" y="200" text-anchor="middle">ai cũng gọi được ai — vài tháng là rối</text>
+
+  <!-- Modular monolith -->
+  <rect class="s-box-ok" x="305" y="40" width="270" height="170" rx="10"/>
+  <text class="s-t b" x="440" y="30" text-anchor="middle">Modular Monolith ← dự án này</text>
+  <g class="s-t sm">
+    <rect class="s-box" x="335" y="66" width="90" height="48" rx="6"/><text x="380" y="88" text-anchor="middle">auth</text><text x="380" y="103" text-anchor="middle" class="s-t mono m">index.ts</text>
+    <rect class="s-box" x="455" y="66" width="90" height="48" rx="6"/><text x="500" y="88" text-anchor="middle">order</text><text x="500" y="103" text-anchor="middle" class="s-t mono m">index.ts</text>
+    <rect class="s-box" x="335" y="134" width="90" height="48" rx="6"/><text x="380" y="156" text-anchor="middle">product</text><text x="380" y="171" text-anchor="middle" class="s-t mono m">index.ts</text>
+    <rect class="s-box" x="455" y="134" width="90" height="48" rx="6"/><text x="500" y="156" text-anchor="middle">payment</text><text x="500" y="171" text-anchor="middle" class="s-t mono m">index.ts</text>
+  </g>
+  <g class="s-l ok">
+    <line x1="425" y1="90" x2="455" y2="90"/><line x1="425" y1="158" x2="455" y2="158"/>
+    <line x1="380" y1="114" x2="380" y2="134"/>
+  </g>
+  <text class="s-t sm m" x="440" y="200" text-anchor="middle">một process, một DB — chỉ nói chuyện qua cửa</text>
+
+  <!-- Microservices -->
+  <text class="s-t b" x="735" y="30" text-anchor="middle">Microservices</text>
+  <g class="s-t sm">
+    <rect class="s-box" x="608" y="52" width="112" height="56" rx="8"/><text x="664" y="76" text-anchor="middle">auth</text><text x="664" y="93" text-anchor="middle" class="s-t sm m">DB riêng</text>
+    <rect class="s-box" x="750" y="52" width="112" height="56" rx="8"/><text x="806" y="76" text-anchor="middle">order</text><text x="806" y="93" text-anchor="middle" class="s-t sm m">DB riêng</text>
+    <rect class="s-box" x="608" y="132" width="112" height="56" rx="8"/><text x="664" y="156" text-anchor="middle">product</text><text x="664" y="173" text-anchor="middle" class="s-t sm m">DB riêng</text>
+    <rect class="s-box" x="750" y="132" width="112" height="56" rx="8"/><text x="806" y="156" text-anchor="middle">payment</text><text x="806" y="173" text-anchor="middle" class="s-t sm m">DB riêng</text>
+  </g>
+  <g class="s-l dash"><line x1="720" y1="80" x2="750" y2="80"/><line x1="720" y1="160" x2="750" y2="160"/><line x1="664" y1="108" x2="664" y2="132"/></g>
+  <text class="s-t sm m" x="735" y="207" text-anchor="middle">mạng ở giữa — mất transaction &amp; lock</text>
+</svg>
+<figcaption><b>Cột phải là thứ phá hỏng mục tiêu học của dự án.</b> Bài toán cốt lõi ở đây là
+chống bán vượt, mà công cụ chống bán vượt chính là <b>transaction và khoá của một database duy
+nhất</b>. Tách thành microservices là tự tay vứt đúng công cụ đó đi, rồi phải dựng lại saga và
+distributed transaction — tốn toàn bộ thời gian mà không học được gì về concurrency.</figcaption>
+</figure>
+
+<h3>Đáp án cho câu đoán ở đầu trang</h3>
+
+<div class="box trap">
+<div class="t">Không. Dự án đó không có ranh giới nào cả</div>
+<p><b>Ranh giới module không do thư mục tạo ra, mà do <code>import</code> tạo ra.</b> Chia thư
+mục đẹp mà import xuyên thẳng vào file bên trong module khác thì ranh giới bằng đúng số 0 —
+chỉ khác monolith thường ở chỗ nhìn có vẻ gọn gàng hơn.</p>
+</div>
+
+<p>Vì vậy dự án ép ranh giới bằng <b>hai tầng, cả hai đều là máy</b>:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Tầng</th><th>Chặn được gì</th><th>Lỗ hổng của riêng nó</th></tr></thead>
+<tbody>
+<tr><td><b>DI container của NestJS</b></td><td>Provider không nằm trong <code>exports</code> thì module khác không <b>inject</b> được</td><td>Vẫn <code>import</code> thẳng file rồi tự <code>new</code> được</td></tr>
+<tr><td><b>ESLint <code>no-restricted-imports</code></b></td><td>Chặn đường dẫn import sâu vào trong module khác</td><td>— (bịt đúng lỗ hổng của tầng trên)</td></tr>
+</tbody>
+</table>
+</div>
+
+<pre><code>import { HealthModule } from '../health';            // ✅ qua cửa công khai
+import { HealthService } from '../health/health.service';  // ❌ ESLint chặn</code></pre>
+
+<h2>Ba tầng phụ thuộc — chỉ đi một chiều</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 260" role="img" aria-label="Ba tầng phụ thuộc trong src">
+  <rect class="s-box-a" x="60" y="20" width="760" height="58" rx="8"/>
+  <text class="s-t b" x="80" y="45">modules/ — NGHIỆP VỤ</text>
+  <text class="s-t sm m" x="80" y="65">auth · product · order · payment · outbox · mail · health</text>
+
+  <rect class="s-box" x="60" y="112" width="365" height="58" rx="8"/>
+  <text class="s-t b" x="80" y="137">infra/ — KẾT NỐI RA NGOÀI</text>
+  <text class="s-t sm m" x="80" y="157">prisma · redis · queue · metrics</text>
+
+  <rect class="s-box" x="455" y="112" width="365" height="58" rx="8"/>
+  <text class="s-t b" x="475" y="137">common/ — HẠ TẦNG DÙNG CHUNG</text>
+  <text class="s-t sm m" x="475" y="157">logger · filters · pipes · pagination · correlation · errors</text>
+
+  <rect class="s-box" x="260" y="204" width="360" height="48" rx="8"/>
+  <text class="s-t b" x="280" y="226">config/ — nơi DUY NHẤT đọc process.env</text>
+  <text class="s-t sm m" x="280" y="244">env.schema.ts (Zod) · validateEnv() chạy lúc boot</text>
+
+  <g color="var(--accent)">
+    <path class="s-l a" d="M200 78 V 112" marker-end="url(#ah0)"/>
+    <path class="s-l a" d="M640 78 V 112" marker-end="url(#ah0)"/>
+    <path class="s-l a" d="M240 170 V 204" marker-end="url(#ah0)"/>
+    <path class="s-l a" d="M640 170 V 204" marker-end="url(#ah0)"/>
+  </g>
+  <defs>
+    <marker id="ah0" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <text class="s-t sm m" x="250" y="100">mũi tên chỉ đi xuống — không bao giờ ngược lại</text>
+</svg>
+<figcaption><b>Phép thử nhanh:</b> nếu thấy mình sắp viết <code>import</code> từ
+<code>common/</code> hoặc <code>config/</code> lên <code>modules/</code>, thì thứ đó
+<b>không phải hạ tầng dùng chung</b> — nó là nghiệp vụ đang đặt nhầm chỗ.</figcaption>
+</figure>
+
+<h2>Cấu trúc file sinh ra ở phase này</h2>
+
+<div class="tree">
+flash-core/
+├── <span class="d">src/</span>
+│   ├── main.ts                       <span class="c">bootstrap — thứ tự 6 bước, đảo là hỏng</span>
+│   ├── app.module.ts                 <span class="c">ráp module + đăng ký exception filter toàn cục</span>
+│   ├── <span class="d">config/</span>
+│   │   ├── env.schema.ts             <span class="c">schema Zod — nguồn sự thật của mọi biến env</span>
+│   │   ├── config.module.ts          <span class="c">@Global, cấp object Env qua token ENV</span>
+│   │   └── index.ts                  <span class="c">cửa công khai</span>
+│   ├── <span class="d">common/</span>
+│   │   ├── errors/domain.error.ts    <span class="c">lớp cha của lỗi nghiệp vụ — KHÔNG biết gì về HTTP</span>
+│   │   ├── filters/all-exceptions…   <span class="c">một hình dạng response lỗi cho cả app</span>
+│   │   ├── pipes/zod-validation…     <span class="c">validate input ở biên, loại field lạ</span>
+│   │   └── logger/logger.module.ts   <span class="c">Pino JSON + genReqId + redact</span>
+│   ├── <span class="d">infra/prisma/</span>
+│   │   ├── prisma.service.ts         <span class="c">pg.Pool → PrismaPg adapter → PrismaClient</span>
+│   │   └── prisma.module.ts          <span class="c">@Global — pool phải là MỘT instance cho cả app</span>
+│   └── <span class="d">modules/health/</span>            <span class="new">← KHUÔN MẪU của mọi module sau này</span>
+│       ├── health.controller.ts      <span class="c">HTTP: nhận → gọi service → map response</span>
+│       ├── health.service.ts         <span class="c">logic: liveness vs readiness</span>
+│       ├── health.service.spec.ts    <span class="c">unit test nằm CẠNH code nó test</span>
+│       ├── health.module.ts          <span class="c">khai báo provider/controller</span>
+│       └── index.ts                  <span class="c">cửa công khai — module khác chỉ import từ đây</span>
+├── <span class="d">test/</span>health.e2e-spec.ts        <span class="c">integration: Postgres THẬT qua Testcontainers</span>
+├── docker-compose.yml                <span class="c">Postgres 16 + Redis 7 cho local</span>
+├── prisma.config.ts                  <span class="c">Prisma 7: datasource.url nằm ở ĐÂY, không trong schema</span>
+└── .github/workflows/ci.yml          <span class="c">generate → lint → typecheck → test → build</span>
+</div>
+
+<div class="box why">
+<div class="t">Vì sao module <code>health</code> lại quan trọng đến thế</div>
+<p>Nó không làm gì cho nghiệp vụ. Nó tồn tại để <b>đóng khuôn</b>: 5 file, mỗi file một vai, và
+mọi module sau (<code>auth</code>, <code>product</code>, <code>order</code>…) đều copy đúng
+hình dạng này. Có một khuôn từ đầu nghĩa là 6 tháng sau mở module nào cũng biết trước file nào
+làm gì — thứ này rẻ ở Phase 0 và gần như không thêm được nữa ở Phase 4.</p>
+</div>
+
+<h2>Cách code — bốn quyết định, theo đúng thứ tự</h2>
+
+<h3>① Cấu hình: một schema, chạy lúc boot</h3>
+
+<p>Luật của dự án: <b>chỉ <code>src/config/</code> được đọc <code>process.env</code></b>. Mọi
+nơi khác nhận object <code>Env</code> đã được Zod ép kiểu và kiểm tra.</p>
+
+<pre><code>// src/config/env.schema.ts (rút gọn)
+const schema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().positive().default(3000),
+  DATABASE_URL: z.string().url(),
+  JWT_ACCESS_SECRET: z.string().min(32),      // thiếu hoặc ngắn → app KHÔNG lên
+  INVENTORY_STRATEGY: z.enum(['optimistic', 'pessimistic', 'redis']).default('optimistic'),
+});</code></pre>
+
+<div class="cols c2">
+<div class="card bad">
+<h4>Cách sai</h4>
+<pre><code>const port = process.env.PORT;   // string | undefined
+app.listen(port);                // "3000" hay undefined?
+</code></pre>
+<p>Đọc rải rác, không ai kiểm. Sai thì lộ ra ở nơi khác, lúc khác.</p>
+</div>
+<div class="card ok">
+<h4>Cách của dự án</h4>
+<pre><code>const env = app.get&lt;Env&gt;(ENV);
+await app.listen(env.PORT, '0.0.0.0');
+</code></pre>
+<p><code>env.PORT</code> <b>chắc chắn</b> là số. Thiếu biến thì đã chết ở dòng
+<code>NestFactory.create()</code>, kèm tên biến bị thiếu.</p>
+</div>
+</div>
+
+<h3>② Thứ tự khởi động trong <code>main.ts</code></h3>
+
+<figure class="dg">
+<svg viewBox="0 0 880 210" role="img" aria-label="Sáu bước khởi động trong main.ts">
+  <defs><marker id="ah0b" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+  <g color="var(--muted)">
+  <rect class="s-box-a" x="10" y="52" width="126" height="56" rx="8"/>
+  <text class="s-t sm b" x="73" y="76" text-anchor="middle">① dotenv</text>
+  <text class="s-t sm m" x="73" y="94" text-anchor="middle">nạp .env</text>
+
+  <rect class="s-box" x="156" y="52" width="126" height="56" rx="8"/>
+  <text class="s-t sm b" x="219" y="76" text-anchor="middle">② NestFactory</text>
+  <text class="s-t sm m" x="219" y="94" text-anchor="middle">dựng cây module</text>
+
+  <rect class="s-box" x="302" y="52" width="126" height="56" rx="8"/>
+  <text class="s-t sm b" x="365" y="76" text-anchor="middle">③ useLogger</text>
+  <text class="s-t sm m" x="365" y="94" text-anchor="middle">xả log đang giữ</text>
+
+  <rect class="s-box" x="448" y="52" width="126" height="56" rx="8"/>
+  <text class="s-t sm b" x="511" y="76" text-anchor="middle">④ middleware</text>
+  <text class="s-t sm m" x="511" y="94" text-anchor="middle">cookie · static</text>
+
+  <rect class="s-box" x="594" y="52" width="126" height="56" rx="8"/>
+  <text class="s-t sm b" x="657" y="76" text-anchor="middle">⑤ shutdown</text>
+  <text class="s-t sm m" x="657" y="94" text-anchor="middle">hooks</text>
+
+  <rect class="s-box-ok" x="740" y="52" width="126" height="56" rx="8"/>
+  <text class="s-t sm b" x="803" y="76" text-anchor="middle">⑥ listen</text>
+  <text class="s-t sm m" x="803" y="94" text-anchor="middle">mở cổng</text>
+
+  <path class="s-l" d="M136 80 H 156" marker-end="url(#ah0b)"/>
+  <path class="s-l" d="M282 80 H 302" marker-end="url(#ah0b)"/>
+  <path class="s-l" d="M428 80 H 448" marker-end="url(#ah0b)"/>
+  <path class="s-l" d="M574 80 H 594" marker-end="url(#ah0b)"/>
+  <path class="s-l" d="M720 80 H 740" marker-end="url(#ah0b)"/>
+  </g>
+
+  <path class="s-l bad" d="M219 108 V 140" marker-end="url(#ah0b)" color="var(--bad)"/>
+  <rect class="s-box-bad" x="120" y="140" width="200" height="52" rx="8"/>
+  <text class="s-t sm b" x="220" y="162" text-anchor="middle">validateEnv() chạy tại đây</text>
+  <text class="s-t sm" x="220" y="180" text-anchor="middle">thiếu biến → THROW, app không lên</text>
+
+  <text class="s-t sm m" x="360" y="165">Đảo ① xuống sau ② thì app báo "thiếu DATABASE_URL"</text>
+  <text class="s-t sm m" x="360" y="184">dù file .env hoàn toàn đầy đủ — lỗi trỏ sai chỗ, tốn hàng giờ.</text>
+</svg>
+<figcaption>Bước ③ đi cặp với cờ <code>bufferLogs: true</code> ở bước ②: Nest <b>ngậm</b> log
+khởi động lại cho tới khi có logger thật, rồi phát lại qua nó. Bỏ bước ③ thì log khởi động —
+đúng phần quan trọng nhất khi app chết lúc boot — mất trắng.</figcaption>
+</figure>
+
+<h3>③ Lỗi: controller chỉ <code>throw</code>, biên lo phần còn lại</h3>
+
+<div class="chain">
+<span class="node"><b>service</b> throw DomainError</span>
+<span class="arw">→</span>
+<span class="node"><b>controller</b> không bắt</span>
+<span class="arw">→</span>
+<span class="node a"><b>AllExceptionsFilter</b> map sang HTTP</span>
+<span class="arw">→</span>
+<span class="node"><b>client</b> { code, message, correlationId }</span>
+</div>
+
+<p>Filter đăng ký bằng <code>APP_FILTER</code> trong <code>app.module.ts</code>, nghĩa là
+<b>không controller nào thoát được</b>. Thêm một loại lỗi nghiệp vụ mới = tạo một class kế thừa
+<code>DomainError</code>, không phải sửa filter.</p>
+
+<h3>④ <code>correlationId</code> — 7 dòng, dùng suốt 8 phase</h3>
+
+<pre><code>// src/common/logger/logger.module.ts
+genReqId: (req, res) =&gt; {
+  const incoming = req.headers['x-correlation-id'];
+  const id = typeof incoming === 'string' &amp;&amp; incoming.length &gt; 0 ? incoming : randomUUID();
+  res.setHeader('x-correlation-id', id);   // trả về cho client
+  return id;                               // pino gắn vào MỌI dòng log của request này
+}</code></pre>
+
+<div class="box why">
+<div class="t">Dòng "nếu client đã gửi thì dùng lại" quan trọng ngang dòng sinh id mới</div>
+<p>Nếu mỗi thành phần tự sinh id riêng thì một hành động của khách để lại hai id khác nhau ở
+API và worker — nối lại không được, và cả cơ chế thành vô nghĩa. Phase 6 mở rộng đúng ý này ra
+khỏi biên HTTP bằng <code>AsyncLocalStorage</code>.</p>
+</div>
+
+<h2>Cách test</h2>
+
+<div class="cols c2">
+<div class="card">
+<h4>Unit — <code>npm test</code></h4>
+<p>File <code>*.spec.ts</code> nằm <b>cạnh</b> code nó test. Không cần Docker, chạy tính bằng
+mili giây. 11 test ở phase này: <code>validateEnv</code> (mặc định, ép kiểu, báo thiếu biến,
+từ chối enum sai), Zod pipe (parse đúng / 400 kèm tên field / loại field lạ), health service.</p>
+</div>
+<div class="card">
+<h4>Integration — <code>npm run test:int</code></h4>
+<p>File <code>test/*.e2e-spec.ts</code>, dựng <b>Postgres 16 thật</b> bằng Testcontainers.
+5 test: <code>/health</code> 200, header <code>x-correlation-id</code> sinh mới, giữ nguyên id
+client gửi lên, <code>/ready</code> với DB thật, route lạ → 404 <b>qua filter chung</b>.</p>
+</div>
+</div>
+
+<div class="box key">
+<div class="t">Câu hỏi chọn tầng test: rủi ro nằm ở đâu?</div>
+<p>Rủi ro trong <b>logic của mình</b> → unit. Rủi ro nằm ở <b>tương tác với thứ mình không
+viết</b> (khoá của Postgres, thứ tự message của Redis, chữ ký webhook) → <b>bắt buộc</b>
+integration. Mock chỗ đó là tự lừa mình — và đó chính là lý do Phase 3 không thể dùng mock.</p>
+</div>
+
+<p><b>Phép thử cho bộ test</b> (dùng được ở mọi phase): cố tình xoá một <code>if</code> trong
+code rồi chạy test. Không có test nào đỏ ⇒ vùng đó chưa được bảo vệ, <b>bất kể coverage bao
+nhiêu</b>. Coverage đếm dòng <i>được chạy qua</i>, không đếm dòng <i>được kiểm chứng</i>.</p>
+
+<h2>Tiêu chí qua phase</h2>
+
+<ul class="chk">
+<li class="y"><b>16/16 test xanh</b> — 11 unit + 5 integration trên Postgres thật (10,4 giây)</li>
+<li class="y"><code>docker compose up</code> chạy được toàn bộ hạ tầng</li>
+<li class="y"><b>CI xanh từ máy sạch</b> — đây mới là điều kiện thật, không phải "xanh trên máy tôi"</li>
+<li class="y">ESLint chặn được import sâu (tự kiểm bằng cách cố tình viết một dòng vi phạm)</li>
+<li class="y">2 ADR: <a href="../adr/001-modular-monolith.md">001 — Modular Monolith</a>, <a href="../adr/002-nen-mong-ky-thuat-phase-0.md">002 — nền móng kỹ thuật</a></li>
+<li class="y">3 câu hỏi bản chất có đáp án <span class="src">→ <a href="../tech-playbook.md">tech-playbook §Phase 0</a></span></li>
+</ul>
+
+<div class="box note">
+<div class="t">Vì sao "CI xanh" mới là tiêu chí, không phải "test xanh"</div>
+<p>Máy của mình xanh chỉ chứng minh <i>"chạy được với những thứ tình cờ đang có sẵn ở đây"</i>.
+CI là <b>máy sạch</b>: nó chứng minh <i>"chạy được từ số 0, chỉ với những gì thật sự nằm trong
+git"</i>. Hệ quả trực tiếp: thứ gì code cần mà bị <code>.gitignore</code> thì CI phải sinh lại —
+ở đây là <code>src/generated/prisma</code>, nên bước <code>npm run db:generate</code> bắt buộc
+đứng <b>trước</b> typecheck.</p>
+</div>
+
+<h2>Bị chỉ vào — trả lời thế nào</h2>
+
+<details class="qa"><summary>"Modular Monolith với Microservices khác nhau ở đâu?"</summary>
+<div class="ans">
+<p>Cả hai là cách <b>chia</b> hệ thống, khác ở <b>độ tách</b>.</p>
+<ul>
+<li><b>Monolith thường:</b> một process, không ranh giới — nhanh viết, vài tháng sau thành mớ phụ thuộc chằng chịt.</li>
+<li><b>Microservices:</b> nhiều service tự deploy, tự DB — tách được thật, nhưng phải xây lại từ đầu mọi thứ mà một DB đơn lẻ vốn cho sẵn: distributed transaction, service discovery, độ trễ mạng.</li>
+<li><b>Modular Monolith:</b> một process, một DB, nhưng ranh giới module <b>ép bằng máy</b> — giữ được transaction và lock của một DB (đúng thứ Phase 3 cần), mà vẫn có sẵn "đường cắt" nếu sau này thật sự phải tách.</li>
+</ul>
+</div></details>
+
+<details class="qa"><summary>"Ranh giới module được ép bằng gì? Chứng minh đi."</summary>
+<div class="ans">
+<p>Hai tầng, cả hai đều là máy chứ không phải quy ước:</p>
+<ol>
+<li><b>DI container của NestJS</b> — provider không nằm trong <code>exports</code> thì module khác không inject được. Nhưng nó chỉ chặn <i>inject</i>, không chặn <i>import thẳng file rồi tự <code>new</code></i>.</li>
+<li><b>ESLint <code>no-restricted-imports</code></b> — chặn đúng lỗ hổng đó.</li>
+</ol>
+<p>Thiếu tầng 2 thì ranh giới xói mòn <b>im lặng</b>: không test nào đỏ khi ai đó phá luật.
+Chứng minh bằng cách thêm một dòng <code>import { AuthService } from '../auth/auth.service'</code>
+rồi chạy <code>npm run lint</code>.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao <code>import 'dotenv/config'</code> phải là dòng import đầu tiên?"</summary>
+<div class="ans">
+<p>JavaScript chạy hết mọi <code>import</code> theo đúng thứ tự viết, <b>trước khi</b> vào thân
+hàm. Dòng <code>import { AppModule }</code> kéo theo cả cây module, trong đó
+<code>ConfigModule</code> đọc <code>process.env</code> để validate. Nếu <code>dotenv</code> chưa
+chạy tại thời điểm đó thì <code>process.env</code> còn rỗng.</p>
+<p>Triệu chứng khi đảo thứ tự: app báo <i>"DATABASE_URL là bắt buộc"</i> và chết lúc khởi động,
+<b>dù file <code>.env</code> hoàn toàn đầy đủ</b>. Loại lỗi tốn hàng giờ vì thông báo trỏ sai
+chỗ — nó nói "thiếu biến", nguyên nhân thật là "đọc quá sớm".</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao validate config lúc khởi động chứ không lúc dùng?"</summary>
+<div class="ans">
+<p>Vì hai kiểu hỏng có giá khác hẳn nhau. Validate lúc boot: sai cấu hình thì app chết ngay khi
+<code>npm run dev</code> hoặc ngay khi container mới lên — người deploy thấy liền, chưa có khách
+nào bị ảnh hưởng. Validate lúc dùng: app lên bình thường, rồi chết vào 3 giờ sáng ở request đầu
+tiên chạm tới biến đó, với stack trace nằm ở tầng hoàn toàn khác.</p>
+<p>Đây là lá chắn rẻ nhất của cả hệ thống: một schema, một chỗ, chạy một lần.</p>
+</div></details>
+
+<details class="qa"><summary>"Vì sao <code>@Global()</code> cho Prisma mà không cho module nghiệp vụ?"</summary>
+<div class="ans">
+<p><code>@Global()</code> nghĩa là "ai cũng dùng được mà không cần khai báo phụ thuộc". Đó là
+đánh đổi: tiện, nhưng làm mất thông tin về việc ai phụ thuộc ai.</p>
+<p>Chấp nhận được cho <b>hạ tầng</b> vì có ràng buộc kỹ thuật thật: connection pool phải là
+<b>một</b> instance duy nhất cho cả app — nhiều pool là nhân số connection lên và cạn giới hạn
+của Postgres. Không chấp nhận cho <b>nghiệp vụ</b>, vì lúc đó nó chỉ là sự lười khai báo, và
+ranh giới module biến mất.</p>
+<p>Lưu ý: <code>PrismaService</code> là <code>@Global</code> <b>không</b> có nghĩa được gọi
+Prisma ở mọi nơi — truy cập DB vẫn phải gom trong <code>*.repository.ts</code> của module.</p>
+</div></details>
+
+<section class="track" id="track" data-phase="p0"></section>
+
+<div class="pager"><a href="index.html">← Bản đồ</a><a href="phase-1.html">Phase 1 — Auth &amp; Security →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>

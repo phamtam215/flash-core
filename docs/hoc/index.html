@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giáo trình Flash-Core</title>
+<link rel="stylesheet" href="assets/hoc.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Giáo trình Flash-Core<span>Hiểu bản chất từng phase</span></a>
+<div class="nav-group"><h3>Bắt đầu</h3>
+<a class="item active" href="index.html">Bản đồ &amp; cách dùng</a>
+</div>
+<div class="nav-group"><h3>Tám phase</h3>
+<a class="item" href="phase-0.html"><span class="n">0</span>Nền móng &amp; ranh giới</a>
+<a class="item" href="phase-1.html"><span class="n">1</span>Auth &amp; Security</a>
+<a class="item" href="phase-2.html"><span class="n">2</span>Product &amp; Inventory</a>
+<a class="item" href="phase-3.html"><span class="n">3</span>Order &amp; Concurrency ⭐</a>
+<a class="item" href="phase-4.html"><span class="n">4</span>Async, Queue &amp; Payment ⭐</a>
+<a class="item" href="phase-5.html"><span class="n">5</span>UI demo</a>
+<a class="item" href="phase-6.html"><span class="n">6</span>Observability</a>
+<a class="item" href="phase-7.html"><span class="n">7</span>Deploy &amp; FinOps</a>
+</div>
+<div class="nav-group"><h3>Tiến độ</h3>
+<div id="side-progress"></div>
+</div>
+<div class="nav-group"><h3>Tài liệu gốc</h3>
+<a class="item out" href="../tech-playbook.md">tech-playbook.md — kiến thức</a>
+<a class="item out" href="../onboarding.md">onboarding.md — 6 buổi thực hành</a>
+<a class="item out" href="../architecture.md">architecture.md — bản đồ code</a>
+<a class="item out" href="../SPEC.md">SPEC.md — 8 phase</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Giáo trình Flash-Core</h1>
+<p class="lede">Tám phase, mỗi phase một trang: <b>bài toán</b> → <b>sơ đồ cơ chế</b> →
+<b>cấu trúc file</b> → <b>cách code</b> → <b>cách test</b> → <b>tiêu chí qua phase</b> →
+<b>trả lời được gì khi bị hỏi</b>.</p>
+
+<p class="meta">Mục tiêu của bộ trang này: khi có người chỉ vào <b>bất kỳ chỗ nào</b> trong dự án
+và hỏi <i>"vì sao lại làm thế?"</i>, câu trả lời có sẵn — không phải học thuộc, mà vì đã thấy
+cơ chế bên dưới.</p>
+
+<div class="box why">
+<div class="t">Trang này không sở hữu kiến thức</div>
+<p>Theo luật một-chủ-sở-hữu của repo, <b>kiến thức</b> (cơ chế, bug thật, số đo) thuộc
+<a href="../tech-playbook.md"><code>tech-playbook.md</code></a>; <b>hợp đồng tính năng</b> thuộc
+<a href="../specs/"><code>docs/specs/</code></a>; <b>trạng thái</b> thuộc <code>CLAUDE.md</code>.
+Bộ trang này sở hữu đúng hai thứ: <b>sơ đồ</b> và <b>đường đi qua code</b> — thứ mà văn bản
+thuần khó diễn đạt. Mọi câu "vì sao" đều trỏ link về nguồn gốc.</p>
+</div>
+
+<h2>Nghiệp vụ: chuyện gì đang diễn ra</h2>
+
+<p>Một shop bán áo thun chạy <b>flash sale</b>. Nó khác một shop online bình thường ở đúng ba
+điểm — và cả hệ thống này sinh ra vì ba điểm đó:</p>
+
+<div class="cols c3">
+<div class="card">
+<h4>Hàng ít hơn người mua</h4>
+<p>100 chiếc, 1.000 người bấm. Bán ra 101 là <b>mất tiền thật</b>: hoàn đơn, xin lỗi khách, mất
+uy tín. Bán 99 là bỏ doanh thu.</p>
+</div>
+<div class="card">
+<h4>Nhu cầu dồn vào vài giây</h4>
+<p>Sale mở đúng 20:00, không rải đều cả ngày. Cùng một lượng đơn, nhưng đến trong 3 giây thay vì
+3 giờ — đó là toàn bộ khác biệt kỹ thuật.</p>
+</div>
+<div class="card">
+<h4>Tồn kho theo <b>biến thể</b></h4>
+<p>Size M màu đen hết hàng <b>không</b> có nghĩa size L màu trắng cũng hết. Đơn vị bán là
+<b>SKU</b> (size × màu), không phải "mẫu áo".</p>
+</div>
+</div>
+
+<p>Ba nhân vật, và hệ thống phục vụ họ ở ba chỗ khác nhau:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Nhân vật</th><th>Họ làm gì</th><th>Chạm vào hệ thống ở đâu</th></tr></thead>
+<tbody>
+<tr><td><b>Khách</b></td><td>Đăng nhập → xem sự kiện sale → chọn size/màu → bấm "Săn ngay" → trả tiền</td><td>Trang web, qua <code>/auth</code>, <code>/products</code>, <code>/orders</code></td></tr>
+<tr><td><b>Người bán</b></td><td>Tạo mẫu áo và các biến thể, đặt giá và số lượng</td><td><code>POST /products</code> — <b>chưa có màn quản trị</b>, cố ý (ngoài phạm vi)</td></tr>
+<tr><td><b>Cổng thanh toán</b></td><td>Nhận tiền của khách rồi <b>gọi ngược</b> vào hệ thống báo "đã thu được"</td><td><code>POST /payments/webhook</code> — endpoint công khai, ký bằng HMAC</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Vòng đời một đơn hàng — trục của toàn bộ nghiệp vụ</h3>
+
+<figure class="dg">
+<svg viewBox="0 0 880 430" role="img" aria-label="Vòng đời một đơn hàng: PENDING, PAID, CANCELLED">
+  <defs><marker id="ahb" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <rect class="s-box" x="16" y="175" width="170" height="70" rx="8"/>
+  <text class="s-t b" x="101" y="203" text-anchor="middle">① Săn ngay</text>
+  <text class="s-t mono sm" x="101" y="222" text-anchor="middle">POST /orders</text>
+  <text class="s-t sm m" x="101" y="238" text-anchor="middle">trừ kho TRƯỚC, tạo đơn SAU</text>
+
+  <path class="s-l" d="M186 210 H 240" marker-end="url(#ahb)" color="var(--muted)"/>
+
+  <rect class="s-box-warn" x="246" y="165" width="220" height="90" rx="8"/>
+  <text class="s-t b" x="356" y="192" text-anchor="middle">PENDING</text>
+  <text class="s-t sm" x="356" y="212" text-anchor="middle">giữ chỗ 15 phút</text>
+  <text class="s-t sm b" x="356" y="230" text-anchor="middle">tồn kho ĐÃ bị trừ</text>
+  <text class="s-t sm m" x="356" y="246" text-anchor="middle">tiền thì CHƯA vào</text>
+
+  <path class="s-l ok" d="M466 195 H 530 V 93 H 594" marker-end="url(#ahb)" color="var(--ok)"/>
+  <text class="s-t sm" x="474" y="188">② tiền vào</text>
+  <path class="s-l bad" d="M466 225 H 530 V 288 H 594" marker-end="url(#ahb)" color="var(--bad)"/>
+  <text class="s-t sm" x="474" y="243">③ hết giờ</text>
+
+  <rect class="s-box-ok" x="600" y="50" width="264" height="86" rx="8"/>
+  <text class="s-t b" x="732" y="76" text-anchor="middle">PAID</text>
+  <text class="s-t sm" x="732" y="96" text-anchor="middle">webhook chữ ký hợp lệ + đúng tiền</text>
+  <text class="s-t sm m" x="732" y="114" text-anchor="middle">paid_at = now · hàng thuộc về khách</text>
+
+  <rect class="s-box-bad" x="600" y="245" width="264" height="86" rx="8"/>
+  <text class="s-t b" x="732" y="271" text-anchor="middle">CANCELLED</text>
+  <text class="s-t sm" x="732" y="291" text-anchor="middle">hết 15 phút — delayed job HOẶC sweeper</text>
+  <text class="s-t sm b" x="732" y="309" text-anchor="middle">→ TRẢ HÀNG VỀ KHO</text>
+
+  <rect class="s-box" x="16" y="356" width="424" height="62" rx="8"/>
+  <text class="s-t sm b" x="32" y="378">Đơn đã PAID mà job huỷ chạy sau thì sao?</text>
+  <text class="s-t sm" x="32" y="396">UPDATE … WHERE status='PENDING' khớp 0 dòng</text>
+  <text class="s-t sm" x="32" y="412">→ thoát êm, không trả kho lần hai.</text>
+
+  <rect class="s-box" x="456" y="356" width="408" height="62" rx="8"/>
+  <text class="s-t sm b" x="472" y="378">Webhook "đã trả tiền" đến SAU khi đơn đã huỷ?</text>
+  <text class="s-t sm" x="472" y="396">Giữ nguyên CANCELLED + ghi refund_requests.</text>
+  <text class="s-t sm" x="472" y="412">KHÔNG hồi sinh đơn — sẽ tạo oversell ở đường sau.</text>
+</svg>
+<figcaption>Ba trạng thái, hai đường ra. Mọi thứ khác trong dự án chỉ là <b>cách bảo vệ ba mũi tên
+này</b> khỏi việc chạy hai lần, chạy nửa chừng, hoặc chạy trên dữ liệu cũ.</figcaption>
+</figure>
+
+<div class="box key">
+<div class="t">Câu quan trọng nhất để hiểu nghiệp vụ này</div>
+<p>Có <b>hai tài nguyên khan hiếm, và chúng đến ở hai thời điểm khác nhau</b>: <b>hàng</b> bị trừ
+<i>ngay lúc bấm</i>; <b>tiền</b> đến sau — có khi 10 phút sau, có khi không bao giờ.</p>
+<p>Đơn <code>PENDING</code> 15 phút chính là <b>cây cầu bắc giữa hai thời điểm đó</b>: nó giữ hàng
+cho một người trong lúc chờ tiền, và tự huỷ nếu tiền không tới. <b>Toàn bộ phần khó của dự án nằm
+trên cây cầu này</b> — giữ hàng cho đúng một người (Phase 3), và không đánh rơi việc gì trong lúc
+chờ (Phase 4).</p>
+</div>
+
+<h2>Vai trò từng thành phần — tầng application</h2>
+
+<p>Mỗi module trả lời <b>đúng một câu hỏi nghiệp vụ</b> và <b>sở hữu một nhóm bảng</b>. Đó là hai
+thứ định nghĩa ranh giới của nó — không phải thư mục.</p>
+
+<figure class="dg">
+<svg viewBox="0 0 880 540" role="img" aria-label="Vai trò từng module ở tầng application">
+  <defs><marker id="ahc" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+
+  <text class="s-t b" x="16" y="30">modules/ — tầng nghiệp vụ. Nhãn góc phải: AI gọi nó.</text>
+
+  <rect class="s-box-a" x="16" y="54" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="28" y="78">auth</text>
+  <text class="s-t sm m" x="198" y="78" text-anchor="end">HTTP</text>
+  <line class="s-l" x1="16" y1="88" x2="210" y2="88"/>
+  <text class="s-t sm b" x="28" y="110">Trả lời: anh là ai?</text>
+  <text class="s-t sm" x="28" y="130">Giữ đăng nhập, chống dò</text>
+  <text class="s-t sm" x="28" y="146">mật khẩu</text>
+  <text class="s-t mono sm m" x="28" y="170">users · refresh_tokens</text>
+  <text class="s-t mono sm" x="28" y="190">→ Guard, USER_DIRECTORY</text>
+
+  <rect class="s-box-a" x="234" y="54" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="246" y="78">product</text>
+  <text class="s-t sm m" x="416" y="78" text-anchor="end">HTTP</text>
+  <line class="s-l" x1="234" y1="88" x2="428" y2="88"/>
+  <text class="s-t sm b" x="246" y="110">Trả lời: bán gì, giá bao</text>
+  <text class="s-t sm b" x="246" y="126">nhiêu, còn mấy chiếc?</text>
+  <text class="s-t sm" x="246" y="146">Mẫu áo + biến thể size×màu</text>
+  <text class="s-t mono sm m" x="246" y="170">products · product_skus</text>
+  <text class="s-t mono sm" x="246" y="190">→ (chưa mở cửa nào)</text>
+
+  <rect class="s-box-a" x="452" y="54" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="464" y="78">order ⭐</text>
+  <text class="s-t sm m" x="634" y="78" text-anchor="end">HTTP + Worker</text>
+  <line class="s-l" x1="452" y1="88" x2="646" y2="88"/>
+  <text class="s-t sm b" x="464" y="110">Trả lời: ai giành được</text>
+  <text class="s-t sm b" x="464" y="126">hàng, và giữ tới bao giờ?</text>
+  <text class="s-t sm" x="464" y="146">Trừ kho · giữ chỗ · huỷ</text>
+  <text class="s-t mono sm m" x="464" y="170">orders · order_items</text>
+  <text class="s-t mono sm" x="464" y="190">→ ORDER_PAYMENTS</text>
+
+  <rect class="s-box-a" x="670" y="54" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="682" y="78">payment</text>
+  <text class="s-t sm m" x="852" y="78" text-anchor="end">HTTP + Worker</text>
+  <line class="s-l" x1="670" y1="88" x2="864" y2="88"/>
+  <text class="s-t sm b" x="682" y="110">Trả lời: tiền đã vào</text>
+  <text class="s-t sm b" x="682" y="126">chưa, và có đúng không?</text>
+  <text class="s-t sm" x="682" y="146">Verify HMAC · không sửa đơn</text>
+  <text class="s-t mono sm m" x="682" y="170">refund_requests</text>
+  <text class="s-t mono sm" x="682" y="190">→ PaymentService</text>
+
+  <rect class="s-box" x="16" y="224" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="28" y="248">outbox</text>
+  <text class="s-t sm m" x="198" y="248" text-anchor="end">Worker</text>
+  <line class="s-l" x1="16" y1="258" x2="210" y2="258"/>
+  <text class="s-t sm b" x="28" y="280">Trả lời: việc nào đã hứa</text>
+  <text class="s-t sm b" x="28" y="296">mà chưa làm?</text>
+  <text class="s-t sm" x="28" y="316">Hộp thư đi + dấu idempotent</text>
+  <text class="s-t mono sm m" x="28" y="340">outbox_events</text>
+  <text class="s-t mono sm m" x="28" y="356">processed_events</text>
+
+  <rect class="s-box" x="234" y="224" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="246" y="248">mail</text>
+  <text class="s-t sm m" x="416" y="248" text-anchor="end">Worker</text>
+  <line class="s-l" x1="234" y1="258" x2="428" y2="258"/>
+  <text class="s-t sm b" x="246" y="280">Trả lời: đã báo cho</text>
+  <text class="s-t sm b" x="246" y="296">khách chưa?</text>
+  <text class="s-t sm" x="246" y="316">Cổng gửi mail giả lập</text>
+  <text class="s-t sm m" x="246" y="340">không sở hữu bảng nào</text>
+  <text class="s-t mono sm" x="246" y="360">→ MAIL_SENDER</text>
+
+  <rect class="s-box" x="452" y="224" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="464" y="248">health + metrics</text>
+  <text class="s-t sm m" x="634" y="248" text-anchor="end">Máy gọi</text>
+  <line class="s-l" x1="452" y1="258" x2="646" y2="258"/>
+  <text class="s-t sm b" x="464" y="280">Trả lời: hệ thống đang</text>
+  <text class="s-t sm b" x="464" y="296">ổn không?</text>
+  <text class="s-t mono sm" x="464" y="318">/health · /ready</text>
+  <text class="s-t mono sm" x="464" y="336">/metrics</text>
+  <text class="s-t sm m" x="464" y="358">chỉ đọc, không ghi gì</text>
+
+  <rect class="s-box" x="670" y="224" width="194" height="150" rx="9"/>
+  <text class="s-t b" x="682" y="248">worker/</text>
+  <text class="s-t sm m" x="852" y="248" text-anchor="end">tiến trình riêng</text>
+  <line class="s-l" x1="670" y1="258" x2="864" y2="258"/>
+  <text class="s-t sm b" x="682" y="280">KHÔNG có nghiệp vụ nào</text>
+  <text class="s-t sm" x="682" y="300">Chỉ định tuyến job rồi</text>
+  <text class="s-t sm" x="682" y="316">gọi service tương ứng</text>
+  <text class="s-t mono sm m" x="682" y="340">relay · email · expire</text>
+  <text class="s-t mono sm m" x="682" y="356">sweep · payment</text>
+
+  <line class="s-l dash" x1="16" y1="392" x2="864" y2="392"/>
+  <text class="s-t b" x="16" y="416">Ba cửa DUY NHẤT giữa các module — mọi đường khác bị ESLint chặn</text>
+
+  <rect class="s-box-a" x="16" y="430" width="110" height="30" rx="5"/>
+  <text class="s-t sm b" x="71" y="450" text-anchor="middle">order</text>
+  <path class="s-l a" d="M126 445 H 160" marker-end="url(#ahc)" color="var(--accent)"/>
+  <rect class="s-box" x="166" y="430" width="110" height="30" rx="5"/>
+  <text class="s-t sm b" x="221" y="450" text-anchor="middle">product</text>
+  <text class="s-t sm" x="292" y="450">ghi 2 cột stock + version, CHỈ trong order.repository.ts — ADR-003</text>
+
+  <rect class="s-box-a" x="16" y="470" width="110" height="30" rx="5"/>
+  <text class="s-t sm b" x="71" y="490" text-anchor="middle">payment</text>
+  <path class="s-l a" d="M126 485 H 160" marker-end="url(#ahc)" color="var(--accent)"/>
+  <rect class="s-box" x="166" y="470" width="110" height="30" rx="5"/>
+  <text class="s-t sm b" x="221" y="490" text-anchor="middle">order</text>
+  <text class="s-t sm" x="292" y="490">ORDER_PAYMENTS.settle() — payment KHÔNG biết bảng orders tồn tại</text>
+
+  <rect class="s-box-a" x="16" y="510" width="110" height="30" rx="5"/>
+  <text class="s-t sm b" x="71" y="530" text-anchor="middle">worker</text>
+  <path class="s-l a" d="M126 525 H 160" marker-end="url(#ahc)" color="var(--accent)"/>
+  <rect class="s-box" x="166" y="510" width="110" height="30" rx="5"/>
+  <text class="s-t sm b" x="221" y="530" text-anchor="middle">auth</text>
+  <text class="s-t sm" x="292" y="530">USER_DIRECTORY — hỏi email của user để gửi thư xác nhận</text>
+</svg>
+<figcaption><b>Đọc sơ đồ này theo cột "Trả lời:".</b> Nếu hai module cùng trả lời một câu hỏi thì
+ranh giới đã sai. Và ba mũi tên ở dưới là <b>toàn bộ</b> chỗ các module chạm vào nhau — mỗi cái đi
+qua một interface hẹp khai trong <code>index.ts</code>, không phải gọi thẳng service.</figcaption>
+</figure>
+
+<div class="box why">
+<div class="t">Vì sao <code>payment</code> không được tự đánh dấu đơn là đã trả tiền</div>
+<p>Vì <b>trạng thái tiền của một đơn là chuyện của <code>order</code></b> — nó phải nằm cùng
+transaction với quyết định "không đánh dấu <code>PAID</code>" và với việc ghi
+<code>refund_requests</code>. Chia đôi ra hai module thì lại đúng cái <i>dual write</i> mà cả
+Phase 4 đang chống.</p>
+<p>Nên <code>payment</code> chỉ làm hai việc: <b>xác minh người gửi có đúng là cổng thanh toán
+không</b>, rồi <b>báo lại</b> qua <code>ORDER_PAYMENTS.settle()</code> và nhận về kết quả
+(<code>PAID</code> / <code>ALREADY_HANDLED</code> / <code>REFUND_REQUIRED</code> /
+<code>ORDER_NOT_FOUND</code>). Nó <b>không biết bảng <code>orders</code> tồn tại</b>.</p>
+</div>
+
+<p>Còn ba tầng bên dưới <code>modules/</code> thì không có nghiệp vụ — chúng chỉ là công cụ:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Thành phần</th><th>Nó là gì</th><th>Nếu bỏ đi thì mất gì</th></tr></thead>
+<tbody>
+<tr><td><code>infra/prisma</code></td><td>Một connection pool duy nhất tới Postgres</td><td>Mỗi module tự mở kết nối → cạn <code>max_connections</code></td></tr>
+<tr><td><code>infra/redis</code></td><td>Kết nối Redis cho rate limit và tồn kho bản sao</td><td>Đếm đăng nhập sai trong RAM → sai ngay khi có 2 instance</td></tr>
+<tr><td><code>infra/queue</code></td><td>BullMQ — <b>kết nối RIÊNG</b>, vì worker cần <code>maxRetriesPerRequest: null</code></td><td>Dùng chung kết nối với rate limit → nổ khi queue rảnh việc</td></tr>
+<tr><td><code>infra/metrics</code></td><td>Nơi duy nhất định nghĩa metric</td><td>Metric rải khắp nơi → không ai kiểm được luật cardinality</td></tr>
+<tr><td><code>common/</code></td><td>Logger + <code>correlationId</code>, exception filter, Zod pipe, cursor</td><td>Mỗi module tự chế một hình dạng lỗi và một kiểu log</td></tr>
+<tr><td><code>config/</code></td><td>Nơi <b>duy nhất</b> được đọc <code>process.env</code></td><td>Sai cấu hình chết lúc 3 giờ sáng thay vì lúc khởi động</td></tr>
+<tr><td><code>k6/</code></td><td>Bắn 1.000 VU vào một SKU</td><td>Không có bằng chứng nào cho câu "oversell = 0"</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Hệ thống gồm những gì</h2>
+
+<figure class="dg">
+<svg viewBox="0 0 880 392" role="img" aria-label="Bản đồ hệ thống Flash-Core">
+  <!-- Trình duyệt -->
+  <rect class="s-box" x="12" y="60" width="132" height="70" rx="8"/>
+  <text class="s-t b" x="78" y="86" text-anchor="middle">Trình duyệt</text>
+  <text class="s-t sm m" x="78" y="105" text-anchor="middle">public/index.html</text>
+  <text class="s-t sm m" x="78" y="120" text-anchor="middle">không framework</text>
+
+  <!-- Cổng thanh toán -->
+  <rect class="s-box" x="12" y="262" width="132" height="70" rx="8"/>
+  <text class="s-t b" x="78" y="288" text-anchor="middle">Cổng thanh toán</text>
+  <text class="s-t sm m" x="78" y="307" text-anchor="middle">giả lập, ký HMAC</text>
+  <text class="s-t sm m" x="78" y="322" text-anchor="middle">scripts/send-webhook</text>
+
+  <!-- API process -->
+  <rect class="s-box-a" x="212" y="24" width="268" height="150" rx="10"/>
+  <text class="s-t b" x="228" y="48">Tiến trình API — <tspan class="mono">npm run dev</tspan></text>
+  <line class="s-l" x1="212" y1="60" x2="480" y2="60"/>
+  <text class="s-t sm" x="228" y="82">modules/ auth · product · order · payment · health</text>
+  <text class="s-t sm" x="228" y="104">common/ logger · filter · pagination · correlation</text>
+  <text class="s-t sm" x="228" y="126">infra/ prisma · redis · queue · metrics</text>
+  <text class="s-t sm m" x="228" y="152">config/ — nơi DUY NHẤT đọc process.env</text>
+
+  <!-- Worker process -->
+  <rect class="s-box-a" x="212" y="222" width="268" height="126" rx="10"/>
+  <text class="s-t b" x="228" y="246">Tiến trình Worker — <tspan class="mono">npm run worker</tspan></text>
+  <line class="s-l" x1="212" y1="258" x2="480" y2="258"/>
+  <text class="s-t sm" x="228" y="280">outbox.relay · gửi email · huỷ đơn quá hạn</text>
+  <text class="s-t sm" x="228" y="302">sweeper 60s · xử lý webhook đã nhận</text>
+  <text class="s-t sm m" x="228" y="326">Cùng code, khác điểm vào (ADR-005)</text>
+
+  <!-- Postgres -->
+  <rect class="s-box" x="560" y="24" width="308" height="150" rx="10"/>
+  <text class="s-t b" x="576" y="48">PostgreSQL 16 — sự thật duy nhất</text>
+  <line class="s-l" x1="560" y1="60" x2="868" y2="60"/>
+  <text class="s-t mono" x="576" y="82">users · refresh_tokens</text>
+  <text class="s-t mono" x="576" y="102">products · product_skus  ← tồn kho</text>
+  <text class="s-t mono" x="576" y="122">orders · order_items</text>
+  <text class="s-t mono" x="576" y="142">outbox_events · processed_events</text>
+  <text class="s-t mono" x="576" y="162">refund_requests</text>
+
+  <!-- Redis -->
+  <rect class="s-box" x="560" y="222" width="308" height="126" rx="10"/>
+  <text class="s-t b" x="576" y="246">Redis 7 — thứ mất được</text>
+  <line class="s-l" x1="560" y1="258" x2="868" y2="258"/>
+  <text class="s-t sm" x="576" y="280">đếm đăng nhập sai (rate limit)</text>
+  <text class="s-t sm" x="576" y="302">tồn kho bản sao (chiến lược C)</text>
+  <text class="s-t sm" x="576" y="324">hàng đợi BullMQ — nơi job nằm chờ</text>
+
+  <!-- Mũi tên -->
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g color="var(--muted)">
+    <path class="s-l" d="M144 95 H 212" marker-end="url(#ah)"/>
+    <text class="s-t sm m" x="178" y="88" text-anchor="middle">HTTP</text>
+
+    <path class="s-l" d="M144 297 H 212" marker-end="url(#ah)"/>
+    <text class="s-t sm m" x="178" y="290" text-anchor="middle">webhook</text>
+
+    <path class="s-l" d="M480 80 H 560" marker-end="url(#ah)"/>
+    <text class="s-t sm m" x="520" y="73" text-anchor="middle">SQL</text>
+
+    <path class="s-l" d="M480 140 H 520 V 262 H 560" marker-end="url(#ah)"/>
+    <path class="s-l" d="M480 285 H 560" marker-end="url(#ah)"/>
+    <text class="s-t sm m" x="520" y="278" text-anchor="middle">job</text>
+
+    <path class="s-l" d="M480 240 H 520 V 150 H 560" marker-end="url(#ah)"/>
+  </g>
+</svg>
+<figcaption><b>Hai tiến trình, hai kho dữ liệu.</b> API trả lời người dùng và phải nhanh;
+worker làm việc nặng và được phép chậm. Chúng <b>không gọi thẳng nhau</b> — chỉ gặp nhau qua
+Postgres (bảng <code>outbox_events</code>) và Redis (hàng đợi). Đó là lý do giết worker giữa
+chừng không làm hỏng API, và là nội dung của Phase 4.</figcaption>
+</figure>
+
+<h2>Đường đi của một đơn hàng — và phase nào sở hữu bước nào</h2>
+
+<p>Đây là sơ đồ đáng nhớ nhất của cả dự án. Mỗi bước gắn một số phase: nhìn vào đây là biết
+"chỗ này thuộc bài học nào".</p>
+
+<figure class="dg">
+<svg viewBox="0 0 880 560" role="img" aria-label="Trình tự đặt một đơn hàng qua các phase">
+  <defs><marker id="ahs" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+  <!-- Lanes -->
+  <g>
+    <rect class="s-box" x="16" y="14" width="150" height="30" rx="6"/>
+    <text class="s-t b" x="91" y="34" text-anchor="middle">Trình duyệt</text>
+    <rect class="s-box-a" x="196" y="14" width="180" height="30" rx="6"/>
+    <text class="s-t b" x="286" y="34" text-anchor="middle">API</text>
+    <rect class="s-box" x="406" y="14" width="200" height="30" rx="6"/>
+    <text class="s-t b" x="506" y="34" text-anchor="middle">PostgreSQL</text>
+    <rect class="s-box-a" x="636" y="14" width="228" height="30" rx="6"/>
+    <text class="s-t b" x="750" y="34" text-anchor="middle">Worker + Redis</text>
+  </g>
+  <g class="s-l dash">
+    <line x1="91" y1="52" x2="91" y2="540"/>
+    <line x1="286" y1="52" x2="286" y2="540"/>
+    <line x1="506" y1="52" x2="506" y2="540"/>
+    <line x1="750" y1="52" x2="750" y2="540"/>
+  </g>
+
+  <g color="var(--accent)">
+    <!-- 1 -->
+    <path class="s-l a" d="M91 78 H 280" marker-end="url(#ahs)"/>
+    <text class="s-t sm" x="99" y="72">① POST /orders + Idempotency-Key</text>
+    <text class="s-t sm m" x="99" y="94">cookie HttpOnly tự đi kèm — Phase 1</text>
+
+    <!-- 2 -->
+    <path class="s-l a" d="M286 130 H 500" marker-end="url(#ahs)"/>
+    <text class="s-t sm" x="294" y="124">② UPDATE … WHERE stock &gt;= 1</text>
+    <text class="s-t sm m" x="294" y="146">điều kiện NẰM TRONG câu ghi — Phase 3 ⭐</text>
+
+    <!-- 3 -->
+    <path class="s-l a" d="M286 186 H 500" marker-end="url(#ahs)"/>
+    <text class="s-t sm" x="294" y="180">③ INSERT order + item + outbox_event</text>
+    <text class="s-t sm m" x="294" y="202">cùng MỘT transaction — Phase 4 ⭐</text>
+
+    <!-- 4 -->
+    <path class="s-l a" d="M280 232 H 96" marker-end="url(#ahs)"/>
+    <text class="s-t sm" x="99" y="226">④ 201 + đơn PENDING, giữ chỗ 15 phút</text>
+  </g>
+
+  <line class="s-l dash" x1="16" y1="252" x2="864" y2="252"/>
+  <text class="s-t sm m" x="16" y="270">request đã kết thúc — phần dưới chạy ở tiến trình khác</text>
+
+  <g color="var(--ok)">
+    <!-- 5 -->
+    <path class="s-l ok" d="M744 300 H 512" marker-end="url(#ahs)"/>
+    <text class="s-t sm" x="520" y="294">⑤ relay quét outbox: FOR UPDATE SKIP LOCKED</text>
+    <text class="s-t sm m" x="520" y="316">đẩy job TRƯỚC, đánh dấu SAU — ADR-006</text>
+
+    <!-- 6 -->
+    <path class="s-l ok" d="M750 348 h 0" />
+    <rect class="s-box-ok" x="640" y="336" width="220" height="42" rx="6"/>
+    <text class="s-t sm" x="750" y="354" text-anchor="middle">⑥ gửi email xác nhận</text>
+    <text class="s-t sm m" x="750" y="370" text-anchor="middle">ghi dấu processed_events trước</text>
+  </g>
+
+  <g color="var(--warn)">
+    <!-- 7 -->
+    <rect class="s-box-warn" x="640" y="400" width="220" height="42" rx="6"/>
+    <text class="s-t sm" x="750" y="418" text-anchor="middle">⑦ hết 15 phút: delayed job</text>
+    <text class="s-t sm m" x="750" y="434" text-anchor="middle">+ sweeper 60s — hai đường</text>
+    <path class="s-l" d="M640 421 H 512" marker-end="url(#ahs)"/>
+    <text class="s-t sm m" x="520" y="414">UPDATE … WHERE status='PENDING' → trả kho</text>
+  </g>
+
+  <g color="var(--info)">
+    <!-- 8 -->
+    <path class="s-l" d="M91 486 H 280" marker-end="url(#ahs)"/>
+    <text class="s-t sm" x="99" y="480">⑧ cổng gọi /payments/webhook</text>
+    <text class="s-t sm m" x="99" y="502">verify HMAC trên RAW body — Phase 4</text>
+    <path class="s-l" d="M286 524 H 500" marker-end="url(#ahs)"/>
+    <text class="s-t sm" x="294" y="518">⑨ UPDATE … WHERE status='PENDING' → PAID</text>
+  </g>
+</svg>
+<figcaption>Cùng một khuôn lặp lại ở bước ②, ⑦ và ⑨: <b>đưa điều kiện vào chính câu ghi, rồi
+đọc số dòng bị ảnh hưởng để biết mình có thắng không.</b> Nắm được câu đó là nắm được phần lõi
+của Phase 3 và Phase 4 cùng lúc.</figcaption>
+</figure>
+
+<h2>Tám phase trong một bảng</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>#</th><th>Bài toán thật</th><th>Cơ chế cốt lõi</th><th>Cổng chính (chưa qua thì chưa xong)</th><th></th></tr></thead>
+<tbody>
+<tr><td><a href="phase-0.html"><b>0</b></a></td><td>Code 6 tháng nữa còn sửa được không</td><td>Ranh giới module ép bằng máy, config validate lúc boot</td><td>CI xanh từ máy sạch, 16/16 test</td><td><span class="tag done">đóng</span></td></tr>
+<tr><td><a href="phase-1.html"><b>1</b></a></td><td>Token bị đánh cắp thì biết bằng cách nào</td><td>Rotation + reuse detection theo family</td><td>Test #8: dùng lại token cũ → thu hồi cả family</td><td><span class="tag done">xong</span></td></tr>
+<tr><td><a href="phase-2.html"><b>2</b></a></td><td>100k dòng thì query còn nhanh không</td><td>Keyset pagination, GIN cho JSONB, <code>CHECK (stock&gt;=0)</code></td><td>Test #14: <code>EXPLAIN</code> chứng minh keyset ~50× offset</td><td><span class="tag done">xong</span></td></tr>
+<tr><td><a href="phase-3.html"><b>3</b> ⭐</a></td><td>1.000 người bấm, chỉ có 100 áo</td><td>Điều kiện nằm trong câu ghi; 3 chiến lược đổi bằng env</td><td>Test #8: 200 request song song → đúng 100 đơn, ở <b>cả ba</b></td><td><span class="tag done">xong</span></td></tr>
+<tr><td><a href="phase-4.html"><b>4</b> ⭐</a></td><td>Giết tiến trình giữa chừng thì mất gì</td><td>Outbox + dấu idempotent + webhook ký HMAC</td><td>Test #18 "rút dây mạng": đúng 20 email, không hơn</td><td><span class="tag done">đóng</span></td></tr>
+<tr><td><a href="phase-5.html"><b>5</b></a></td><td>Nhìn thấy concurrency bằng mắt</td><td>Trang tĩnh cùng origin, polling 1,5s</td><td>k6 chạy, tồn kho trên màn rơi về 0 và dừng ở 0</td><td><span class="tag wip">chờ review</span></td></tr>
+<tr><td><a href="phase-6.html"><b>6</b></a></td><td>Khách báo lỗi lúc 8 giờ tối — bắt đầu từ đâu</td><td><code>AsyncLocalStorage</code> xuyên process, metrics, tắt êm</td><td>Một <code>correlationId</code> → cả log API lẫn log worker</td><td><span class="tag wip">chờ review</span></td></tr>
+<tr><td><a href="phase-7.html"><b>7</b></a></td><td>Chạy thật mà không tốn tiền</td><td>Cloud Run + pooler + budget alert</td><td>API sống, CI/CD tự động, hoá đơn 0đ</td><td><span class="tag todo">chưa làm</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Cách dùng bộ trang này</h2>
+
+<div class="cols c3">
+<div class="card">
+<h4>1. Đoán trước khi đọc</h4>
+<p>Mỗi trang mở đầu bằng một câu hỏi có ô <i>"Đoán thử"</i>. Trả lời trong đầu <b>trước</b> khi
+mở đáp án. Đọc lời giải thích hay mà chưa từng đoán sai thì não ghi nhận "đã biết" và không
+nhớ gì.</p>
+</div>
+<div class="card">
+<h4>2. Nhìn sơ đồ trước, chữ sau</h4>
+<p>Sơ đồ trong mỗi trang là <b>bản rút gọn của cơ chế</b>. Nhớ được hình là suy lại được chữ;
+nhớ chữ mà không có hình thì chỉ thuộc lòng.</p>
+</div>
+<div class="card">
+<h4>3. Tự kiểm bằng phần "Bị chỉ vào"</h4>
+<p>Cuối mỗi trang là danh sách câu hỏi kiểu <i>"tại sao dòng này lại viết thế?"</i> kèm đáp án
+gập lại. Gập tài liệu, tự nói thành lời rồi mới mở ra đối chiếu.</p>
+</div>
+</div>
+
+<div class="cols c3">
+<div class="card">
+<h4>4. Tick khi <b>nói được</b>, không phải khi đọc xong</h4>
+<p>Cuối mỗi trang phase có bảng theo dõi. Chỉ tick một ý khi nói được nó thành lời <b>mà không mở
+tài liệu</b> — đọc hiểu và nắm được là hai chuyện khác nhau.</p>
+</div>
+</div>
+
+<div class="box note">
+<div class="t">Muốn tự tay làm, không chỉ đọc</div>
+<p><a href="../onboarding.md"><code>docs/onboarding.md</code></a> là lộ trình 6 buổi có bài
+thực hành: tự gây ra một vụ bán vượt, tự giết worker giữa chừng rồi đếm <code>20 / 0 / 20</code>.
+Bộ trang này giải thích <b>vì sao</b>; file đó bắt <b>làm</b>. Dùng cùng nhau thì tốt nhất.</p>
+</div>
+
+<h2 id="tien-do">Tiến độ hiểu bài</h2>
+
+<p>Mỗi phase có một danh sách <b>ý phải nắm</b>. Tick một ý ở cuối trang phase là thanh dưới đây
+tự cộng lên. <b>Một phase 100% nghĩa là mọi ý của phase đó đã nói được thành lời.</b></p>
+
+<div id="dashboard"></div>
+
+<div class="box note">
+<div class="t">Tiến độ nằm ở đâu</div>
+<p>Trong <b>trình duyệt này</b>, không phải trong git — nên nó không lẫn vào diff và không ai
+review nó. Đổi máy hoặc xoá dữ liệu duyệt web thì mất; dùng nút <i>Xuất / nhập tiến độ</i> ở cuối
+bảng để mang đi.</p>
+</div>
+
+<h2>Sáu câu phải nói trôi chảy khi xong</h2>
+
+<ul class="chk">
+<li class="n">Vì sao <code>if (stock &gt; 0) stock--</code> <b>chắc chắn</b> sai — và câu SQL nào chữa nó <span class="src">→ <a href="phase-3.html">Phase 3</a></span></li>
+<li class="n">Ba chiến lược chống oversell, mỗi cái thắng khi nào <span class="src">→ <a href="phase-3.html">Phase 3</a></span></li>
+<li class="n">Vì sao "ghi DB rồi đẩy queue" mất dữ liệu, Outbox sửa bằng cách nào <span class="src">→ <a href="phase-4.html">Phase 4</a></span></li>
+<li class="n">Vì sao consumer phải idempotent — và vì sao gửi email khác đánh dấu <code>PAID</code> <span class="src">→ <a href="phase-4.html">Phase 4</a></span></li>
+<li class="n"><code>/health</code> và <code>/ready</code> khác nhau ở đâu, gộp lại thì hỏng thế nào <span class="src">→ <a href="phase-6.html">Phase 6</a></span></li>
+<li class="n">Từ một <code>correlationId</code>, truy hành trình một request qua hai tiến trình <span class="src">→ <a href="phase-6.html">Phase 6</a></span></li>
+</ul>
+
+<div class="pager"><span></span><a href="phase-0.html">Phase 0 — Nền móng &amp; ranh giới →</a></div>
+
+</main>
+</div>
+<script src="assets/track.js"></script>
+</body>
+</html>
