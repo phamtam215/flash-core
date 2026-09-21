@@ -142,7 +142,7 @@ compiler cần `node --experimental-vm-modules` khi chạy dưới Jest) — đ�
 
 - Quên mật khẩu, xác thực email, OAuth — không cần cho bài toán flash sale
 - Role/permission (admin) — chưa có màn admin nào
-- CSRF token — dùng `SameSite=Strict` là đủ cho phase này, ghi lại làm nợ
+- ~~CSRF token~~ — **ĐÃ TRẢ 2026-09-21**: double-submit cookie có ký HMAC ([ADR-009](../adr/009-csrf-double-submit-co-ky.md), [spec](csrf-token.md)). `SameSite=Strict` vẫn là lớp phòng thủ **chính**; token là lớp thứ hai, chặn kẻ tấn công **cùng site** mà `SameSite` theo định nghĩa không chặn được
 
 ## Hai quyết định đã chốt (2026-08-08)
 
@@ -164,7 +164,7 @@ cookie jar — chấp nhận, vì integration test dùng `supertest` giữ cooki
 
 Ghi chú bảo mật: HttpOnly chặn JavaScript đọc token (chống XSS lấy token), nhưng **không**
 chặn CSRF — browser vẫn tự gửi cookie kèm request từ trang khác. Phase này dựa vào
-`SameSite=Strict`; CSRF token là nợ đã ghi ở mục Ngoài phạm vi.
+`SameSite=Strict`; CSRF token **đã bổ sung ở Phase 7** — xem [ADR-009](../adr/009-csrf-double-submit-co-ky.md).
 
 ---
 

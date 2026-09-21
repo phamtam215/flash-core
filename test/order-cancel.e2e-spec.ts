@@ -10,6 +10,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infra/prisma';
 import { QueueService } from '../src/infra/queue';
 import { ORDER_PAYMENTS, OrderExpiryService, type OrderPayments } from '../src/modules/order';
+import { csrfAgent } from './http-helper';
 import { startInfra } from './infra-fixture';
 
 /**
@@ -39,6 +40,7 @@ describe('Huỷ đơn chủ động (e2e)', () => {
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.CSRF_SECRET = 'test-csrf-secret-toi-thieu-32-ky-tu!!!';
     process.env.PAYMENT_WEBHOOK_SECRET = WEBHOOK_SECRET;
     process.env.INVENTORY_STRATEGY = 'optimistic';
     // 5 phút: đủ dài để KHÔNG đơn nào tự hết hạn giữa chừng. Cả file này nói về huỷ *chủ
@@ -75,7 +77,7 @@ describe('Huỷ đơn chủ động (e2e)', () => {
   }
 
   async function loginAsNewUser() {
-    const agent = request.agent(app.getHttpServer());
+    const { agent, token, csrfCookie } = await csrfAgent(app);
     const email = `cancel-${randomUUID()}@example.com`;
     await agent.post('/auth/register').send({ email, password: 'matkhau123' }).expect(201);
     const login = await agent.post('/auth/login').send({ email, password: 'matkhau123' }).expect(200);
@@ -83,7 +85,10 @@ describe('Huỷ đơn chủ động (e2e)', () => {
     // server sau mỗi request, nên n request song song qua agent sẽ đỏ `ECONNRESET` — bug đã
     // gặp thật ở Phase 3 test #8, ghi ở tech-playbook §Testing.
     const cookies = (login.headers['set-cookie'] as unknown as string[]) ?? [];
-    return { agent, cookie: cookies.map((c) => c.split(';')[0]).join('; ') };
+    // Kèm cả cookie CSRF: `fetch` không dùng cookie jar của agent nên phải tự ghép, và từ
+    // ADR-009 thì thiếu nó là 403 chứ không phải 401 — dễ đọc nhầm thành "lỗi đăng nhập".
+    const cookie = [...cookies.map((c) => c.split(';')[0]), csrfCookie].join('; ');
+    return { agent, cookie, csrfHeader: { cookie, 'x-csrf-token': token } };
   }
 
   async function seedSku(stock: number, priceVnd = 150_000): Promise<string> {
@@ -155,13 +160,13 @@ describe('Huỷ đơn chủ động (e2e)', () => {
   });
 
   it('3. ⭐ 20 request huỷ SONG SONG cùng một đơn → tồn kho chỉ trả một lần, không 5xx', async () => {
-    const { agent, cookie } = await loginAsNewUser();
+    const { agent, csrfHeader } = await loginAsNewUser();
     const skuId = await seedSku(10);
     const order = await placeOrder(agent, skuId, 2);
 
     const responses = await Promise.all(
       Array.from({ length: 20 }, () =>
-        fetch(`${baseUrl()}/orders/${order.id}/cancel`, { method: 'POST', headers: { cookie } }),
+        fetch(`${baseUrl()}/orders/${order.id}/cancel`, { method: 'POST', headers: csrfHeader }),
       ),
     );
 
@@ -275,8 +280,15 @@ describe('Huỷ đơn chủ động (e2e)', () => {
     await agent.post('/orders/khong-phai-uuid/cancel').expect(404);
   });
 
-  it('11. chưa đăng nhập → 401', async () => {
-    const res = await fetch(`${baseUrl()}/orders/${randomUUID()}/cancel`, { method: 'POST' });
+  it('11. có token CSRF nhưng chưa đăng nhập → 401 (không lẫn với 403 của CSRF)', async () => {
+    // Gửi token CSRF hợp lệ để tách bạch hai lớp: qua được CsrfGuard rồi mới tới guard đăng
+    // nhập. Không gửi thì kết quả là 403 và test này không còn kiểm được điều nó định kiểm.
+    const { token, csrfCookie } = await csrfAgent(app);
+
+    const res = await fetch(`${baseUrl()}/orders/${randomUUID()}/cancel`, {
+      method: 'POST',
+      headers: { cookie: csrfCookie, 'x-csrf-token': token },
+    });
 
     expect(res.status).toBe(401);
   });

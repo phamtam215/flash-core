@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
-import { AllExceptionsFilter, LoggerModule } from './common';
+import { AllExceptionsFilter, CsrfGuard, CsrfIssueMiddleware, LoggerModule } from './common';
 import { ConfigModule } from './config';
 import { MetricsModule } from './infra/metrics';
 import { PrismaModule } from './infra/prisma';
@@ -46,6 +46,16 @@ import { ProductModule } from './modules/product';
     // Đăng ký filter ở tầng app thay vì bọc từng controller: một hình dạng lỗi cho toàn hệ
     // thống, và không thể quên áp dụng cho endpoint mới.
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // Chặn CSRF ở tầng app chứ không gắn từng controller — **fail-closed**: endpoint ghi mới
+    // được bảo vệ sẵn kể cả khi người thêm nó không nghĩ tới CSRF. Cách ngược lại thì quên =
+    // lộ, và không test nào bắt được vì mọi test vẫn xanh. Chi tiết: ADR-009.
+    { provide: APP_GUARD, useClass: CsrfGuard },
+    CsrfIssueMiddleware,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /** Phát cookie CSRF cho mọi response chưa có — kể cả `GET /` (trang tĩnh). */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CsrfIssueMiddleware).forRoutes('*');
+  }
+}

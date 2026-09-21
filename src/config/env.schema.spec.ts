@@ -15,6 +15,7 @@ describe('validateEnv', () => {
     JWT_ACCESS_SECRET: 'a'.repeat(32),
     JWT_REFRESH_SECRET: 'b'.repeat(32),
     PAYMENT_WEBHOOK_SECRET: 'c'.repeat(32),
+    CSRF_SECRET: 'd'.repeat(32),
   };
 
   it('điền giá trị mặc định cho các biến không bắt buộc', () => {
@@ -36,6 +37,14 @@ describe('validateEnv', () => {
     expect(env.QUEUE_CONCURRENCY).toBe(5);
     expect(env.OUTBOX_POLL_INTERVAL_MS).toBe(1000);
     expect(env.OUTBOX_BATCH_SIZE).toBe(50);
+  });
+
+  it('bắt buộc CSRF_SECRET — khoá đoán được thì chữ ký token CSRF hết tác dụng', () => {
+    const withoutSecret: Record<string, string> = { ...valid };
+    delete withoutSecret.CSRF_SECRET;
+
+    expect(() => validateEnv(withoutSecret)).toThrow(/CSRF_SECRET/);
+    expect(() => validateEnv({ ...valid, CSRF_SECRET: 'ngan' })).toThrow(/CSRF_SECRET/);
   });
 
   it('bắt buộc PAYMENT_WEBHOOK_SECRET — endpoint webhook không có auth nào khác', () => {

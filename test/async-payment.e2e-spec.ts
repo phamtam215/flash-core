@@ -15,6 +15,7 @@ import { OrderExpiryService, OrderNotifier } from '../src/modules/order';
 import { OutboxRelay, OutboxRepository } from '../src/modules/outbox';
 import { PaymentService } from '../src/modules/payment';
 import { signPayload } from '../src/modules/payment';
+import { csrfAgent } from './http-helper';
 import { startInfra } from './infra-fixture';
 
 /**
@@ -60,6 +61,7 @@ describe('Async, Queue & Payment (e2e)', () => {
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.CSRF_SECRET = 'test-csrf-secret-toi-thieu-32-ky-tu!!!';
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
     process.env.INVENTORY_STRATEGY = 'optimistic';
     process.env.ORDER_HOLD_MINUTES = String(HOLD_SECONDS / 60);
@@ -118,7 +120,7 @@ describe('Async, Queue & Payment (e2e)', () => {
   }
 
   async function loginAsNewUser() {
-    const agent = request.agent(app.getHttpServer());
+    const { agent } = await csrfAgent(app);
     const email = `pay-${randomUUID()}@example.com`;
     await agent.post('/auth/register').send({ email, password: 'matkhau123' }).expect(201);
     await agent.post('/auth/login').send({ email, password: 'matkhau123' }).expect(200);

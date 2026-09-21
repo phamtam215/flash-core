@@ -51,7 +51,14 @@ async function api(path, options = {}) {
   const res = await fetch(path, {
     ...options,
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      // Double-submit: sao chép token từ cookie sang header. Trang lạ GỬI được cookie của
+      // anh (browser tự đính) nhưng ĐỌC thì không — same-origin policy chặn. Không đọc được
+      // thì không đặt được header này. Đó là toàn bộ cơ chế. Xem docs/adr/009.
+      'X-CSRF-Token': readCookie('csrf_token'),
+      ...(options.headers || {}),
+    },
   });
 
   if (res.status === 401 && !state.refreshed && path !== '/auth/refresh') {
@@ -73,6 +80,15 @@ async function api(path, options = {}) {
     throw err;
   }
   return body;
+}
+
+/**
+ * Đọc một cookie thường. Chỉ dùng được cho `csrf_token` — ba cookie kia có `HttpOnly` nên
+ * `document.cookie` không thấy chúng, và đó là chủ đích (xem `auth.cookies.ts`).
+ */
+function readCookie(name) {
+  const found = document.cookie.split('; ').find((c) => c.startsWith(`${name}=`));
+  return found ? found.slice(name.length + 1) : '';
 }
 
 /** Dải báo lỗi ở đầu trang — không dùng `alert` vì nó chặn cả polling. */

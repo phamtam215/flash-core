@@ -7,6 +7,7 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infra/prisma';
+import { csrfAgent } from './http-helper';
 import { startInfra } from './infra-fixture';
 
 /**
@@ -29,6 +30,7 @@ describe('Product (e2e)', () => {
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.CSRF_SECRET = 'test-csrf-secret-toi-thieu-32-ky-tu!!!';
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
 
     execFileSync('npx', ['prisma', 'migrate', 'deploy'], { env: { ...process.env }, stdio: 'pipe' });
@@ -44,7 +46,7 @@ describe('Product (e2e)', () => {
     // `request.agent` giữ cookie qua các lần gọi như một session browser thật — đơn giản hơn
     // tự đọc/gắn header `Cookie` tay (cách `test/auth.e2e-spec.ts` phải làm vì nó test CHÍNH
     // cơ chế cookie). Ở đây chỉ cần "đã đăng nhập" để gọi API ghi.
-    agent = request.agent(app.getHttpServer());
+    ({ agent } = await csrfAgent(app));
     await agent
       .post('/auth/register')
       .send({ email: 'product-admin@example.com', password: 'matkhau123' })

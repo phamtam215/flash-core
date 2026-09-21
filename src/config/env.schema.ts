@@ -97,6 +97,15 @@ export const envSchema = z.object({
   PAYMENT_WEBHOOK_SECRET: z.string().min(32, 'PAYMENT_WEBHOOK_SECRET cần tối thiểu 32 ký tự'),
 
   /**
+   * Khoá ký token CSRF. **Không có default** — khoá đoán được thì kẻ tấn công tự chế được cặp
+   * cookie+header hợp lệ, và chữ ký mất sạch tác dụng (xem `common/csrf/csrf.token.ts`).
+   *
+   * Khác `PAYMENT_WEBHOOK_SECRET` ở một điểm: **xoay khoá này an toàn**. Token cũ thành không
+   * hợp lệ, middleware phát lại ngay ở request kế tiếp, người dùng không bị đăng xuất.
+   */
+  CSRF_SECRET: z.string().min(32, 'CSRF_SECRET cần tối thiểu 32 ký tự'),
+
+  /**
    * Chữ ký cũ hơn ngần này GIÂY thì từ chối.
    *
    * Chống replay: chữ ký hợp lệ bắt được trên đường truyền sẽ hợp lệ mãi mãi nếu không có

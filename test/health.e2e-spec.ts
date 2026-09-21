@@ -32,6 +32,7 @@ describe('Health (e2e)', () => {
     // Phase 1 thêm hai biến bắt buộc. Giá trị test, không phải secret thật.
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.CSRF_SECRET = 'test-csrf-secret-toi-thieu-32-ky-tu!!!';
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
 
     const moduleRef: TestingModule = await Test.createTestingModule({

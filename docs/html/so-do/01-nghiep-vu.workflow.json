@@ -1,0 +1,104 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Flash-Core · Luồng nghiệp vụ săn flash sale",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "duong-chinh",
+        "label": "Đường săn hàng thành công",
+        "focus": ["bam", "dat", "giu", "pending", "webhook", "paid"],
+        "note": "Từ lúc bấm Săn ngay tới lúc đơn chuyển PAID."
+      },
+      {
+        "id": "duong-truot",
+        "label": "Đường trượt và huỷ đơn",
+        "focus": ["giu", "het", "pending", "hethan", "huy"],
+        "note": "900/1.000 người nhận 409, đơn không trả tiền bị huỷ và trả hàng về kho."
+      },
+      {
+        "id": "duong-async",
+        "label": "Việc chạy nền",
+        "focus": ["pending", "outbox", "mail"],
+        "note": "Sự kiện ghi cùng transaction với đơn, worker mới gửi email."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "mua", "label": "Người mua · trình duyệt" },
+    { "id": "api", "label": "API · NestJS (npm run dev)" },
+    { "id": "kho", "label": "Kho dữ liệu · PostgreSQL" },
+    { "id": "worker", "label": "Worker nền (npm run worker)" },
+    { "id": "ngoaile", "label": "Đường không mua được", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "san", "label": "Săn hàng · vài giây", "fromCol": 0, "toCol": 2, "variant": "emphasis" },
+    { "id": "giucho", "label": "Giữ chỗ 15 phút", "fromCol": 3, "toCol": 4 },
+    { "id": "ketthuc", "label": "Kết thúc", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["bam", "dat", "giu", "pending", "webhook", "paid"],
+  "nodes": [
+    { "id": "bam", "lane": "mua", "col": 0, "type": "external", "label": "Bấm \"Săn ngay\"", "sublabel": "hàng nghìn người cùng lúc", "width": 140 },
+    { "id": "dat", "lane": "api", "col": 1, "type": "backend", "label": "POST /orders", "sublabel": "Zod + Idempotency-Key", "width": 140 },
+    { "id": "giu", "lane": "api", "col": 2, "type": "backend", "label": "Trừ kho ngay", "sublabel": "1 câu ghi có điều kiện", "tag": "oversell = 0", "width": 140 },
+    { "id": "webhook", "lane": "api", "col": 4, "type": "security", "label": "Webhook trả tiền", "sublabel": "verify HMAC trên raw body", "width": 140 },
+    { "id": "pending", "lane": "kho", "col": 3, "type": "database", "label": "Đơn PENDING", "sublabel": "giữ chỗ 15 phút", "width": 140 },
+    { "id": "outbox", "lane": "kho", "col": 4, "type": "database", "label": "Bảng outbox", "sublabel": "sự kiện chờ gửi", "width": 140 },
+    { "id": "paid", "lane": "kho", "col": 5, "type": "database", "label": "Đơn PAID", "sublabel": "trạng thái kết thúc", "width": 140 },
+    { "id": "hethan", "lane": "worker", "col": 4, "type": "backend", "label": "Quá 15 phút", "sublabel": "delayed job + sweeper", "width": 140 },
+    { "id": "mail", "lane": "worker", "col": 5, "type": "messagebus", "label": "Email xác nhận", "sublabel": "gửi đúng một lần", "width": 140 },
+    { "id": "het", "lane": "ngoaile", "col": 3, "type": "external", "label": "409 Hết hàng", "sublabel": "kết quả đúng, không phải lỗi", "width": 140 },
+    { "id": "huy", "lane": "ngoaile", "col": 5, "type": "external", "label": "CANCELLED", "sublabel": "trả hàng về kho đúng 1 lần", "width": 140 }
+  ],
+  "edges": [
+    { "id": "e-bam-dat", "from": "bam", "to": "dat", "label": "HTTP · cookie HttpOnly", "variant": "emphasis" },
+    { "id": "e-dat-giu", "from": "dat", "to": "giu", "label": "key trùng → trả lại đơn cũ", "variant": "default" },
+    { "id": "e-giu-pending", "from": "giu", "to": "pending", "label": "còn hàng → tạo đơn", "variant": "emphasis" },
+    { "id": "e-giu-het", "from": "giu", "to": "het", "label": "hết hàng", "variant": "security", "role": "error" },
+    { "id": "e-pending-outbox", "from": "pending", "to": "outbox", "label": "ghi cùng transaction", "variant": "dashed", "role": "async" },
+    { "id": "e-outbox-mail", "from": "outbox", "to": "mail", "label": "relay đọc rồi đẩy queue", "variant": "dashed", "role": "async" },
+    { "id": "e-pending-webhook", "from": "pending", "to": "webhook", "label": "người mua trả tiền", "variant": "emphasis" },
+    { "id": "e-webhook-paid", "from": "webhook", "to": "paid", "label": "UPDATE … WHERE status='PENDING'", "variant": "emphasis" },
+    { "id": "e-pending-hethan", "from": "pending", "to": "hethan", "label": "chưa trả tiền", "variant": "default", "role": "branch" },
+    { "id": "e-hethan-huy", "from": "hethan", "to": "huy", "label": "huỷ + hoàn kho", "variant": "security", "role": "error" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Bài toán nghiệp vụ",
+      "items": [
+        "Một mẫu áo, số lượng giới hạn theo từng SKU biến thể (size × màu)",
+        "Còn 100 chiếc thì phải bán ra đúng 100 — bán 101 là mất tiền thật",
+        "Việc khó không phải bán hàng, mà là bán đúng số lượng có thật"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Ba quyết định nghiệp vụ",
+      "items": [
+        "Trừ kho ngay lúc bấm, không đợi trả tiền",
+        "Giữ chỗ 15 phút rồi tự huỷ, nếu không hàng bị giam vĩnh viễn",
+        "Huỷ thì trả hàng về kho, và phải trả đúng một lần"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Con số đo thật (1.000 VU)",
+      "items": [
+        "201 = 100 · 409 = 900 · 5xx = 0 · oversell = 0",
+        "409 là kết quả đúng nên k6 đếm riêng 4xx và 5xx",
+        "Rút dây mạng giữa chừng: 20 đơn → đúng 20 email"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Chỗ dễ sai",
+      "items": [
+        "Điều kiện chống trả kho hai lần nằm ở status = 'PENDING', không phải expires_at",
+        "Huỷ đơn có hai đường vào (job hẹn giờ + sweeper) nhưng chỉ một đường đổi được dòng",
+        "Trả kho phải làm SAU khi UPDATE đã đổi được trạng thái"
+      ]
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infra/prisma';
 import { RedisService } from '../src/infra/redis';
+import { csrfAgent } from './http-helper';
 import { startInfra } from './infra-fixture';
 
 /**
@@ -33,6 +34,7 @@ describe('Order (e2e)', () => {
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.CSRF_SECRET = 'test-csrf-secret-toi-thieu-32-ky-tu!!!';
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
     // Pool phải đủ rộng cho 200 request song song ở test #8, nếu không cái vỡ trước sẽ là pool
     // chứ không phải khoá — và test sẽ đo sai thứ. Chính hiện tượng này là bài học ghi ở
@@ -80,9 +82,9 @@ describe('Order (e2e)', () => {
    * Đăng nhập và lấy CHUỖI access token, để bắn request song song bằng `fetch` với header
    * `Cookie` tự gắn — không đi qua supertest agent nữa.
    */
-  async function accessTokenOf(app: INestApplication): Promise<string> {
+  async function accessTokenOf(app: INestApplication): Promise<{ token: string; csrf: string }> {
     const email = `order-${randomUUID()}@example.com`;
-    const agent = request.agent(app.getHttpServer());
+    const { agent, token: csrf } = await csrfAgent(app);
     await agent.post('/auth/register').send({ email, password: 'matkhau123' }).expect(201);
     const login = await agent.post('/auth/login').send({ email, password: 'matkhau123' }).expect(200);
 
@@ -90,13 +92,15 @@ describe('Order (e2e)', () => {
     const list = Array.isArray(cookies) ? cookies : cookies ? [cookies] : [];
     const token = list.find((c) => c.startsWith('access_token='))?.split(';')[0]?.split('=')[1];
     if (!token) throw new Error('không lấy được access_token từ cookie');
-    return token;
+    // Kèm token CSRF: từ ADR-009, `fetch` tự gắn header phải mang theo cả cookie lẫn header,
+    // vì nó không dùng cookie jar của agent.
+    return { token, csrf };
   }
 
   /** Bắn `POST /orders` bằng fetch — dùng cho mọi test song song. Trả về status code. */
   async function placeViaFetch(
     baseUrl: string,
-    token: string,
+    auth: { token: string; csrf: string },
     skuId: string,
     quantity = 1,
   ): Promise<number> {
@@ -105,7 +109,8 @@ describe('Order (e2e)', () => {
       headers: {
         'Content-Type': 'application/json',
         'Idempotency-Key': randomUUID(),
-        Cookie: `access_token=${token}`,
+        Cookie: `access_token=${auth.token}; csrf_token=${auth.csrf}`,
+        'x-csrf-token': auth.csrf,
       },
       body: JSON.stringify({ skuId, quantity }),
     });
@@ -114,7 +119,7 @@ describe('Order (e2e)', () => {
 
   /** Đăng ký + đăng nhập một user mới, trả về agent đã giữ cookie phiên. */
   async function loginAsNewUser(app: INestApplication) {
-    const agent = request.agent(app.getHttpServer());
+    const { agent } = await csrfAgent(app);
     const email = `order-${randomUUID()}@example.com`;
     await agent.post('/auth/register').send({ email, password: 'matkhau123' }).expect(201);
     await agent.post('/auth/login').send({ email, password: 'matkhau123' }).expect(200);

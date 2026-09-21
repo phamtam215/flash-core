@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { csrfAgent } from './http-helper';
 import { startInfra } from './infra-fixture';
 
 /**
@@ -56,6 +57,7 @@ describe('Auth (e2e)', () => {
     process.env.LOG_LEVEL = 'error';
     process.env.JWT_ACCESS_SECRET = 'test-access-secret-toi-thieu-32-ky-tu!!';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-toi-thieu-32-ky-tu!';
+    process.env.CSRF_SECRET = 'test-csrf-secret-toi-thieu-32-ky-tu!!!';
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
     // Access token 1 giây để test được case "hết hạn" mà không phải chờ 15 phút.
     process.env.ACCESS_TOKEN_TTL = '1';
@@ -87,9 +89,19 @@ describe('Auth (e2e)', () => {
 
   // ── 1–2: đăng ký ────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Một client mới cho mỗi lần gọi — tương đương `(await http())` trước đây,
+   * nhưng đã mang sẵn cookie + header CSRF (ADR-009). Dùng agent vì chỉ agent mới đặt được
+   * header mặc định; mỗi agent có jar riêng nên các test vẫn độc lập với nhau như cũ.
+   */
+  async function http() {
+    return (await csrfAgent(app)).agent;
+  }
+
+
   it('1. đăng ký thành công và KHÔNG trả về mật khẩu dưới bất kỳ dạng nào', async () => {
     const email = nextEmail();
-    const res = await request(app.getHttpServer())
+    const res = await (await http())
       .post('/auth/register')
       .send({ email, password: PASSWORD })
       .expect(201);
@@ -101,12 +113,12 @@ describe('Auth (e2e)', () => {
 
   it('2. đăng ký trùng email → 409', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer())
+    await (await http())
       .post('/auth/register')
       .send({ email, password: PASSWORD })
       .expect(201);
 
-    const res = await request(app.getHttpServer())
+    const res = await (await http())
       .post('/auth/register')
       .send({ email, password: PASSWORD })
       .expect(409);
@@ -118,9 +130,9 @@ describe('Auth (e2e)', () => {
 
   it('3. đăng nhập đúng → 200, cookie có HttpOnly và SameSite', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
 
-    const res = await request(app.getHttpServer())
+    const res = await (await http())
       .post('/auth/login')
       .send({ email, password: PASSWORD })
       .expect(200);
@@ -139,14 +151,14 @@ describe('Auth (e2e)', () => {
 
   it('4. sai mật khẩu và email không tồn tại trả về CÙNG một lỗi', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
 
-    const saiMatKhau = await request(app.getHttpServer())
+    const saiMatKhau = await (await http())
       .post('/auth/login')
       .send({ email, password: 'sai-mat-khau' })
       .expect(401);
 
-    const emailKhongTonTai = await request(app.getHttpServer())
+    const emailKhongTonTai = await (await http())
       .post('/auth/login')
       .send({ email: 'khong-ton-tai@example.com', password: PASSWORD })
       .expect(401);
@@ -160,19 +172,19 @@ describe('Auth (e2e)', () => {
   // ── 5–6: /auth/me ───────────────────────────────────────────────────────────────────────
 
   it('5. gọi /auth/me khi chưa đăng nhập → 401', async () => {
-    const res = await request(app.getHttpServer()).get('/auth/me').expect(401);
+    const res = await (await http()).get('/auth/me').expect(401);
     expect(res.body.code).toBe('UNAUTHENTICATED');
     expect(res.body).toHaveProperty('correlationId');
   });
 
   it('6. gọi /auth/me với access token → 200, không lộ passwordHash', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
-    const login = await request(app.getHttpServer())
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
+    const login = await (await http())
       .post('/auth/login')
       .send({ email, password: PASSWORD });
 
-    const res = await request(app.getHttpServer())
+    const res = await (await http())
       .get('/auth/me')
       .set('Cookie', `access_token=${readCookie(login, 'access_token') ?? ''}`)
       .expect(200);
@@ -185,13 +197,13 @@ describe('Auth (e2e)', () => {
 
   it('7. refresh hợp lệ → cấp cặp token mới', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
-    const login = await request(app.getHttpServer())
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
+    const login = await (await http())
       .post('/auth/login')
       .send({ email, password: PASSWORD });
 
     const oldRefresh = readCookie(login, 'refresh_token');
-    const res = await request(app.getHttpServer())
+    const res = await (await http())
       .post('/auth/refresh')
       .set('Cookie', `refresh_token=${oldRefresh ?? ''}`)
       .expect(200);
@@ -209,22 +221,22 @@ describe('Auth (e2e)', () => {
    */
   it('8. dùng lại refresh token đã xoay → thu hồi CẢ family', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
-    const login = await request(app.getHttpServer())
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
+    const login = await (await http())
       .post('/auth/login')
       .send({ email, password: PASSWORD });
 
     const tokenBiDanhCap = readCookie(login, 'refresh_token');
 
     // Người dùng thật refresh → token cũ bị vô hiệu, nhận token mới.
-    const lanDau = await request(app.getHttpServer())
+    const lanDau = await (await http())
       .post('/auth/refresh')
       .set('Cookie', `refresh_token=${tokenBiDanhCap ?? ''}`)
       .expect(200);
     const tokenMoiCuaNguoiThat = readCookie(lanDau, 'refresh_token');
 
     // Kẻ trộm dùng bản copy của token cũ → bị phát hiện.
-    const lanHai = await request(app.getHttpServer())
+    const lanHai = await (await http())
       .post('/auth/refresh')
       .set('Cookie', `refresh_token=${tokenBiDanhCap ?? ''}`)
       .expect(401);
@@ -232,7 +244,7 @@ describe('Auth (e2e)', () => {
 
     // Và đây là phần khiến nó khác "chỉ từ chối token cũ": token MỚI của người dùng thật —
     // thứ chưa từng bị dùng lại — cũng phải chết theo, vì không thể biết ai là chủ thật.
-    const tokenHopLeGioCungChet = await request(app.getHttpServer())
+    const tokenHopLeGioCungChet = await (await http())
       .post('/auth/refresh')
       .set('Cookie', `refresh_token=${tokenMoiCuaNguoiThat ?? ''}`)
       .expect(401);
@@ -240,7 +252,7 @@ describe('Auth (e2e)', () => {
   });
 
   it('9. refresh token bịa → 401', async () => {
-    const res = await request(app.getHttpServer())
+    const res = await (await http())
       .post('/auth/refresh')
       .set('Cookie', 'refresh_token=token-bia-dat')
       .expect(401);
@@ -251,24 +263,24 @@ describe('Auth (e2e)', () => {
 
   it('10. logout → refresh token cũ hết dùng được, gọi lại logout vẫn 204', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
-    const login = await request(app.getHttpServer())
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
+    const login = await (await http())
       .post('/auth/login')
       .send({ email, password: PASSWORD });
     const refresh = readCookie(login, 'refresh_token');
 
-    await request(app.getHttpServer())
+    await (await http())
       .post('/auth/logout')
       .set('Cookie', `refresh_token=${refresh ?? ''}`)
       .expect(204);
 
-    await request(app.getHttpServer())
+    await (await http())
       .post('/auth/refresh')
       .set('Cookie', `refresh_token=${refresh ?? ''}`)
       .expect(401);
 
     // Logout phải idempotent: bấm lần hai không được thành màn hình lỗi.
-    await request(app.getHttpServer())
+    await (await http())
       .post('/auth/logout')
       .set('Cookie', `refresh_token=${refresh ?? ''}`)
       .expect(204);
@@ -276,8 +288,8 @@ describe('Auth (e2e)', () => {
 
   it('11. access token hết hạn → 401, refresh xong gọi lại thì được', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
-    const login = await request(app.getHttpServer())
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
+    const login = await (await http())
       .post('/auth/login')
       .send({ email, password: PASSWORD });
 
@@ -285,17 +297,17 @@ describe('Auth (e2e)', () => {
     // đây vì đang đợi một hạn dùng cố định, không phải đợi một sự kiện bất định.
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    await request(app.getHttpServer())
+    await (await http())
       .get('/auth/me')
       .set('Cookie', `access_token=${readCookie(login, 'access_token') ?? ''}`)
       .expect(401);
 
-    const refreshed = await request(app.getHttpServer())
+    const refreshed = await (await http())
       .post('/auth/refresh')
       .set('Cookie', `refresh_token=${readCookie(login, 'refresh_token') ?? ''}`)
       .expect(200);
 
-    await request(app.getHttpServer())
+    await (await http())
       .get('/auth/me')
       .set('Cookie', `access_token=${readCookie(refreshed, 'access_token') ?? ''}`)
       .expect(200);
@@ -305,17 +317,17 @@ describe('Auth (e2e)', () => {
 
   it('12. sai mật khẩu quá số lần cho phép → 429', async () => {
     const email = nextEmail();
-    await request(app.getHttpServer()).post('/auth/register').send({ email, password: PASSWORD });
+    await (await http()).post('/auth/register').send({ email, password: PASSWORD });
 
     // LOGIN_RATE_LIMIT_MAX = 3 ở beforeAll.
     for (let i = 0; i < 3; i++) {
-      await request(app.getHttpServer())
+      await (await http())
         .post('/auth/login')
         .send({ email, password: 'sai-mat-khau' })
         .expect(401);
     }
 
-    const res = await request(app.getHttpServer())
+    const res = await (await http())
       .post('/auth/login')
       .send({ email, password: 'sai-mat-khau' })
       .expect(429);
@@ -324,7 +336,7 @@ describe('Auth (e2e)', () => {
     // Chặn theo email nên **mật khẩu đúng cũng bị chặn** — đây là đánh đổi có chủ đích, đã
     // ghi trong auth.service.ts: nó ngăn brute-force từ nhiều IP, đổi lại kẻ xấu có thể cố
     // tình khoá tài khoản người khác trong 60 giây.
-    await request(app.getHttpServer())
+    await (await http())
       .post('/auth/login')
       .send({ email, password: PASSWORD })
       .expect(429);

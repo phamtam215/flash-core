@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-011: Idempotency-Key lấy DB làm trọng tài</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a><a href="adr-009-csrf-double-submit-co-ky.html">ADR-009: CSRF double-submit</a><a href="adr-010-keyset-pagination-thay-offset.html">ADR-010: Keyset pagination</a><a href="adr-011-idempotency-key-lay-db-lam-trong-tai.html" class="active">ADR-011: Idempotency-Key</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a><a href="spec-huy-don-chu-dong.html">Huỷ đơn chủ động</a><a href="spec-csrf-token.html">CSRF token (draft)</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-011-idempotency-key-lấy-ràng-buộc-unique-của-db-làm-trọng-tài">ADR-011: <code>Idempotency-Key</code> lấy ràng buộc UNIQUE của DB làm trọng tài</h1>
+<ul><li><strong>Ngày:</strong> 2026-08-28 (ghi lại 2026-09-21 — quyết định đã áp dụng từ Phase 3)</li><li><strong>Trạng thái:</strong> Đã chốt</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p>Người mua bấm "Săn ngay" hai lần — vì mạng chậm, vì sốt ruột, vì trình duyệt tự gửi lại. Hai request tới gần như cùng lúc. Chỉ được ra <strong>một</strong> đơn.</p>
+<h2 id="quyết-định">Quyết định</h2>
+<p>Client gửi <code>Idempotency-Key</code> (header bắt buộc với mọi API <strong>tạo</strong> thứ gì đó liên quan đơn hàng). DB có <code>UNIQUE(user_id, idempotency_key)</code>. Server <strong>cứ <code>INSERT</code> thẳng</strong> và <strong>bắt lỗi <code>P2002</code></strong> (vi phạm UNIQUE) để biết đây là lần bấm thứ hai:</p>
+<pre><code>INSERT ... → thành công  ⇒ đơn mới, trả 201
+INSERT ... → P2002       ⇒ đã có, hoàn kho, đọc lại đơn cũ, trả 200</code></pre>
+<h2 id="vì-sao-không-kiểm-tra-trước-rồi-mới-ghi">Vì sao không "kiểm tra trước rồi mới ghi"</h2>
+<pre><code class="language-ts">const existing = await repo.findByKey(userId, key);   // ①
+if (existing) return existing;
+return repo.create(...);                              // ②</code></pre>
+<p>Đoạn này <strong>sai dưới tải</strong>, và sai im lặng. Hai request song song đều chạy ① khi chưa ai ghi xong → cả hai thấy <code>null</code> → cả hai chạy ② → <strong>hai đơn</strong>. Khe giữa ① và ② nhỏ tới mức test tay không bao giờ gặp, nhưng dưới 1.000 người bấm cùng lúc thì nó gặp liên tục.</p>
+<p>Đây là cùng một bài học với ba chiến lược chống oversell (ADR-003): <strong>đưa điều kiện vào chính câu ghi, đừng kiểm tra trong RAM rồi mới ghi.</strong> Chỉ có DB mới biết ai tới trước, vì chỉ nó thấy được cả hai transaction.</p>
+<div class="table-wrap"><table><thead><tr><th>Cách</th><th>Vì sao loại</th></tr></thead><tbody><tr><td>Check-then-insert</td><td>Race condition, sai im lặng dưới tải (ở trên)</td></tr><tr><td>Khoá phân tán bằng Redis (<code>SET NX</code> theo key)</td><td>Thêm một hệ thống vào đường nóng, và vẫn phải có UNIQUE làm lưới cuối. Đã có lưới cuối thì lớp khoá kia chỉ là tối ưu — chưa đo được là chưa đáng thêm</td></tr><tr><td>Cột <code>UNIQUE</code> mà không có header, tự sinh key từ nội dung đơn</td><td>Hai lần mua <strong>cố ý</strong> cùng một SKU cùng số lượng sẽ bị coi là trùng. Ý định phải do client nói, không suy đoán được</td></tr></tbody></table></div>
+<h2 id="hệ-quả">Hệ quả</h2>
+<p><strong>Được:</strong> đúng trong mọi kịch bản song song mà không thêm hệ thống nào; một <code>INSERT</code> cho đường thành công (đường chạy 99% thời gian).</p>
+<p><strong>Mất — và đây là đánh đổi phải nói ra:</strong> thứ tự của dự án là <strong>trừ kho trước, tạo đơn sau</strong>, nên lần bấm thứ hai sẽ trừ kho rồi mới phát hiện trùng và phải <strong>hoàn lại</strong>. Đổi ngược thứ tự (tạo đơn trước) tránh được việc hoàn kho ở nhánh này, nhưng chiến lược Redis trừ kho <strong>ngoài</strong> transaction DB nên vẫn phải bù trừ ở nhánh lỗi — không cách nào tránh hoàn toàn. Chọn một luồng chung cho cả ba chiến lược để benchmark Phase 3 so sánh công bằng.</p>
+<p>Hệ quả thứ hai: bắt <code>P2002</code> nghĩa là <strong>phụ thuộc vào mã lỗi của Prisma</strong>. Nếu một ngày đổi ORM thì chỗ này phải sửa — chấp nhận, vì nó nằm gọn trong đúng một hàm của repository.</p>
+<p><strong>Không nhầm với <code>processed_events</code>:</strong> bảng đó (Phase 4) cũng dùng UNIQUE làm trọng tài nhưng cho việc khác — chống <strong>xử lý</strong> một sự kiện hai lần ở phía consumer, không phải chống <strong>tạo</strong> hai đơn ở phía client. Hai bài toán, cùng một công cụ.</p>
+<p><strong>Nơi code:</strong> <code><code>order.repository.ts</code></code> · <code><code>order.service.ts</code></code> · <a href="spec-phase-3.html">spec Phase 3</a></p>
+<p><strong>Ngoại lệ đã chốt:</strong> <code>POST /orders/:id/cancel</code> <strong>không</strong> đòi header này — huỷ đơn không <em>tạo</em> gì, tính idempotent của nó đến từ <code>WHERE status = 'PENDING'</code> trong chính câu <code>UPDATE</code>, chặt hơn một header do client tự sinh. Xem <a href="spec-huy-don-chu-dong.html">spec huỷ đơn chủ động</a>.</p>
+</main>
+</div>
+</body>
+</html>

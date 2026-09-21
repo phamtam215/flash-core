@@ -18,3 +18,14 @@ export {
 } from './pagination/cursor';
 export { LoggerModule, CORRELATION_ID_HEADER } from './logger/logger.module';
 export { getCorrelationId, runWithCorrelationId } from './correlation';
+export {
+  CsrfGuard,
+  CsrfIssueMiddleware,
+  CsrfTokenInvalidError,
+  CSRF_COOKIE,
+  CSRF_HEADER,
+  issueToken,
+  verifyRequest,
+  verifyToken,
+  type CsrfFailure,
+} from './csrf';
