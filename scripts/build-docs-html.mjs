@@ -54,6 +54,7 @@ const PAGES = [
   { src: 'docs/specs/phase4-async-queue-payment.md', out: 'spec-phase-4.html', title: 'Spec Phase 4 — Async, Queue & Payment' },
   { src: 'docs/specs/phase5-ui-demo.md', out: 'spec-phase-5.html', title: 'Spec Phase 5 — UI demo' },
   { src: 'docs/specs/phase6-observability.md', out: 'spec-phase-6.html', title: 'Spec Phase 6 — Observability' },
+  { src: 'docs/specs/huy-don-chu-dong.md', out: 'spec-huy-don-chu-dong.html', title: 'Spec — Huỷ đơn chủ động' },
 
   { src: 'docs/templates/feature-spec-template.md', out: 'template-spec.html', title: 'Khuôn spec tính năng' },
   { src: 'docs/templates/adr-template.md', out: 'template-adr.html', title: 'Khuôn ADR' },
@@ -83,6 +84,7 @@ const NAV = [
     ['spec-phase-4.html', 'Phase 4 — Async ⭐'],
     ['spec-phase-5.html', 'Phase 5 — UI demo'],
     ['spec-phase-6.html', 'Phase 6 — Observability'],
+    ['spec-huy-don-chu-dong.html', 'Huỷ đơn chủ động (draft)'],
   ]],
   ['Tham khảo', [
     ['onboarding.html', '★ Lộ trình người mới (onboarding.md)'],
@@ -130,6 +132,7 @@ const LINK_MAP = new Map([
   ['phase4-async-queue-payment.md', 'spec-phase-4.html'],
   ['phase5-ui-demo.md', 'spec-phase-5.html'],
   ['phase6-observability.md', 'spec-phase-6.html'],
+  ['huy-don-chu-dong.md', 'spec-huy-don-chu-dong.html'],
   ['feature-spec-template.md', 'template-spec.html'],
   ['adr-template.md', 'template-adr.html'],
   ['007-ui-la-trang-tinh-mot-file.md', 'adr-007-ui-la-trang-tinh-mot-file.html'],
