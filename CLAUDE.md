@@ -247,6 +247,18 @@ Muốn xem lại thì `git log -- .claude/`.
   chỉ log `warn` và sweeper vẫn dọn đúng, nên không test nào đỏ và nhìn từ ngoài không thấy gì
   sai. Sửa thành `expire-${id}`, thêm test 9b khoá lại (integration giờ 90/90).
   **Còn lại:** Tâm trả lời 3 câu hỏi bản chất, review + push.
+- **Nợ coverage ĐÃ TRẢ** 2026-09-21 (DoD dòng "Coverage ≥ 70% module core"): thêm 52 unit test
+  cho tầng quyết định của module `order` — `order.service`, `order.expiry.service`,
+  `order.notifier`, `order-payment.service` và cả ba `strategies/`. **Unit 77 → 129**.
+  `modules/order` **27,31% → 74,88%** statements, `order/strategies` (Inventory)
+  **22,34% → 97,87%**; toàn dự án 36,34% → 52,34%. `jest.config.js` giờ có `coverageThreshold`
+  khoá lại để không tụt.
+  **`order.repository.ts` cố tình KHÔNG có ngưỡng** — nó gần như chỉ có raw SQL, unit test nó
+  bằng cách mock Prisma chỉ chứng minh "chuỗi SQL không đổi". Thứ khoá nó là 90 integration
+  test trên DB thật. Lý do đầy đủ ở `tech-playbook.md` §Ngưỡng coverage đặt ở đâu.
+  **Hai bẫy của `coverageThreshold` đã vấp và ghi lại:** khoá đường dẫn tính từ `cwd` chứ không
+  phải `rootDir` (viết sai thì Jest chỉ in một dòng rồi đi tiếp, hàng rào trông như có mà
+  không có), và file trúng ngưỡng theo-đường-dẫn bị loại khỏi phép tính `global`.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

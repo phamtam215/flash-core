@@ -208,6 +208,28 @@ kèm đuôi `.js` nhưng file trên đĩa là `.ts`, và Jest chỉ thử thêm 
 | `Could not find a working container runtime strategy` dù Docker đang chạy | **Container rác dồn lại**. Mỗi lần test chết giữa dòng để lại Postgres+Redis container; tới ~14 cái thì daemon trả lời chậm hơn timeout dò của Testcontainers (nó bỏ cuộc sau ~2s) và báo như thể không có Docker | `docker container prune -f` (chỉ xoá container ĐÃ DỪNG). Gặp thật ở Phase 3: dọn 14→2 thì 4/4 lần chạy xanh. KHÔNG đưa `prune` vào `npm run test:int` — nó xoá cả container của dự án khác |
 | Test bắn N request song song đỏ `read ECONNRESET` | **supertest tự `listen()` rồi ĐÓNG server sau mỗi request** — request này bị cắt socket vì request khác vừa xong. Dấu hiệu kèm theo: `MaxListenersExceededWarning: close listeners added to [Server]` | Cho app `listen(0)` MỘT lần rồi bắn bằng `fetch` vào cổng thật. Gặp thật ở Phase 3 test #8; cũng giống cách k6 bắn hơn |
 | Coverage cao mà vẫn sợ sửa code | Test bám implement, hoặc test không `expect` gì | Nhìn **branch coverage**, và làm phép thử "xoá một `if`" ở trên |
+| **Ngưỡng `coverageThreshold` không chặn gì cả, mà CI vẫn xanh** | Khoá theo đường dẫn của `coverageThreshold` tính từ **`cwd`**, KHÔNG phải từ `rootDir`. Repo này có `rootDir: 'src'`, nên `'./modules/order/...'` không khớp file nào. Jest chỉ in một dòng `Jest: Coverage data for ... was not found` rồi **đi tiếp, không đỏ** — nên hàng rào trông như đang có mà thực ra không có | Viết đủ `'./src/modules/...'`, rồi **thử nâng ngưỡng lên vô lý** (99%) một lần để xem nó có đỏ không. Gặp thật ở Phase 6 |
+| Thêm ngưỡng theo đường dẫn xong, con số `global` **tụt** | Đúng thiết kế của Jest: file nào trúng một ngưỡng theo-đường-dẫn thì bị **loại** khỏi phép tính `global`. `global` còn lại là "phần chưa ai canh", không phải coverage toàn dự án | Đọc `global` như một con số riêng. Muốn số toàn dự án thì xem dòng `All files` của `npm run test:cov` |
+
+### Ngưỡng coverage đặt ở đâu — và vì sao KHÔNG đặt cho repository
+
+`jest.config.js` đặt ngưỡng cho **tầng quyết định** (`order.service`, `order.expiry.service`,
+`order.notifier`, `order-payment.service`, cả ba `strategies/`) và cố tình **không** đặt cho
+`order.repository.ts` — file coverage thấp nhất module (~12%).
+
+Nghe ngược, nhưng đây là hệ quả trực tiếp của bài học ngay bên dưới. `order.repository.ts` gần
+như chỉ có raw SQL. Unit test nó nghĩa là mock Prisma rồi so chuỗi câu lệnh — và thứ đó chỉ
+chứng minh được *"chuỗi SQL không đổi"*, không chứng minh *"câu lệnh chạy đúng"*. Nó sẽ đẩy con
+số coverage lên mà không kiểm chứng thêm một rủi ro nào, đúng kiểu coverage 92% trong tình huống
+dưới đây. Thứ thật sự khoá repository là **90 integration test trên Postgres thật**.
+
+Ngược lại, tầng quyết định thì unit test là công cụ đúng: các nhánh đắt nhất của nó (retry
+`40001`, giữ dấu khi lỗi vĩnh viễn, bù trừ Redis khi DB ném lỗi) rất khó dựng lại trên DB thật,
+nhưng mock thì dựng được trong ba dòng — và ở đó mock **không** làm mất ý nghĩa, vì thứ đang
+test là *quyết định*, không phải *tương tác*.
+
+Cách chọn, gói trong một câu: **đặt ngưỡng ở nơi unit test kiểm chứng được rủi ro thật; nơi rủi
+ro nằm ở tương tác thì để integration test lo, và đừng mua con số bằng test giả.**
 
 ### Tình huống thực tế
 

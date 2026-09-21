@@ -106,7 +106,7 @@ quyết ra sao? Connection pooling với serverless (Neon pooler)? Chi phí phá
 
 ## 6. Definition of Done
 - [ ] Báo cáo benchmark k6 so sánh 3 chiến lược + kết luận khi nào dùng cái nào
-- [ ] Coverage ≥ 70% module core (Order, Inventory), integration test trên DB thật
+- [x] Coverage ≥ 70% module core (Order, Inventory), integration test trên DB thật — đo 2026-09-21: `modules/order` **74,88%** statements, `order/strategies` (Inventory) **97,87%**; 90 integration test chạy trên Postgres/Redis thật. Ngưỡng đã khoá trong `jest.config.js` để không tụt lại; vì sao repository cố tình không có ngưỡng: [tech-playbook §Ngưỡng coverage đặt ở đâu](tech-playbook.md)
 - [ ] ~10 ADR
 - [ ] Sơ đồ kiến trúc + sequence diagram luồng đặt hàng
 - [ ] Payment webhook: verify chữ ký, idempotent, test webhook trùng & đến muộn
