@@ -105,10 +105,10 @@ quyết ra sao? Connection pooling với serverless (Neon pooler)? Chi phí phá
 - Budget alert $1 ngay ngày đầu. Chấp nhận cold start để giữ 0đ (ghi ADR).
 
 ## 6. Definition of Done
-- [ ] Báo cáo benchmark k6 so sánh 3 chiến lược + kết luận khi nào dùng cái nào
+- [x] Báo cáo benchmark k6 so sánh 3 chiến lược + kết luận khi nào dùng cái nào — test #16, 1.000 VU × 4 cấu hình, oversell = 0 và 5xx = 0 ở cả bốn. Số đo + ba kết quả **ngược trực giác** (pessimistic nhanh nhất khi 900/1.000 request là "hết hàng"; pool 50 chậm hơn pool 10; Redis chưa nhanh hơn vì Phase 3 còn ghi DB đồng bộ) ở [spec Phase 3 §Bằng chứng test #16](specs/phase3-order-concurrency.md) và [tech-playbook §Phase 3](tech-playbook.md)
 - [x] Coverage ≥ 70% module core (Order, Inventory), integration test trên DB thật — đo 2026-09-21: `modules/order` **74,88%** statements, `order/strategies` (Inventory) **97,87%**; 90 integration test chạy trên Postgres/Redis thật. Ngưỡng đã khoá trong `jest.config.js` để không tụt lại; vì sao repository cố tình không có ngưỡng: [tech-playbook §Ngưỡng coverage đặt ở đâu](tech-playbook.md)
 - [ ] ~10 ADR
 - [x] Sơ đồ kiến trúc + sequence diagram luồng đặt hàng — [architecture.md §Sơ đồ kiến trúc](architecture.md) (hai tiến trình, ba kho dữ liệu) và §Sơ đồ tuần tự (A: săn ngay → PENDING → email; B: webhook → PAID, kèm nhánh không trả tiền). Vẽ bằng ký tự trong chính file `.md` — không thêm công cụ, không thêm file ảnh phải sinh lại mỗi lần code đổi
-- [ ] Payment webhook: verify chữ ký, idempotent, test webhook trùng & đến muộn
+- [x] Payment webhook: verify chữ ký, idempotent, test webhook trùng & đến muộn — HMAC-SHA256 trên **raw body** + `timingSafeEqual`, dấu thời gian nằm trong payload đã ký để chống replay. Test 10–15 ở `test/async-payment.e2e-spec.ts`: chữ ký sai (11), body sửa sau khi ký (11b), lệch 10 phút (12), **cùng `eventId` gửi 2 lần** (13), tới đơn đã `CANCELLED` (14), lệch tiền (15)
 - [ ] API live trên Cloud Run, CI/CD tự động
 - [ ] Demo video/GIF 2 phút: k6 chạy, tồn kho FE về 0 và dừng đúng 0
