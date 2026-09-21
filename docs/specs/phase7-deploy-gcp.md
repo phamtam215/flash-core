@@ -4,6 +4,23 @@
 - **Ngày:** 2026-09-21
 - **Trạng thái:** Draft — chờ Tâm duyệt (có 4 câu hỏi mở ở cuối, chưa quyết thì chưa code)
 
+> **Quan hệ với [`phase7-deploy-finops.md`](phase7-deploy-finops.md) — đọc trước khi dùng.**
+> File kia là **hợp đồng đã implement** (Dockerfile, `deploy.yml`, `worker-once.ts`, ADR-012)
+> và là nguồn sự thật cho *phase này đã làm gì*. File này ra đời song song, cùng ngày, và
+> hiện **trùng vai một phần** — vi phạm luật một chủ sở hữu. Phần **không** trùng, tức phần
+> đáng giữ lại: các phép tính FinOps theo đơn vị thật, cấu hình Cloud Run nên đặt gì, bảng
+> tra theo triệu chứng, và những cái bẫy vận hành rút từ một hệ thống GCP đang chạy thật.
+> **Tâm quyết:** gộp phần đó vào `phase7-deploy-finops.md` + `tech-playbook.md` §Phase 7 rồi
+> xoá file này, hay giữ riêng. Tôi không tự gộp vì luồng kia đang sửa cùng lúc.
+>
+> **Nguồn của phần "bẫy vận hành":** bộ tài liệu học hạ tầng của dự án OfficeCube
+> (`officecube-renewal/docs/cloud-learning/`) — một hệ thống GCP thật đang chạy: Cloud Run +
+> External LB + IAP + Cloud SQL + Cloud Build + Secret Manager, có ảnh chụp Console kèm số
+> đo. Chỉ đọc, không sửa gì bên đó. Kiến thức được **dịch sang bài toán của Flash-Core**, chứ
+> không chép: OfficeCube là app nội bộ sau IAP, traffic đều, chấp nhận trả tiền; Flash-Core
+> là demo public, traffic bùng theo đợt, ràng buộc 0đ. Nhiều chỗ *cùng một dịch vụ, cấu hình
+> đúng lại ngược nhau* — những chỗ đó được ghi rõ.
+
 ## Mục tiêu
 
 Đưa Flash-Core lên GCP sao cho **hoá đơn cuối tháng đúng 0đ**, API demo được bằng một
@@ -122,6 +139,97 @@ Với flash sale, cold start rơi đúng vào giây đầu tiên của đợt sa
 giữ 0đ mà vẫn ấm: **Cloud Scheduler ping `/health` mỗi 10 phút trong khung giờ demo**, hoặc
 một job cron chạy 5 phút trước giờ mở bán. Đây là câu trả lời FinOps hoàn chỉnh: *biết
 min-instances giải quyết được, biết nó tốn tiền, và chọn cách rẻ hơn cho đúng bài toán demo.*
+
+**Cái bẫy của chính cách trị này:** ping đều = instance không bao giờ ngủ = đúng bằng
+`min-instances=1` trá hình (xem phép tính ở Bài toán #4). Nên ping **chỉ bật trong khung giờ
+demo rồi tắt**, không để chạy 24/7. Cùng lý do đó, **Cloud Monitoring uptime check** — công
+cụ "biết hỏng trước khi người dùng báo", và hay được khuyên bật từ nhiều vùng địa lý — ở đây
+phải dùng dè: mỗi lần check là một request thật, đặt nhịp 1 phút × 4 vùng là tự tay giữ
+container sống suốt tháng. Đề xuất: **1 uptime check, 1 vùng, nhịp 15 phút**, đủ để biết API
+chết mà không phá ngân sách.
+
+## Bài toán #4 — hoá đơn thật sự tính theo cái gì
+
+Free tier Cloud Run nghe rất rộng cho tới khi đổi đơn vị: **180.000 vCPU-giây = 50 giờ CPU
+mỗi tháng**. Một instance 1 vCPU sống liên tục cả tháng là 720 giờ — **vượt 14 lần**. Nghĩa
+là mọi thứ giữ container thức (min-instances, ping đều, uptime check dày, worker nền) đều
+không phải "tối ưu nhỏ" mà là **quyết định chi tiền**.
+
+Và có một công tắc quyết định hơn cả: **cách tính tiền của service**.
+
+| | Tính tiền lúc nào | Hệ quả |
+|---|---|---|
+| **Request-based** ⭐ | chỉ trong lúc đang xử lý request | Rẻ nhất khi app rảnh nhiều. Đổi lại **CPU bị cắt ngoài request** — đây chính là thứ giết phương án gộp worker vào API ở Bài toán #1 |
+| Instance-based | toàn bộ vòng đời instance, kể cả lúc rảnh và lúc chạy tác vụ nền sau khi đã trả response | Đắt hơn nhiều ở app ít traffic, nhưng CPU luôn được cấp |
+
+**Chọn request-based cho service `api`.** Ước lượng: 2 triệu request × ~100ms ≈ 200.000
+vCPU-giây — đã sát trần 180.000, nên con số đáng theo dõi không phải "bao nhiêu request" mà
+**"tổng thời gian CPU"**. Hai đòn bẩy rẻ nhất để kéo nó xuống: `--concurrency` cao (nhiều
+request chia nhau một instance) và **response nhanh** (mỗi 10ms cắt được là vài giờ CPU/tháng).
+
+*(Bài học lấy từ hệ thống OfficeCube: ở đó service đang để instance-based và max-instances=20
+— hoàn toàn hợp lý cho một app nội bộ có traffic đều, nhưng là lựa chọn ngược hẳn với bài
+toán 0đ ở đây. Cùng một dịch vụ, hai cấu hình đúng khác nhau vì ràng buộc khác nhau.)*
+
+## Bài toán #5 — deploy hỏng: hai kiểu "đỏ" hoàn toàn khác nhau
+
+Đây là bài học đắt nhất rút từ hệ thống OfficeCube, và nó áp thẳng vào `deploy.yml` của
+Flash-Core vì pipeline cũng có đúng thứ tự **build → migrate → deploy**.
+
+| Đỏ ở đâu | Database | Người dùng thấy | Phải làm gì |
+|---|---|---|---|
+| **Migrate** | đã đổi **một phần**, kẹt giữa hai schema | không thấy gì — traffic chưa rời revision cũ | **Dừng. Đọc log.** Không bấm chạy lại một cách mù quáng: chạy lại một migration đã áp dụng dở có thể hỏng nặng hơn |
+| **Deploy** | đã đổi **xong** | không thấy gì — revision cũ vẫn giữ 100% traffic | Nhẹ hơn nhiều. Nhưng hệ thống đang ở trạng thái **schema mới + code cũ** — phải sửa nhanh, vì code cũ không biết cột mới |
+
+**Và cái bẫy lớn nhất, đúng chỗ ai cũng tưởng đã an toàn:** rollback Cloud Run chỉ đưa
+*code* về revision cũ — **schema database không lùi theo**. Nghĩa là **revision cũ bắt buộc
+phải chạy được với schema mới**. Hệ quả thành một luật viết migration:
+
+> **Migration phải additive.** Thêm cột (nullable hoặc có default), thêm bảng, thêm index —
+> được. Xoá cột, đổi kiểu, đổi tên trong cùng một lần deploy — **không**, vì nó biến rollback
+> thành đường một chiều. Muốn xoá thì tách hai lần deploy: lần 1 code thôi dùng cột, lần 2
+> mới xoá cột (expand → contract).
+
+Flash-Core sắp va đúng chỗ này: Phase 3 đã thêm `ProductSku.version`, Phase 4 thêm 3 bảng +
+3 cột, và vừa có migration `add_user_role`. Tất cả đều additive — **may hơn khôn**, nên chốt
+thành luật trước khi có cái đầu tiên không additive.
+
+**Neon không có Point-in-time recovery ở gói Free** (⚠ kiểm lại). Nghĩa là nếu một migration
+phá dữ liệu, không có nút lùi về "giây trước khi chạy". Trước mỗi migration có `DROP` hoặc
+đổi kiểu: **tự tay snapshot/branch trước**, coi như một bước của quy trình, không phải tuỳ hứng.
+
+## Bài toán #6 — bảy cái bẫy vận hành, rút từ hệ thống đang chạy thật
+
+Mỗi dòng dưới đây là một thứ đã thật sự xảy ra hoặc đang tồn tại trên hạ tầng OfficeCube.
+Ghi ra để Flash-Core không phải học lại bằng trải nghiệm.
+
+1. **Đổi secret KHÔNG tự áp dụng.** Secret Manager có giá trị mới, nhưng container đang chạy
+   vẫn giữ giá trị cũ cho tới khi **deploy lại**. Triệu chứng kinh điển: "tôi đổi rồi mà sao
+   vẫn sai". Cho vào runbook như một bước, không phải một ghi chú.
+2. **Artifact Registry phải cùng region với Cloud Run.** OfficeCube build ảnh ở Osaka trong
+   khi chạy ở Tokyo ⇒ mỗi lần deploy kéo ảnh xuyên vùng, chậm hơn mà không ai để ý. Flash-Core:
+   repo đặt **us-central1**, đúng region service.
+3. **Bật immutable tags.** Mặc định một tag có thể bị ghi đè bởi lần push sau — nghĩa là
+   `v1.2.3` hôm nay và `v1.2.3` tuần sau có thể là hai ảnh khác nhau, và không còn cách nào
+   biết bản đang chạy là bản nào.
+4. **Cache layer cũng chiếm dung lượng.** OfficeCube: 12,5 GB và tăng mãi vì **không có
+   cleanup policy** sau hơn 150 lần deploy. Với free tier 0,5 GB thì đây không phải "sau này
+   tính" mà là thứ phải bật ngay từ ngày đầu — và policy phải tính cả ảnh cache, không chỉ ảnh
+   runtime.
+5. **"IP allowlist trống" ≠ đóng cửa.** Cloud SQL của OfficeCube bật Public IP với
+   Authorized networks trống, và tài liệu cũ ghi là "an toàn". Chính xác hơn: an toàn trước
+   quét cổng ngẫu nhiên, **không** an toàn trước một danh tính hợp lệ bị lộ — vì đường
+   xác thực bằng danh tính đi vòng qua hẳn lớp kiểm tra IP. Áp cho Flash-Core: **Neon được
+   bảo vệ bằng chuỗi kết nối, không bằng IP.** Chuỗi lộ là vào được từ bất kỳ đâu. Nên
+   `DATABASE_URL` nằm ở Secret Manager, không nằm trong `vars`, và không bao giờ vào log.
+6. **Ai sửa được workflow thì kiểm soát cả project.** Ở OfficeCube, service account deploy
+   mang gần 20 role admin — nên "bảo vệ quyền sửa trigger CI còn quan trọng hơn bảo vệ chính
+   service account đó". Flash-Core giữ SA deploy ở đúng 4 role, và coi
+   **`.github/workflows/deploy.yml` là file nhạy cảm nhất repo** — sửa nó = sửa quyền chạy.
+7. **Cái đang chạy nhiều hơn cái được vẽ.** Bảng *Enabled APIs & services* của OfficeCube lộ
+   ra Maps API, Places API và Firebase Auth — không sơ đồ kiến trúc nào có. Sau khi deploy,
+   mở đúng trang đó một lần: nó trả lời "mình đang thực sự gọi gì và trả tiền cho gì", và là
+   cách nhanh nhất phát hiện **thứ mình không biết là mình không biết**.
 
 ## Cấu hình Cloud Run service
 
