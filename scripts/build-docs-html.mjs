@@ -247,6 +247,14 @@ function toHtml(markdown) {
       //
       // Chữ sau `console` (nếu có) thành nhãn trên thanh tiêu đề: ```console Terminal 2 · worker
       const [fence, ...caption] = lang.split(/\s+/);
+      // ```diagram — sơ đồ vẽ bằng ký tự kẻ khung (│ ─ ┌ ►). Cần `line-height` sát 1 thì các
+      // nét dọc mới NỐI được vào nhau; để mặc định 1.65 như văn bản thường thì sơ đồ trông
+      // như bị đứt quãng. Đây là khác biệt duy nhất so với một code fence bình thường.
+      if (fence === 'diagram') {
+        out.push(`<pre class="diagram"><code>${escapeHtml(body.join('\n'))}</code></pre>`);
+        continue;
+      }
+
       if (fence === 'console') {
         out.push(
           `<div class="term" data-title="${escapeHtml(caption.join(' ') || 'terminal')}">` +

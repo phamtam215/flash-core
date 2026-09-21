@@ -259,6 +259,15 @@ Muốn xem lại thì `git log -- .claude/`.
   **Hai bẫy của `coverageThreshold` đã vấp và ghi lại:** khoá đường dẫn tính từ `cwd` chứ không
   phải `rootDir` (viết sai thì Jest chỉ in một dòng rồi đi tiếp, hàng rào trông như có mà
   không có), và file trúng ngưỡng theo-đường-dẫn bị loại khỏi phép tính `global`.
+- **Nợ sơ đồ ĐÃ TRẢ** 2026-09-21 (DoD dòng "Sơ đồ kiến trúc + sequence diagram"):
+  `docs/architecture.md` có thêm §Sơ đồ kiến trúc (hai tiến trình, ba kho dữ liệu) và §Sơ đồ
+  tuần tự (A: săn ngay → `PENDING` → email; B: webhook → `PAID` + nhánh không trả tiền).
+  **Vẽ bằng ký tự kẻ khung ngay trong `.md`** — không thêm công cụ, không có file ảnh phải sinh
+  lại mỗi lần code đổi. Generator có thêm loại fence ```` ```diagram ```` (chỉ khác code fence
+  thường ở `line-height` sát 1, để nét dọc nối liền).
+  Cùng lúc sửa hai chỗ tài liệu đã lệch: dòng trạng thái đầu file còn ghi "Phase 4, ~4 700
+  dòng", và §Một chỗ chưa ổn vẫn ghi nợ `/ready` log `error` như **chưa trả** trong khi Phase 6
+  đã trả bằng `DomainError.logLevel`. Cây thư mục thiếu `common/correlation/` và `infra/metrics/`.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

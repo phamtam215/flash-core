@@ -5,7 +5,55 @@
 > Khác với `README.md` (giới thiệu dự án cho người ngoài) và `docs/SPEC.md` (nói sẽ làm gì),
 > file này mô tả **code hiện có**. Cập nhật mỗi khi thêm module mới.
 >
-> Trạng thái: Phase 4. Code hiện tại ~4 700 dòng.
+> Trạng thái: Phase 6. `src/` ~5 200 dòng code + ~1 450 dòng unit spec; `test/` ~2 170 dòng.
+
+---
+
+## Sơ đồ kiến trúc — hai tiến trình, ba kho dữ liệu
+
+```diagram
+               ┌──────────────────────────────────────────────┐
+               │ Trình duyệt — public/index.html + app.js     │
+               │ không framework, không build step (ADR-007)  │
+               └──────────────────────────────────────────────┘
+                                      │
+                                      │  HTTP · cookie HttpOnly · SameSite=Strict
+                                      ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ TIẾN TRÌNH 1 — API                npm run dev        src/main.ts           │
+├────────────────────────────────────────────────────────────────────────────┤
+│ common/    correlation · logger(Pino) · filters · pagination               │
+│ modules/   auth   product   ORDER (nóng nhất)   payment   health           │
+│              └─ strategies/   optimistic | pessimistic | redis             │
+│ infra/     prisma      redis      queue(BullMQ)      metrics               │
+└────────────────────────────────────────────────────────────────────────────┘
+     │                        │                          │
+     ▼                        ▼                          ▼
+┌──────────────┐     ┌──────────────────┐     ┌──────────────────────┐
+│ PostgreSQL 16│     │ Redis — tồn kho  │     │ Redis — queue + DLQ  │
+│ nguồn sự thật│     │ chỉ chiến lược C │     │ BullMQ, QUEUE_PREFIX │
+└──────┬───────┘     └──────────────────┘     └──────────┬───────────┘
+       │ cùng một database                               │ job
+       │                                                 ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ TIẾN TRÌNH 2 — WORKER             npm run worker     src/worker.ts         │
+├────────────────────────────────────────────────────────────────────────────┤
+│ outbox.relay · order.notifier → mail · order.expiry · payment              │
+│ giết process này API vẫn sống — đó là cả nội dung ADR-005                  │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Ba điều sơ đồ này nói mà danh sách file không nói được:**
+
+1. **Hai tiến trình, một codebase.** API và worker dùng chung `src/`, chung Prisma, chung
+   Postgres — nhưng chạy bằng hai lệnh khác nhau và chết độc lập. Đây là Modular Monolith, chưa
+   phải microservice: không có API nội bộ giữa hai khối, chúng nói chuyện qua **queue và DB**.
+2. **Redis xuất hiện hai lần với hai vai hoàn toàn khác nhau.** Kho tồn kho (chỉ chiến lược C
+   dùng) và hàng đợi job (mọi phase dùng). Gộp hai vai đó trong đầu là nguồn gốc của phần lớn
+   câu hỏi "vì sao phải có `QUEUE_PREFIX`".
+3. **Postgres là nguồn sự thật, luôn luôn.** Redis nhanh hơn nhưng không có ACID chung với
+   Postgres — nên mọi đường trong `strategies/redis.reserver.ts` cuối cùng vẫn phải ghi DB, và
+   mọi lỗi sau khi Redis đã trừ đều phải **bù trừ ngược**.
 
 ---
 
@@ -89,9 +137,111 @@ ta bắt đầu tắt tiếng nó — và lần thứ n, khi có sự cố thậ
 | Sửa ở filter | Thêm ngoại lệ: 503 thì log `warn` | Đơn giản, nhưng gắn luật của một endpoint vào chỗ dùng chung cho cả app |
 | Sửa ở chỗ ném lỗi | Controller ném một `DomainError` riêng có mức log `warn` | Sạch hơn về ranh giới, nhưng phải thêm khái niệm "mức log" vào lớp lỗi |
 
-**Chưa sửa, và đó là chủ đích.** Phase 0 chưa có cảnh báo nên chưa ai đau. Đây là **nợ kỹ
-thuật có ghi chép** — sẽ trả ở Phase 6 cùng lúc với việc dựng metrics, khi đã biết rõ cảnh
-báo được cấu hình thế nào. Sửa bây giờ là đoán mò yêu cầu chưa tồn tại.
+**ĐÃ TRẢ ở Phase 6** (2026-09-06), theo **hướng thứ hai**: [`DomainError`](../src/common/errors/)
+nhận thêm trường `logLevel`, và readiness ném `NotReadyError` tự khai mức log của mình. Filter
+không cần biết endpoint nào là ngoại lệ — nó chỉ hỏi lỗi "anh ở mức nào".
+
+**Vì sao ghi chép lại đoạn này thay vì xoá đi:** giá trị của nó không nằm ở kết luận mà ở
+*hình dạng của quyết định* — một nợ được ghi ra kèm hai hướng sửa và lý do hoãn, rồi trả đúng
+lúc đã biết thêm thông tin (Phase 6 mới biết cảnh báo cấu hình thế nào). Sửa ở Phase 0 là đoán
+mò một yêu cầu chưa tồn tại; và nếu không ghi ra thì tới Phase 6 không ai còn nhớ.
+
+---
+
+## Sơ đồ tuần tự — luồng đặt hàng
+
+Mục trên đi theo một request *đơn giản* (`GET /ready`). Đây là luồng **chính** của cả dự án,
+và là thứ đáng vẽ ra vì nó cắt ngang 5 khối, 2 tiến trình và 3 quyết định kiến trúc.
+
+### A. Bấm "Săn ngay" → đơn `PENDING` → email xác nhận
+
+```diagram
+    Người mua             API             Postgres             Queue             Worker
+        │                  │                  │                  │                  │
+        │ 1. POST /orders  + Idempotency-Key  │                  │                  │
+        ├──────────────────►                  │                  │                  │
+        │                  │ 2. UPDATE ... WHERE stock >= n      │                  │
+        │                  ├──────────────────►                  │                  │
+        │                  │ 3. trúng 1 dòng → giá đơn vị        │                  │
+        │                  ◄──────────────────┤                  │                  │
+        │                  │ 4. BEGIN  INSERT orders + INSERT outbox_events  COMMIT │
+        │                  ├──────────────────►                  │                  │
+        │                  │                  │  ↑ cùng transaction ⇒ không thể có đơn mà thiếu sự kiện
+        │                  │ 5. order.expire  delay 15'  jobId expire-<id>          │
+        │                  ├─────────────────────────────────────►                  │
+        │ 6. 201  PENDING  (chờ thanh toán)   │                  │                  │
+        ◄──────────────────┤                  │                  │                  │
+        │                  │                  │                  │                  │
+──── từ đây là chạy nền — người mua không phải chờ ───────────────────────────────────────────────
+        │                  │                  │                  │                  │
+        │                  │                  │ 7. SELECT ... FOR UPDATE SKIP LOCKED│
+        │                  │                  ◄─────────────────────────────────────┤
+        │                  │                  │                  │ 8. email.confirm    ← ĐẨY TRƯỚC
+        │                  │                  │                  ◄──────────────────┤
+        │                  │                  │ 9. UPDATE ... DISPATCHED  ← ĐÁNH DẤU SAU
+        │                  │                  ◄─────────────────────────────────────┤
+        │                  │                  │  ↑ cùng một transaction với bước 8 (ADR-006)
+        │                  │                  │                  │ 10. email.confirm│
+        │                  │                  │                  ├──────────────────►
+        │                  │                  │ 11. INSERT processed_events  ← GHI DẤU TRƯỚC
+        │                  │                  ◄─────────────────────────────────────┤
+        │                  │                  │                  │                  ├─┐ 12. gửi email  (ADR-004)
+        │                  │                  │                  │                  ◄─┘
+```
+
+**Chỗ đáng dừng lại:**
+
+| Bước | Vì sao nó nằm đúng ở đó |
+|---|---|
+| **2 trước 4** | Trừ kho **trước** khi tạo đơn. Đổi lại: `Idempotency-Key` trùng thì phải hoàn kho ở nhánh lỗi. Lý do chọn vậy ở [`order.service.ts`](../src/modules/order/order.service.ts) — chiến lược Redis trừ kho ngoài transaction DB nên không cách nào tránh hoàn kho, và một luồng chung cho cả ba chiến lược mới benchmark công bằng được |
+| **4 là MỘT transaction** | Đơn và sự kiện `order.placed` cùng sống hoặc cùng chết. Đây là toàn bộ lý do outbox tồn tại: nếu ghi đơn xong rồi mới đẩy queue, process chết ở khe giữa là đơn có mà email không bao giờ gửi |
+| **5 nằm NGOÀI transaction** | Gọi Redis trong transaction là giữ khoá DB suốt thời gian chờ mạng. Redis hỏng ở đây chỉ mất *lịch hẹn* — sweeper 60 giây một lần vẫn dọn |
+| **8 trước 9** | Đẩy queue **trước**, đánh dấu `DISPATCHED` **sau**, cả hai trong một transaction ([ADR-006](adr/006-relay-giu-transaction-khi-day-queue.md)). Bản đầu làm ngược và **mất sự kiện im lặng** khi process chết đúng khe giữa |
+| **11 trước 12** | Ghi dấu **trước** khi gửi mail ([ADR-004](adr/004-ghi-dau-truoc-khi-gui-mail.md)). Hệ quả nằm ngoài DB nên không transaction nào bao được cả hai — buộc phải chọn: chắc chắn **không trùng** (như hiện tại) hoặc chắc chắn **không mất**. Không có lựa chọn thứ ba |
+
+### B. Webhook thanh toán → `PAID` · và nhánh không trả tiền
+
+```diagram
+     Cổng TT              API             Postgres             Queue             Worker
+        │                  │                  │                  │                  │
+        │ 1. POST /payments/webhook           │                  │                  │
+        ├──────────────────►                  │                  │                  │
+        │                  ├─┐ 2. verify HMAC trên RAW body + hạn `t`               │
+        │                  ◄─┘                │                  │                  │
+        │                  │ 3. payment.settle│                  │                  │
+        │                  ├─────────────────────────────────────►                  │
+        │ 4. 204  (nhận rồi, chưa xử lý xong) │                  │                  │
+        ◄──────────────────┤                  │                  │                  │
+        │                  │                  │                  │ 5. payment.settle│
+        │                  │                  │                  ├──────────────────►
+        │                  │                  │ 6. BEGIN  dấu + markPaid  COMMIT    │
+        │                  │                  ◄─────────────────────────────────────┤
+        │                  │                  │  ↑ cùng transaction ⇒ exactly-once THẬT
+        │                  │                  │                  │                  │
+──── nhánh KHÔNG trả tiền: hai đường cùng huỷ, kho chỉ trả một lần ───────────────────────────────
+        │                  │                  │                  │                  │
+        │                  │                  │                  │ 7. order.expire  (hết 15 phút)
+        │                  │                  │                  ├──────────────────►
+        │                  │                  │ 8. UPDATE ... WHERE status=PENDING AND expires_at<=now()
+        │                  │                  ◄─────────────────────────────────────┤
+        │                  │                  │  ↑ 0 dòng ⇒ đường kia xong trước ⇒ KHÔNG trả kho
+        │                  │                  │ 9. stock += n   (chỉ khi bước 8 đổi được trạng thái)
+        │                  │                  ◄─────────────────────────────────────┤
+```
+
+**Đặt hai sơ đồ cạnh nhau thì thấy điểm học lớn nhất của Phase 4:** bước 11–12 ở sơ đồ A và
+bước 6 ở sơ đồ B dùng **cùng một cơ chế** (một dòng `UNIQUE` trong `processed_events`), nhưng
+ranh giới transaction khác nhau nên **bảo đảm nhận được cũng khác nhau**:
+
+| | Hệ quả nằm ở đâu | Dấu và hệ quả chung transaction? | Được gì |
+|---|---|---|---|
+| Gửi email (A) | Ngoài DB (SMTP) | Không thể | *At-most-once* — không trùng, có thể mất |
+| Đánh dấu PAID (B) | Trong DB | Có | ***Exactly-once* thật** |
+
+Và ở nhánh dưới của sơ đồ B: bước 8 là câu `UPDATE` có điều kiện, bước 9 chỉ chạy khi bước 8
+**thật sự đổi được trạng thái**. Đảo thứ tự hai bước đó là bug "tồn kho trả về hai lần" khi
+delayed job và sweeper cùng nổ trên một đơn — khoá lại bằng integration test #8 và
+[`order.expiry.service.spec.ts`](../src/modules/order/order.expiry.service.spec.ts).
 
 ---
 
@@ -115,9 +265,12 @@ flash-core/
 │   │   ├── pipes/…pipe.ts          ZodValidationPipe — validate input ở biên
 │   │   ├── pagination/cursor.ts    keyset cursor (Phase 3 chuyển từ product/ ra vì ≥2 module dùng)
 │   │   ├── logger/logger.module.ts Pino + genReqId(correlationId) + redact dữ liệu nhạy cảm
+│   │   ├── correlation/            (Phase 6) AsyncLocalStorage — correlationId đi xuyên worker
+│   │   │   ├── correlation.store.ts  runWithCorrelationId / getCorrelationId (ADR-008)
+│   │   │   └── index.ts              đúng HAI chỗ gọi run(): middleware HTTP và job.processor
 │   │   └── index.ts                public interface
 │   │
-│   ├── infra/                    ← KẾT NỐI RA NGOÀI (DB, Redis, sau này queue)
+│   ├── infra/                    ← KẾT NỐI RA NGOÀI (DB, Redis, queue, metrics)
 │   │   ├── prisma/
 │   │   │   ├── prisma.service.ts   pg.Pool → PrismaPg adapter → PrismaClient, đóng khi SIGTERM
 │   │   │   ├── prisma.module.ts    @Global — pool phải là MỘT instance cho cả app
@@ -126,10 +279,16 @@ flash-core/
 │   │   │   ├── redis.service.ts    ioredis + incrementWithExpiry() cho rate limit
 │   │   │   ├── redis.module.ts     @Global — một kết nối cho cả app
 │   │   │   └── index.ts            public interface
-│   │   └── queue/                  (Phase 4) BullMQ
-│   │       ├── queue.constants.ts  tên queue + 5 tên job + payload — nguồn sự thật duy nhất
-│   │       ├── queue.service.ts    Queue + kết nối RIÊNG (maxRetriesPerRequest: null), retry/backoff/jitter
-│   │       ├── queue.module.ts     @Global
+│   │   ├── queue/                  (Phase 4) BullMQ
+│   │   │   ├── queue.constants.ts  tên queue + 5 tên job + payload — nguồn sự thật duy nhất
+│   │   │   ├── queue.service.ts    Queue + kết nối RIÊNG (maxRetriesPerRequest: null), retry/backoff/jitter
+│   │   │   ├── queue.module.ts     @Global
+│   │   │   └── index.ts            public interface
+│   │   └── metrics/                (Phase 6) prom-client
+│   │       ├── metrics.service.ts  4 metric hạ tầng + 4 nghiệp vụ + collectDefaultMetrics
+│   │       ├── metrics.interceptor.ts  đo mọi request. Nhãn là MẪU route (/orders/:id), KHÔNG id
+│   │       ├── metrics.controller.ts   GET /metrics — định dạng Prometheus, không phải JSON
+│   │       ├── metrics.module.ts   @Global
 │   │       └── index.ts            public interface
 │   │
 │   ├── modules/                  ← NGHIỆP VỤ. Mỗi thư mục = một module có ranh giới
