@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Flash-Core · Một request \"Săn ngay\" đi qua công nghệ nào",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1040,
+      840
+    ],
+    "views": [
+      {
+        "id": "bien-http",
+        "label": "Biên HTTP",
+        "focus": [
+          "browser",
+          "guard",
+          "order"
+        ],
+        "note": "Cookie HttpOnly, guard và Zod chặn trước khi chạm nghiệp vụ."
+      },
+      {
+        "id": "tru-kho",
+        "label": "Chỗ oversell xảy ra",
+        "focus": [
+          "order",
+          "pg",
+          "redis"
+        ],
+        "note": "Ba chiến lược đổi bằng biến INVENTORY_STRATEGY, cùng một hợp đồng."
+      },
+      {
+        "id": "chay-nen",
+        "label": "Việc chạy nền",
+        "focus": [
+          "pg",
+          "worker",
+          "queue"
+        ],
+        "note": "Outbox + BullMQ: đẩy job trước, đánh dấu sau, trong cùng transaction."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "Trình duyệt",
+      "sublabel": "app.js"
+    },
+    {
+      "id": "guard",
+      "type": "security",
+      "label": "Biên HTTP",
+      "sublabel": "Guard · Zod"
+    },
+    {
+      "id": "order",
+      "type": "backend",
+      "label": "modules/order",
+      "sublabel": "service"
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis",
+      "sublabel": "Lua"
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "PostgreSQL 16",
+      "sublabel": "Prisma 7"
+    },
+    {
+      "id": "queue",
+      "type": "messagebus",
+      "label": "BullMQ",
+      "sublabel": "queue + DLQ"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker",
+      "sublabel": "process riêng"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 284,
+      "label": "Biên: xác thực và validate"
+    },
+    {
+      "from": 288,
+      "to": 452,
+      "label": "Trừ kho — nơi oversell xảy ra"
+    },
+    {
+      "from": 456,
+      "to": 584,
+      "label": "Ghi đơn rồi mới trả lời"
+    },
+    {
+      "from": 588,
+      "to": 762,
+      "label": "Chạy nền: outbox → queue → email"
+    }
+  ],
+  "messages": [
+    {
+      "from": "browser",
+      "to": "guard",
+      "y": 180,
+      "label": "POST /orders · cookie HttpOnly · Idempotency-Key",
+      "variant": "emphasis"
+    },
+    {
+      "from": "guard",
+      "to": "order",
+      "y": 222,
+      "label": "token hợp lệ + body đã qua Zod",
+      "variant": "default"
+    },
+    {
+      "from": "order",
+      "to": "pg",
+      "y": 264,
+      "label": "tìm đơn cũ theo Idempotency-Key",
+      "variant": "default"
+    },
+    {
+      "from": "pg",
+      "to": "order",
+      "y": 306,
+      "label": "chưa có → đặt mới",
+      "variant": "return"
+    },
+    {
+      "from": "order",
+      "to": "redis",
+      "y": 348,
+      "label": "chiến lược C: Lua kiểm-tra-và-trừ (1 lệnh)",
+      "variant": "dashed"
+    },
+    {
+      "from": "order",
+      "to": "pg",
+      "y": 390,
+      "label": "UPDATE … SET stock = stock - 1 WHERE stock >= 1",
+      "variant": "emphasis"
+    },
+    {
+      "from": "pg",
+      "to": "order",
+      "y": 432,
+      "label": "đổi được 1 dòng → thắng; 0 dòng → 409",
+      "variant": "return"
+    },
+    {
+      "from": "order",
+      "to": "pg",
+      "y": 474,
+      "label": "INSERT đơn + item + outbox trong 1 transaction",
+      "variant": "emphasis"
+    },
+    {
+      "from": "order",
+      "to": "guard",
+      "y": 516,
+      "label": "đơn PENDING, hạn 15 phút",
+      "variant": "return"
+    },
+    {
+      "from": "guard",
+      "to": "browser",
+      "y": 558,
+      "label": "201 Created · log JSON kèm correlationId",
+      "variant": "return"
+    },
+    {
+      "from": "worker",
+      "to": "pg",
+      "y": 610,
+      "label": "quét outbox · FOR UPDATE SKIP LOCKED",
+      "variant": "dashed"
+    },
+    {
+      "from": "worker",
+      "to": "queue",
+      "y": 652,
+      "label": "đẩy job trước, đánh dấu sau (ADR-006)",
+      "variant": "dashed"
+    },
+    {
+      "from": "queue",
+      "to": "worker",
+      "y": 694,
+      "label": "giao lại job cho consumer",
+      "variant": "default"
+    },
+    {
+      "from": "worker",
+      "to": "pg",
+      "y": 736,
+      "label": "ghi dấu idempotent rồi mới gửi email (ADR-004)",
+      "variant": "default"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "guard",
+      "from": 174,
+      "to": 566,
+      "type": "security"
+    },
+    {
+      "participant": "order",
+      "from": 216,
+      "to": 524,
+      "type": "backend"
+    },
+    {
+      "participant": "redis",
+      "from": 342,
+      "to": 396,
+      "type": "database"
+    },
+    {
+      "participant": "pg",
+      "from": 258,
+      "to": 482,
+      "type": "database"
+    },
+    {
+      "participant": "pg",
+      "from": 604,
+      "to": 744,
+      "type": "database"
+    },
+    {
+      "participant": "queue",
+      "from": 646,
+      "to": 700,
+      "type": "messagebus"
+    },
+    {
+      "participant": "worker",
+      "from": 604,
+      "to": 744,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Vì sao PostgreSQL giữ vai chính",
+      "items": [
+        "Điều kiện chống bán vượt nằm trong chính câu ghi, rồi đọc số dòng bị ảnh hưởng",
+        "Ba cơ chế dùng thật: UPDATE … WHERE, SELECT FOR UPDATE, FOR UPDATE SKIP LOCKED",
+        "Prisma không có API cho FOR UPDATE nên $queryRaw bị giới hạn trong đúng một file (ADR-003)"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Vì sao Redis phải là Lua",
+      "items": [
+        "Redis chạy lệnh tuần tự một luồng nên script chạy trọn vẹn",
+        "GET rồi DECRBY từ Node chỉ đổi chỗ race condition, không xoá nó",
+        "Redis nhanh nhưng không chung ACID với Postgres nên lỗi sau đó phải bù trừ ngược"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Vì sao BullMQ + outbox",
+      "items": [
+        "await db.save() rồi await queue.add() mà chết ở giữa là mất việc — try/catch không cứu được",
+        "BullMQ có sẵn trên Redis: delayed job (huỷ 15 phút), retry, DLQ — chưa cần Kafka",
+        "QUEUE_PREFIX tách job của test khỏi worker đang chạy trên máy dev"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Phần còn lại của stack",
+      "items": [
+        "Zod: type suy ra TỪ schema nên không bao giờ lệch với validator",
+        "Argon2id memory-hard 19 MiB nên GPU không song song hoá như với bcrypt",
+        "Pino + AsyncLocalStorage: correlationId đi xuyên cả worker (ADR-008)"
+      ]
+    }
+  ]
+}

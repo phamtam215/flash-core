@@ -4,10 +4,12 @@ import type { Request } from 'express';
 
 import { ENV, type Env } from '../../config';
 import { ACCESS_TOKEN_COOKIE } from './auth.cookies';
+import { Role } from './roles.decorator';
 
-/** Request đã qua guard thì chắc chắn có `userId`. */
+/** Request đã qua guard thì chắc chắn có `userId` và `role`. */
 export interface AuthenticatedRequest extends Request {
   userId: string;
+  role: Role;
 }
 
 /**
@@ -29,7 +31,7 @@ export class AccessTokenGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request & { userId?: string }>();
+    const request = context.switchToHttp().getRequest<Request & { userId?: string; role?: Role }>();
     const token = (request.cookies as Record<string, string> | undefined)?.[ACCESS_TOKEN_COOKIE];
 
     if (!token) {
@@ -37,10 +39,14 @@ export class AccessTokenGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: string }>(token, {
+      const payload = await this.jwt.verifyAsync<{ sub: string; role?: Role }>(token, {
         secret: this.env.JWT_ACCESS_SECRET,
       });
       request.userId = payload.sub;
+      // Token cấp TRƯỚC khi có RBAC không mang `role`. Coi như `USER` thay vì ném lỗi: người
+      // đang đăng nhập không bị đá ra lúc deploy, và mặc định an toàn (không ai tự thành
+      // admin). Sau ≤15 phút mọi token đều có trường này.
+      request.role = payload.role ?? Role.USER;
       return true;
     } catch {
       // Không phân biệt "hết hạn" với "chữ ký sai" trong response: client chỉ cần biết phải

@@ -1,0 +1,300 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Flash-Core · Kiến thức tổng kết theo 8 phase",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "lo-trinh",
+        "label": "Lộ trình 8 phase",
+        "focus": [
+          "nenmong",
+          "data",
+          "concur",
+          "async",
+          "obs"
+        ],
+        "note": "Mỗi phase chỉ mở khi phase trước đủ Definition of Done."
+      },
+      {
+        "id": "bai-hoc",
+        "label": "Bốn bài học cốt lõi",
+        "focus": [
+          "bh_ranhgioi",
+          "bh_domoi",
+          "bh_lock",
+          "bh_outbox"
+        ],
+        "note": "Thứ còn lại sau khi quên hết cú pháp."
+      },
+      {
+        "id": "bug-that",
+        "label": "Bug thật, không test nào đỏ",
+        "focus": [
+          "bug_order",
+          "bug_jobid"
+        ],
+        "note": "Hai lỗi chỉ lộ ra khi chạy thật — nguồn của hai câu chuyện phỏng vấn."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "lotrinh",
+      "label": "Lộ trình — mỗi phase một năng lực"
+    },
+    {
+      "id": "cotloi",
+      "label": "Bài học cốt lõi rút ra"
+    },
+    {
+      "id": "bug",
+      "label": "Bug thật đã vấp — và cách lộ ra",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "p_nen",
+      "label": "Nền móng",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "p_data",
+      "label": "Dữ liệu & concurrency",
+      "fromCol": 1,
+      "toCol": 2,
+      "variant": "emphasis"
+    },
+    {
+      "id": "p_van",
+      "label": "Async & vận hành",
+      "fromCol": 3,
+      "toCol": 4
+    }
+  ],
+  "mainPath": [
+    "nenmong",
+    "data",
+    "concur",
+    "async",
+    "obs"
+  ],
+  "nodes": [
+    {
+      "id": "nenmong",
+      "lane": "lotrinh",
+      "col": 0,
+      "type": "backend",
+      "label": "Phase 0–1 · Nền móng",
+      "sublabel": "config Zod · Pino · Argon2",
+      "width": 164
+    },
+    {
+      "id": "data",
+      "lane": "lotrinh",
+      "col": 1,
+      "type": "database",
+      "label": "Phase 2 · Dữ liệu",
+      "sublabel": "keyset · index · 100k dòng",
+      "width": 164
+    },
+    {
+      "id": "concur",
+      "lane": "lotrinh",
+      "col": 2,
+      "type": "backend",
+      "label": "Phase 3 · Concurrency",
+      "sublabel": "3 chiến lược chống oversell",
+      "tag": "quan trọng nhất",
+      "width": 164
+    },
+    {
+      "id": "async",
+      "lane": "lotrinh",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Phase 4 · Async",
+      "sublabel": "queue · outbox · webhook",
+      "width": 164
+    },
+    {
+      "id": "obs",
+      "lane": "lotrinh",
+      "col": 4,
+      "type": "cloud",
+      "label": "Phase 5–6 · Vận hành",
+      "sublabel": "UI · metric · correlationId",
+      "width": 164
+    },
+    {
+      "id": "bh_ranhgioi",
+      "lane": "cotloi",
+      "col": 0,
+      "type": "backend",
+      "label": "Ranh giới ép bằng máy",
+      "sublabel": "DI + ESLint, không dựa kỷ luật",
+      "width": 164
+    },
+    {
+      "id": "bh_domoi",
+      "lane": "cotloi",
+      "col": 1,
+      "type": "database",
+      "label": "Đo trên dữ liệu thật",
+      "sublabel": "Seq Scan thắng GIN ở 10k dòng",
+      "width": 190
+    },
+    {
+      "id": "bh_lock",
+      "lane": "cotloi",
+      "col": 2,
+      "type": "backend",
+      "label": "Điều kiện trong câu ghi",
+      "sublabel": "đọc số dòng bị ảnh hưởng",
+      "width": 190
+    },
+    {
+      "id": "bh_outbox",
+      "lane": "cotloi",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Outbox + SKIP LOCKED",
+      "sublabel": "thiếu vế nào cũng hỏng",
+      "width": 164
+    },
+    {
+      "id": "bug_order",
+      "lane": "bug",
+      "col": 3,
+      "type": "external",
+      "label": "Đánh dấu trước khi đẩy",
+      "sublabel": "mất sự kiện im lặng (ADR-006)",
+      "width": 164
+    },
+    {
+      "id": "bug_jobid",
+      "lane": "bug",
+      "col": 4,
+      "type": "external",
+      "label": "jobId có dấu hai chấm",
+      "sublabel": "mọi đơn mất lịch tự huỷ",
+      "width": 164
+    }
+  ],
+  "edges": [
+    {
+      "id": "k-nen-data",
+      "from": "nenmong",
+      "to": "data",
+      "label": "đủ Definition of Done",
+      "variant": "emphasis"
+    },
+    {
+      "id": "k-nen-bh",
+      "from": "nenmong",
+      "to": "bh_ranhgioi",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "k-data-concur",
+      "from": "data",
+      "to": "concur",
+      "variant": "emphasis"
+    },
+    {
+      "id": "k-concur-async",
+      "from": "concur",
+      "to": "async",
+      "variant": "emphasis"
+    },
+    {
+      "id": "k-async-obs",
+      "from": "async",
+      "to": "obs",
+      "variant": "emphasis"
+    },
+    {
+      "id": "k-data-bh",
+      "from": "data",
+      "to": "bh_domoi",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "k-concur-bh",
+      "from": "concur",
+      "to": "bh_lock",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "k-async-bh",
+      "from": "async",
+      "to": "bh_outbox",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "k-async-bug",
+      "from": "async",
+      "to": "bug_order",
+      "label": "lộ ra khi rà lại",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "k-obs-bug",
+      "from": "obs",
+      "to": "bug_jobid",
+      "label": "lộ ra khi chụp ảnh demo",
+      "variant": "security",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Bốn thứ còn lại sau khi quên hết cú pháp",
+      "items": [
+        "Muốn ghi đúng trong lúc tranh chấp: đưa điều kiện vào chính câu ghi",
+        "Muốn không mất việc khi tiến trình chết: ghi sự kiện cùng transaction rồi mới đẩy queue",
+        "Muốn biết hệ thống có đúng không: đo trên dữ liệu thật, không suy luận",
+        "Muốn ranh giới còn sống sau 6 tháng: để máy ép, đừng dựa vào kỷ luật"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Con số đo được, không phải ví dụ",
+      "items": [
+        "1.000 VU săn 100 chiếc: 201=100 · 409=900 · 5xx=0 · oversell=0",
+        "pessimistic p95 492ms / 1.580 rps — nhanh nhất vì 900/1.000 ca chỉ tốn 1 round-trip",
+        "Pool 50 chậm hơn pool 10: xếp hàng bên ngoài DB, đừng dồn vào trong DB",
+        "Keyset nhanh hơn offset ~50× ở cùng vị trí trong 100k dòng"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Cách làm việc đã chốt",
+      "items": [
+        "Không có spec thì không code; spec giữ hợp đồng, playbook giữ kiến thức",
+        "Test là hợp đồng: 139 unit + 101 integration chạy trên Postgres/Redis thật",
+        "Quyết định kiến trúc phải thành ADR — hiện có 8 ADR",
+        "Race condition không tồn tại trong thế giới của mock"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Còn nợ gì",
+      "items": [
+        "Phase 7: deploy Cloud Run + Neon + Upstash, chưa làm",
+        "Phase 1, 5, 6 và huỷ đơn chủ động: code + test xong, chờ Tâm review rồi push",
+        "CSRF token mới có spec, chưa đóng",
+        "order.repository cố tình không đặt ngưỡng coverage — integration test mới là thứ khoá nó"
+      ]
+    }
+  ]
+}

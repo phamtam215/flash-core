@@ -7,6 +7,7 @@ import * as argon2 from 'argon2';
 import { ENV, type Env } from '../../config';
 import { RedisService } from '../../infra/redis';
 import { AuthRepository } from './auth.repository';
+import type { Role } from './roles.decorator';
 import type { LoginDto, PublicUser, RegisterDto } from './auth.dto';
 import {
   EmailAlreadyExistsError,
@@ -92,7 +93,7 @@ export class AuthService {
     // mức của lần sau.
     await this.redis.reset(this.rateLimitKey(dto.email));
 
-    const tokens = await this.issueTokenPair(user.id, randomUUID());
+    const tokens = await this.issueTokenPair(user.id, randomUUID(), user.role);
     this.logger.log({ userId: user.id }, 'Đăng nhập thành công');
     return { user: { id: user.id, email: user.email }, tokens };
   }
@@ -127,9 +128,12 @@ export class AuthService {
     if (!user) throw new InvalidRefreshTokenError();
 
     // Giữ nguyên familyId: cặp token mới vẫn thuộc cùng một lần đăng nhập.
+    // Đọc lại `role` từ DB ở mỗi lần refresh: đây chính là chỗ việc nâng/hạ quyền có hiệu
+    // lực, và là lý do khe chờ chỉ là 15 phút chứ không phải 7 ngày.
     const { accessToken, refreshToken, tokenHash, expiresAt } = await this.buildTokenPair(
       user.id,
       stored.familyId,
+      user.role,
     );
 
     await this.repo.rotateRefreshToken({
@@ -166,18 +170,22 @@ export class AuthService {
 
   // ── Nội bộ ──────────────────────────────────────────────────────────────────────────────
 
-  private async issueTokenPair(userId: string, familyId: string): Promise<TokenPair> {
+  private async issueTokenPair(userId: string, familyId: string, role: Role): Promise<TokenPair> {
     const { accessToken, refreshToken, tokenHash, expiresAt } = await this.buildTokenPair(
       userId,
       familyId,
+      role,
     );
     await this.repo.createRefreshToken({ userId, tokenHash, familyId, expiresAt });
     return { accessToken, refreshToken };
   }
 
-  private async buildTokenPair(userId: string, familyId: string) {
+  private async buildTokenPair(userId: string, familyId: string, role: Role) {
+    // `role` nằm TRONG access token để `RolesGuard` không phải hỏi DB mỗi request — cùng lựa
+    // chọn stateless với `AccessTokenGuard`. Đánh đổi: hạ quyền ai đó chỉ có hiệu lực sau khi
+    // token của họ hết hạn (≤15 phút). Ghi rõ ở `roles.guard.ts`.
     const accessToken = await this.jwt.signAsync(
-      { sub: userId },
+      { sub: userId, role },
       { secret: this.env.JWT_ACCESS_SECRET, expiresIn: this.env.ACCESS_TOKEN_TTL },
     );
 

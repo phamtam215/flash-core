@@ -22,6 +22,7 @@ import { startInfra } from './infra-fixture';
 describe('Product (e2e)', () => {
   let stopInfra: () => Promise<void>;
   let app: INestApplication;
+  let prisma: PrismaService;
   let agent: ReturnType<typeof request.agent>;
 
   beforeAll(async () => {
@@ -51,6 +52,16 @@ describe('Product (e2e)', () => {
       .post('/auth/register')
       .send({ email: 'product-admin@example.com', password: 'matkhau123' })
       .expect(201);
+
+    // Từ khi có RBAC, ghi catalog đòi vai trò ADMIN. Nâng quyền TRƯỚC khi đăng nhập: vai trò
+    // nằm trong access token, nên nâng sau khi đã đăng nhập thì token cũ vẫn là USER và mọi
+    // test ghi sẽ đỏ 403 — đúng cái bẫy `roles.guard.ts` ghi ra.
+    prisma = app.get(PrismaService);
+    await prisma.user.update({
+      where: { email: 'product-admin@example.com' },
+      data: { role: 'ADMIN' },
+    });
+
     await agent
       .post('/auth/login')
       .send({ email: 'product-admin@example.com', password: 'matkhau123' })

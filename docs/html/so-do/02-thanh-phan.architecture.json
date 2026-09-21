@@ -1,0 +1,378 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Flash-Core · Thành phần hệ thống (Modular Monolith)",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "duong-request",
+        "label": "Đường đi của một request",
+        "focus": [
+          "browser",
+          "api_edge",
+          "mod_order",
+          "infra",
+          "pg"
+        ],
+        "note": "Trình duyệt → biên HTTP → module order → infra → PostgreSQL."
+      },
+      {
+        "id": "hai-tien-trinh",
+        "label": "Hai tiến trình",
+        "focus": [
+          "api_edge",
+          "redis_q",
+          "worker",
+          "pg"
+        ],
+        "note": "API và worker không gọi nhau, chúng nói chuyện qua queue và DB."
+      },
+      {
+        "id": "ba-kho",
+        "label": "Ba kho dữ liệu",
+        "focus": [
+          "pg",
+          "redis",
+          "redis_q"
+        ],
+        "note": "Redis xuất hiện hai lần với hai vai hoàn toàn khác nhau."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Trình duyệt",
+      "sublabel": "public/index.html + app.js",
+      "tag": "không framework, không build step",
+      "pos": [
+        430,
+        30
+      ],
+      "size": [
+        300,
+        68
+      ]
+    },
+    {
+      "id": "api_edge",
+      "type": "backend",
+      "label": "Biên HTTP · common/",
+      "sublabel": "ZodValidationPipe · guard · exception filter · Pino + correlationId",
+      "pos": [
+        230,
+        150
+      ],
+      "size": [
+        700,
+        64
+      ]
+    },
+    {
+      "id": "mod_auth",
+      "type": "security",
+      "label": "modules/auth",
+      "sublabel": "Argon2 · refresh rotation",
+      "pos": [
+        180,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "mod_product",
+      "type": "backend",
+      "label": "modules/product",
+      "sublabel": "Product + SKU biến thể",
+      "pos": [
+        390,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "mod_order",
+      "type": "backend",
+      "label": "modules/order",
+      "sublabel": "3 chiến lược chống oversell",
+      "tag": "module nóng nhất",
+      "pos": [
+        600,
+        260
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "mod_payment",
+      "type": "security",
+      "label": "modules/payment",
+      "sublabel": "verify HMAC webhook",
+      "pos": [
+        820,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "infra",
+      "type": "backend",
+      "label": "infra/ — mọi kết nối ra ngoài",
+      "sublabel": "prisma · redis · queue (BullMQ) · metrics",
+      "pos": [
+        170,
+        390
+      ],
+      "size": [
+        820,
+        60
+      ]
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "PostgreSQL 16",
+      "sublabel": "nguồn sự thật về tồn kho",
+      "pos": [
+        40,
+        530
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis — dữ liệu",
+      "sublabel": "rate limit · tồn kho chiến lược C",
+      "pos": [
+        470,
+        530
+      ],
+      "size": [
+        220,
+        64
+      ]
+    },
+    {
+      "id": "redis_q",
+      "type": "messagebus",
+      "label": "Redis — hàng đợi",
+      "sublabel": "BullMQ · delayed job · DLQ",
+      "pos": [
+        1030,
+        530
+      ],
+      "size": [
+        250,
+        64
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker — tiến trình riêng",
+      "sublabel": "outbox relay · mail · order expiry · payment",
+      "pos": [
+        700,
+        660
+      ],
+      "size": [
+        430,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "TIẾN TRÌNH 1 — API · npm run dev · src/main.ts",
+      "wraps": [
+        "api_edge",
+        "mod_auth",
+        "mod_product",
+        "mod_order",
+        "mod_payment",
+        "infra"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "TIẾN TRÌNH 2 — Worker · npm run worker",
+      "wraps": [
+        "worker"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c-browser-api",
+      "from": "browser",
+      "to": "api_edge",
+      "label": "HTTP · cookie HttpOnly · SameSite=Strict",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "c-api-auth",
+      "from": "api_edge",
+      "to": "mod_auth",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-api-product",
+      "from": "api_edge",
+      "to": "mod_product",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-api-order",
+      "from": "api_edge",
+      "to": "mod_order",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-api-payment",
+      "from": "api_edge",
+      "to": "mod_payment",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-auth-infra",
+      "from": "mod_auth",
+      "to": "infra",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-product-infra",
+      "from": "mod_product",
+      "to": "infra",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-order-infra",
+      "from": "mod_order",
+      "to": "infra",
+      "label": "raw SQL tồn kho gom về order.repository",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-payment-infra",
+      "from": "mod_payment",
+      "to": "infra",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-infra-pg",
+      "from": "infra",
+      "to": "pg",
+      "label": "Prisma 7 + pg.Pool",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-infra-redis",
+      "from": "infra",
+      "to": "redis",
+      "label": "ioredis · Lua",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24,
+      "labelDx": 72
+    },
+    {
+      "id": "c-infra-queue",
+      "from": "infra",
+      "to": "redis_q",
+      "label": "đẩy job",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "c-queue-worker",
+      "from": "redis_q",
+      "to": "worker",
+      "label": "nhận job",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "c-worker-pg",
+      "from": "worker",
+      "to": "pg",
+      "label": "quét outbox · FOR UPDATE SKIP LOCKED",
+      "variant": "default",
+      "fromSide": "left",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Hai tiến trình, một codebase",
+      "items": [
+        "API và worker dùng chung src/, chung Prisma, chung Postgres",
+        "Chạy bằng hai lệnh khác nhau và chết độc lập (ADR-005)",
+        "Không có API nội bộ giữa hai khối — chúng nói chuyện qua queue và DB"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Ba kho dữ liệu",
+      "items": [
+        "PostgreSQL là nguồn sự thật, luôn luôn",
+        "Redis xuất hiện hai lần: kho dữ liệu và hàng đợi job",
+        "Gộp hai vai đó trong đầu là nguồn gốc của câu hỏi 'vì sao cần QUEUE_PREFIX'"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Ba quy tắc giữ ranh giới",
+      "items": [
+        "Module chỉ import qua index.ts của module khác, ESLint chặn import sâu",
+        "Mọi truy cập DB của một module gom về <module>.repository.ts",
+        "Chỉ config/ được đọc process.env"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Quy mô hiện tại",
+      "items": [
+        "~8.000 dòng code trong src/ + public/",
+        "139 unit test · 101 integration test trên Postgres/Redis thật",
+        "Đã đóng Phase 0–6; Phase 7 (deploy Cloud Run) còn lại"
+      ]
+    }
+  ]
+}

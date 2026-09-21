@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { AccessTokenGuard } from '../auth';
+import { AccessTokenGuard, Role, Roles, RolesGuard } from '../auth';
 import { ZodValidationPipe } from '../../common';
 import {
   createProductSchema,
@@ -42,7 +42,8 @@ export class ProductController {
   constructor(private readonly products: ProductService) {}
 
   @Post('products')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body(new ZodValidationPipe(createProductSchema)) dto: CreateProductDto) {
     const product = await this.products.createProduct(dto);
@@ -61,7 +62,8 @@ export class ProductController {
   }
 
   @Patch('products/:id')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateProductSchema)) dto: UpdateProductDto,
@@ -71,14 +73,16 @@ export class ProductController {
   }
 
   @Delete('products/:id')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   async archive(@Param('id') id: string): Promise<void> {
     await this.products.archiveProduct(id);
   }
 
   @Post('products/:id/skus')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   async addSku(
     @Param('id') productId: string,
@@ -95,7 +99,8 @@ export class ProductController {
   }
 
   @Patch('products/:id/skus/:skuId')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   async updateSku(
     @Param('skuId') skuId: string,
     @Body(new ZodValidationPipe(updateSkuSchema)) dto: UpdateSkuDto,
@@ -105,7 +110,8 @@ export class ProductController {
   }
 
   @Delete('products/:id/skus/:skuId')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deactivateSku(@Param('skuId') skuId: string): Promise<void> {
     await this.products.deactivateSku(skuId);

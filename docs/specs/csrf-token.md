@@ -2,7 +2,7 @@
 
 - **Phase:** 7 (nợ chuyển tiếp từ Phase 1)
 - **Ngày:** 2026-09-21
-- **Trạng thái:** Draft — chờ Tâm duyệt
+- **Trạng thái:** Đã implement 2026-09-21 (duyệt cùng ngày, 4 câu hỏi mở chốt theo khuyến nghị) — [ADR-009](../adr/009-csrf-double-submit-co-ky.md)
 
 > Hợp đồng của tính năng. Phần *vì sao* — CSRF là gì, vì sao `HttpOnly` **không** chống được
 > nó, vì sao `SameSite=Strict` mới là cờ chống — đã có ở
@@ -178,15 +178,15 @@ Integration (`test/csrf.e2e-spec.ts`):
 
 ## Definition of Done
 
-- [ ] 14 test case trên xanh; integration ≥ 112, unit ≥ 144.
-- [ ] `npm run check` sạch.
-- [ ] `public/index.html` bấm được đầu-cuối trên Chrome thật: đăng ký → săn → huỷ → thanh toán.
-- [ ] Biến mới `CSRF_SECRET` (≥32 ký tự) có trong `.env.example` **và** được ghi vào §Trạng
+- [x] 14 test case trên xanh — integration **120/120**, unit **163/163**.
+- [x] `npm run check` sạch.
+- [x] `public/index.html` bấm được đầu-cuối trên Chrome thật: đăng ký → săn → huỷ → thanh toán.
+- [x] Biến mới `CSRF_SECRET` (≥32 ký tự) có trong `.env.example` **và** được ghi vào §Trạng
       thái của `CLAUDE.md` là biến bắt buộc — thiếu là app chết lúc khởi động, giống
       `PAYMENT_WEBHOOK_SECRET`.
-- [ ] `docs/tech-playbook.md` §Phase 1 nối tiếp mục CSRF sẵn có: double-submit hoạt động ra
+- [x] `docs/tech-playbook.md` §Phase 1 nối tiếp mục CSRF sẵn có: double-submit hoạt động ra
       sao, vì sao cookie này không `HttpOnly`, điểm yếu còn lại.
-- [ ] Cập nhật spec Phase 1 (nợ đã trả) và `docs/architecture.md`.
+- [x] Cập nhật spec Phase 1 (nợ đã trả) và `docs/architecture.md`.
 
 ## Ngoài phạm vi (Non-goals)
 
@@ -198,7 +198,9 @@ Integration (`test/csrf.e2e-spec.ts`):
 - **CORS.** Dự án phục vụ FE từ chính origin của API (Phase 5, ADR-007) nên không có
   cross-origin nào để cấu hình.
 
-## Câu hỏi mở cho Tâm quyết
+## Câu hỏi mở — ĐÃ CHỐT 2026-09-21
+
+> Cả bốn duyệt theo khuyến nghị. Giữ phần lập luận vì *lý do* mới là thứ đáng đọc lại.
 
 ### 1. `POST /auth/login` và `/auth/register` có bắt token không?
 

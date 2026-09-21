@@ -52,10 +52,23 @@ model HealthProbe {
 /// Chỉ lưu `passwordHash`, KHÔNG bao giờ lưu mật khẩu thô. Hash bằng Argon2id — thuật toán
 /// memory-hard, cố tình tốn RAM để GPU không thử hàng tỷ mật khẩu mỗi giây được.
 /// Salt nằm sẵn bên trong chuỗi hash của Argon2 nên không cần cột riêng.
+/// Vai trò. Cố tình chỉ có HAI giá trị.
+///
+/// Dự án không có màn quản trị phức tạp nào, nên một hệ permission đầy đủ (role → permission
+/// → resource) sẽ là bộ máy không ai dùng. Khi nào thật sự cần vai trò thứ ba thì thêm — lúc
+/// đó đã biết nó cần quyền gì, thay vì đoán trước.
+enum Role {
+  USER /// mặc định: mua hàng, xem đơn của chính mình
+  ADMIN /// thêm quyền ghi catalog (product, SKU)
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
   passwordHash String   @map("password_hash")
+  /// Mặc định `USER`. Nâng quyền bằng `npm run make-admin -- <email>` — cố tình KHÔNG có
+  /// endpoint nào tự nâng quyền được, vì đó là bề mặt leo thang đặc quyền không đáng có.
+  role         Role     @default(USER)
   createdAt    DateTime @default(now()) @map("created_at")
 
   refreshTokens RefreshToken[]

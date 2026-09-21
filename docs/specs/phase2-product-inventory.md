@@ -290,7 +290,7 @@ nhưng là điều kiện đóng phase: kết quả `EXPLAIN` dán vào phần c
 - Đơn hàng, giỏ hàng, thanh toán, giữ chỗ 15 phút — thuộc Phase 3–4, **không làm ở đây**
 - Chống oversell thật sự (optimistic/pessimistic/Redis atomic) — Phase 3. Phase 2 chỉ có
   `CHECK (stock >= 0)` làm lưới an toàn cuối, chấp nhận lost update ở tầng ứng dụng
-- Role/permission (admin) thật sự (RBAC) — Phase 1 chưa làm, Phase 2 tạm dùng
+- ~~Role/permission (admin) thật sự (RBAC)~~ — **ĐÃ TRẢ 2026-09-21**, xem [spec RBAC](rbac.md). Phase 2 tạm dùng
   `AccessTokenGuard`, xem Câu hỏi mở #1
 - Ảnh sản phẩm / upload file
 - Full-text search (`pg_trgm`, `tsvector`, tìm theo tên gần đúng) — GIN ở đây chỉ phục vụ
@@ -310,7 +310,7 @@ nhưng là điều kiện đóng phase: kết quả `EXPLAIN` dán vào phần c
 **1. API ghi Product/SKU dùng auth nào, khi Phase 1 chưa có role?**
 Khuyến nghị: dùng `AccessTokenGuard` có sẵn (bất kỳ user đăng nhập nào ghi được) — chi phí
 gần 0 vì guard đã tồn tại, và có ít nhất dấu vết "ai sửa" trong log thay vì để public hoàn
-toàn. Ghi rõ đây là nợ kỹ thuật (RBAC thật) chuyển tiếp, không phải giải pháp cuối.
+toàn. ~~Ghi rõ đây là nợ kỹ thuật (RBAC thật) chuyển tiếp~~ — **nợ này đã trả 2026-09-21**: 6 endpoint ghi catalog giờ đòi `@Roles(Role.ADMIN)`, xem [spec RBAC](rbac.md).
 
 **2. Xoá Product/SKU: soft delete hay hard delete?**
 Khuyến nghị: **soft delete** (`status`/`isActive`), như đã viết trong Schema DB — vì Phase 3
