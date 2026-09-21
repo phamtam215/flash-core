@@ -1,0 +1,106 @@
+# Deploy lên Cloud Run — Phase 7.
+#
+# CHỈ chạy khi CI đã xanh trên `main`, và **chỉ khi được bấm tay** (`workflow_dispatch`) hoặc
+# push vào `main`. Không deploy từ pull request: PR chạy code của người lạ, và deploy nghĩa là
+# trao cho code đó quyền của service account.
+#
+# Xác thực bằng **Workload Identity Federation**, KHÔNG phải service account key JSON. Key JSON
+# là bí mật dài hạn nằm trong GitHub Secrets — rò một lần là rò mãi, và không ai biết nó rò.
+# WIF đổi lấy token sống vài phút, gắn với đúng repo này.
+#
+# Secrets/vars phải đặt trước khi workflow chạy được (Settings → Secrets and variables):
+#   vars:    GCP_PROJECT_ID · GCP_REGION · GCP_WIF_PROVIDER · GCP_SERVICE_ACCOUNT
+#   secrets: (không có — mọi bí mật runtime nằm ở Secret Manager, xem bước Deploy)
+#
+# Chi tiết cấu hình và các phương án đã loại: docs/adr/012-worker-tren-cloud-run.md
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # deploy đang chạy dở mà bị huỷ là trạng thái tệ nhất
+
+permissions:
+  contents: read
+  id-token: write # bắt buộc cho Workload Identity Federation
+
+jobs:
+  deploy:
+    name: Build · Migrate · Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build và đẩy ảnh
+        run: |
+          IMAGE="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/flash-core/api:${{ github.sha }}"
+          gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      # Migration chạy bằng CHÍNH ảnh vừa build, như một Cloud Run Job dùng một lần. Lý do
+      # không chạy từ runner: runner không nằm trong VPC và Neon chỉ nên mở cho Cloud Run.
+      # Lý do không chạy lúc app khởi động: hai instance khởi động cùng lúc sẽ migrate song
+      # song, và `prisma migrate deploy` không chịu được điều đó.
+      - name: Chạy migration
+        run: |
+          gcloud run jobs deploy flash-core-migrate \
+            --image "$IMAGE" \
+            --region "${{ vars.GCP_REGION }}" \
+            --command npx --args "prisma,migrate,deploy" \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest \
+            --max-retries 0 --task-timeout 5m --quiet
+          gcloud run jobs execute flash-core-migrate --region "${{ vars.GCP_REGION }}" --wait --quiet
+
+      - name: Deploy API
+        run: |
+          gcloud run deploy flash-core-api \
+            --image "$IMAGE" \
+            --region "${{ vars.GCP_REGION }}" \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 3 \
+            --cpu 1 --memory 512Mi \
+            --set-env-vars NODE_ENV=production,COOKIE_SECURE=true,INVENTORY_STRATEGY=optimistic,METRICS_ENABLED=true \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,JWT_ACCESS_SECRET=JWT_ACCESS_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,PAYMENT_WEBHOOK_SECRET=PAYMENT_WEBHOOK_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest \
+            --quiet
+
+      # Worker KHÔNG chạy như một service thức liên tục — Cloud Run free tier scale về 0.
+      # Nó là một Job chạy một lượt rồi thoát, do Cloud Scheduler gọi mỗi phút. ADR-012.
+      - name: Deploy worker (Cloud Run Job)
+        run: |
+          gcloud run jobs deploy flash-core-worker \
+            --image "$IMAGE" \
+            --region "${{ vars.GCP_REGION }}" \
+            --command node --args "dist/worker-once.js" \
+            --set-env-vars NODE_ENV=production,INVENTORY_STRATEGY=optimistic \
+            --set-secrets DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,JWT_ACCESS_SECRET=JWT_ACCESS_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,PAYMENT_WEBHOOK_SECRET=PAYMENT_WEBHOOK_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest \
+            --max-retries 1 --task-timeout 2m --quiet
+
+      # Cổng cuối: nếu readiness không xanh thì deploy coi như hỏng, dù `gcloud` đã trả về 0.
+      - name: Kiểm tra readiness
+        run: |
+          URL=$(gcloud run services describe flash-core-api --region "${{ vars.GCP_REGION }}" --format 'value(status.url)')
+          for i in $(seq 1 10); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/ready" || true)
+            [ "$CODE" = "200" ] && { echo "✓ $URL sẵn sàng"; exit 0; }
+            echo "lần $i: /ready trả $CODE — chờ 5s (cold start)"; sleep 5
+          done
+          echo "✗ /ready không xanh sau 50 giây"; exit 1

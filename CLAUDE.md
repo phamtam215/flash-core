@@ -290,6 +290,32 @@ Muốn xem lại thì `git log -- .claude/`.
   `TEST_DATABASE_URL='postgresql://flashcore:flashcore@localhost:5433/flashcore_test'
   TEST_REDIS_URL='redis://localhost:6379' npm run test:int`. **Cổng 5433**, không phải 5432 —
   compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
+- **Ba nợ ĐÃ TRẢ 2026-09-21** — chi tiết ở spec tương ứng, tóm tắt ở đây:
+  - **CSRF** (`docs/specs/csrf-token.md`, ADR-009): double-submit cookie **có ký HMAC**,
+    `CsrfGuard` đăng ký bằng `APP_GUARD` (fail-closed), miễn đúng `POST /payments/webhook`.
+    Cookie `csrf_token` cố tình **KHÔNG** `HttpOnly` — JS phải đọc được thì cơ chế mới chạy.
+    **Biến mới bắt buộc: `CSRF_SECRET`** (≥32 ký tự). Mọi test đi qua `test/http-helper.ts`.
+  - **RBAC** (`docs/specs/rbac.md`): enum `Role` + cột `users.role`, `RolesGuard` +
+    `@Roles(Role.ADMIN)` trên 6 endpoint ghi catalog. Vai trò nằm **trong access token** ⇒ hạ
+    quyền chỉ có hiệu lực sau ≤15 phút (test #5–#7 khoá lại hành vi này). Nâng quyền bằng
+    `npm run make-admin -- <email>`, cố tình không có endpoint.
+  - **3 ADR** (009 CSRF, 010 keyset pagination, 011 Idempotency-Key lấy DB làm trọng tài) ⇒
+    **DoD "~10 ADR" xong, giờ có 12**.
+- **Phase 7 — cấu hình xong, CHƯA deploy thật** (`docs/specs/phase7-deploy-finops.md`):
+  `Dockerfile` multi-stage (runtime không có devDependencies, chạy user `node`,
+  `CMD ["node", "dist/main.js"]` chứ không `npm start` vì npm nuốt SIGTERM),
+  `.github/workflows/deploy.yml` (build → migrate bằng Cloud Run Job → API → worker job →
+  **kiểm `/ready`**), `src/worker-once.ts` + `npm run worker:once` cho Cloud Run Job.
+  **ADR-012** chốt: worker chạy **một lượt rồi thoát**, Cloud Scheduler gọi mỗi phút — vì
+  Cloud Run free tier scale về 0 và `min-instances=1` thì tốn tiền. Đổi lại độ trễ tệ nhất
+  1 phút thay vì ~2 giây. **Tâm phải làm phần ngoài repo**: tạo project GCP, WIF, Neon,
+  Upstash, 6 secret, Cloud Scheduler, **budget alert $1**.
+- **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
+  Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
+- **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
+  `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
+  không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
+- **Số test hiện tại: 163 unit + 120 integration.**
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

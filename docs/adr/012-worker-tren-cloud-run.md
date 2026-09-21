@@ -1,0 +1,61 @@
+# ADR-012: Worker trên Cloud Run chạy như Job một lượt, do Scheduler gọi
+
+- **Ngày:** 2026-09-21
+- **Trạng thái:** Đã chốt (code xong, **chưa deploy thật**)
+
+## Bối cảnh
+
+[ADR-005](005-worker-chay-process-rieng.md) chốt worker chạy **process riêng** để demo được
+"rút dây mạng": giết worker giữa chừng mà API vẫn sống. Ghi chú trong
+[`src/worker.ts`](../../src/worker.ts) để lại đúng một câu hỏi mở: *"Cách chạy trên Cloud Run —
+nơi free tier khó nuôi một process nền luôn thức — để Phase 7 quyết bằng ADR."* Đây là ADR đó.
+
+Vấn đề cụ thể: **Cloud Run scale về 0** khi không có request. Worker của dự án là vòng lặp
+chờ-việc dài hạn (BullMQ `Worker` + hai lịch lặp: outbox relay 2 giây, sweeper 60 giây). Không
+có instance nào thức thì không có gì kích hoạt hai lịch đó.
+
+Ràng buộc cứng: **0đ** (`docs/SPEC.md` §5 — free tier, budget alert $1).
+
+## Quyết định
+
+**Cloud Run Job chạy một lượt rồi thoát, Cloud Scheduler gọi mỗi phút.**
+
+Điểm vào mới [`src/worker-once.ts`](../../src/worker-once.ts) (`npm run worker:once`):
+
+1. Gọi thẳng `outbox.relay` và `order.expire.sweep` — không qua lịch lặp của BullMQ (lịch đó
+   cần một tiến trình thức để kích hoạt, đúng thứ ta không có).
+2. Rút job đang chờ trong queue ra xử lý tới khi hết, hoặc hết ngân sách 50 giây.
+3. Thoát mã khác 0 nếu có job lỗi, để bảng điều khiển của Cloud Run không xanh giả.
+
+`worker.ts` (dài hạn) **giữ nguyên** và vẫn là cách chạy ở local + là thứ demo "rút dây mạng".
+
+## Vì sao không chọn cách khác
+
+| Cách | Vì sao loại |
+|---|---|
+| **`min-instances=1`** cho một service worker | Giải pháp đúng đắn nhất về kỹ thuật, và là thứ mình sẽ chọn nếu có ngân sách. Nhưng một instance thức 24/7 vượt free tier ⇒ vi phạm ràng buộc 0đ. Loại vì **tiền**, không phải vì kỹ thuật — ghi rõ để sau này ai có ngân sách thì đảo lại ngay |
+| **Chạy worker chung process với API** (cờ env) | Rẻ nhất, nhưng Cloud Run scale về 0 ⇒ job chỉ được xử lý *trong lúc đang có request*. Một đơn đặt lúc 20:00 rồi không ai truy cập nữa thì email không bao giờ gửi. Hỏng đúng lời hứa của Phase 4 |
+| **Cloud Tasks đẩy thẳng vào một endpoint HTTP** | Hợp Cloud Run hơn cả, và không cần Redis giữ queue. Nhưng đổi cả cơ chế queue của dự án — BullMQ là thứ đang được học, và Phase 4 dựa vào DLQ/backoff của nó. Đổi ở bước deploy là để đuôi vẫy chó |
+| **Một VM nhỏ chạy worker** (e2-micro free tier) | Free tier có thật, nhưng thêm một loại hạ tầng thứ hai phải vá và theo dõi, cho một dự án mà mục tiêu là học Cloud Run |
+
+## Hệ quả
+
+**Được:** 0đ; không đổi kiến trúc queue; `worker.ts` và `worker-once.ts` dùng **chung**
+`JobProcessor`, nên không có nhánh logic nào bị bỏ quên khi test.
+
+**Mất — và đây là thứ phải nói với người phỏng vấn, không giấu:**
+
+- **Độ trễ tệ nhất là 1 phút** thay vì ~2 giây. Với email xác nhận thì chấp nhận được; với một
+  hệ thống thật cần phản hồi tức thì thì không.
+- Cloud Scheduler free tier là **3 job/tháng** — vừa đủ, không còn chỗ cho việc thứ hai.
+- Lượt chạy có thể **chồng nhau** nếu một lượt quá 60 giây. An toàn vì **mọi thứ nó gọi đều
+  idempotent**: outbox dùng `FOR UPDATE SKIP LOCKED`, consumer dùng `processed_events`, huỷ
+  đơn dùng `UPDATE ... WHERE status='PENDING'`. Đây không phải may mắn — đó đúng là ba cơ chế
+  Phase 4 dựng lên, và ADR này là lần đầu chúng được dựa vào ngoài kịch bản gốc.
+- **Chưa deploy thật.** ADR chốt hướng và code đã có; số đo thật (cold start, độ trễ, chi phí)
+  phải cập nhật vào đây sau lần deploy đầu tiên.
+
+## Liên quan
+
+[ADR-005](005-worker-chay-process-rieng.md) · [spec Phase 7](../specs/phase7-deploy-finops.md) ·
+[`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)

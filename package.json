@@ -34,7 +34,9 @@
     "check": "npm run lint && npm run typecheck && npm test",
     "worker:dev": "nest start --watch --entryFile worker",
     "make-admin": "node -r ts-node/register prisma/seed/make-admin.ts",
-    "test:int:local": "TEST_DATABASE_URL='postgresql://flashcore:flashcore@localhost:5433/flashcore_test' TEST_REDIS_URL='redis://localhost:6379' npm run test:int"
+    "test:int:local": "TEST_DATABASE_URL='postgresql://flashcore:flashcore@localhost:5433/flashcore_test' TEST_REDIS_URL='redis://localhost:6379' npm run test:int",
+    "worker:once": "nest start --entryFile worker-once",
+    "worker:once:prod": "node dist/worker-once"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.28",

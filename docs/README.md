@@ -14,6 +14,7 @@ chép lại. Đây là luật khiến tài liệu không lệch nhau khi code đ
 | **Thứ tự học** cho người mới: học gì trước, phá cái gì để thấy | [`onboarding.md`](onboarding.md) |
 | **Sơ đồ**: nghiệp vụ, vòng đời đơn, vai trò từng module, cơ chế từng phase | [`hoc/`](html/hoc/index.html) |
 | **Tiến độ hiểu bài** (113 ý, tick trong trình duyệt — không nằm trong git) | [`hoc/assets/track.js`](html/hoc/assets/track.js) |
+| **Sơ đồ tương tác để trình bày** (zoom, tô đường đi, xuất ảnh) — nội dung bám theo các chủ sở hữu ở bảng này | [`so-do/`](html/so-do/00-tong-hop.html) |
 | **Tech stack nào giải quyết vấn đề gì** + kịch bản demo/thuyết trình khi phỏng vấn | [`demo-phong-van.md`](demo-phong-van.md) |
 | **Đang ở phase nào, còn nợ gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
 | Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) |
@@ -74,7 +75,8 @@ docs/
 └── html/                  ★ BẢN ĐỌC BẰNG TRÌNH DUYỆT — một thư mục duy nhất
     ├── index.html           cửa vào duy nhất
     ├── *.html               trang tham khảo, SINH từ .md (`npm run docs:html`)
-    └── hoc/                 giáo trình 8 phase (viết tay) + bộ theo dõi 113 ý
+    ├── hoc/                 giáo trình 8 phase (viết tay) + bộ theo dõi 113 ý
+    └── so-do/               5 sơ đồ tương tác (Archify), mỗi .html có .json nguồn cạnh nó
 ```
 
 > **Mỗi file `.md` đều có bản HTML.** 30/30 — kể cả spec, checklist và template. Thêm một

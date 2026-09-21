@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Flash-Core · Bản đồ tổng — nghiệp vụ, thành phần, công nghệ, kiến thức",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "duong-tien",
+        "label": "Đường đi của một lần săn",
+        "focus": [
+          "nguoimua",
+          "api",
+          "pg"
+        ],
+        "note": "Trừ kho ngay lúc bấm, trong đúng một câu ghi có điều kiện."
+      },
+      {
+        "id": "chay-nen",
+        "label": "Việc chạy nền",
+        "focus": [
+          "api",
+          "redis",
+          "worker",
+          "pg"
+        ],
+        "note": "API và worker không gọi nhau — chúng nói chuyện qua queue và DB."
+      },
+      {
+        "id": "nhin-vao-trong",
+        "label": "Nhìn được vào bên trong",
+        "focus": [
+          "api",
+          "metrics"
+        ],
+        "note": "Metric trả lời 'đang có bao nhiêu', log trả lời 'chuyện gì đã xảy ra'."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "metrics",
+      "type": "cloud",
+      "label": "GET /metrics · log JSON",
+      "sublabel": "prom-client + Pino, kèm correlationId",
+      "pos": [
+        420,
+        80
+      ],
+      "size": [
+        280,
+        64
+      ]
+    },
+    {
+      "id": "nguoimua",
+      "type": "external",
+      "label": "Người mua",
+      "sublabel": "săn áo giới hạn theo từng SKU",
+      "pos": [
+        20,
+        240
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API — NestJS",
+      "sublabel": "auth · product · order · payment",
+      "tag": "3 chiến lược chống oversell",
+      "pos": [
+        420,
+        230
+      ],
+      "size": [
+        280,
+        84
+      ]
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "PostgreSQL 16",
+      "sublabel": "nguồn sự thật về tồn kho",
+      "pos": [
+        900,
+        240
+      ],
+      "size": [
+        240,
+        64
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "messagebus",
+      "label": "Redis + BullMQ",
+      "sublabel": "hàng đợi · delayed job · Lua",
+      "pos": [
+        420,
+        450
+      ],
+      "size": [
+        280,
+        64
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker — process riêng",
+      "sublabel": "outbox relay · mail · huỷ đơn quá hạn",
+      "pos": [
+        900,
+        450
+      ],
+      "size": [
+        240,
+        64
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "t-mua-api",
+      "from": "nguoimua",
+      "to": "api",
+      "label": "HTTP · cookie HttpOnly",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-api-pg",
+      "from": "api",
+      "to": "pg",
+      "label": "một câu ghi có điều kiện",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-api-redis",
+      "from": "api",
+      "to": "redis",
+      "label": "đẩy job",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "t-redis-worker",
+      "from": "redis",
+      "to": "worker",
+      "label": "nhận job",
+      "variant": "default"
+    },
+    {
+      "id": "t-worker-pg",
+      "from": "worker",
+      "to": "pg",
+      "label": "quét outbox · SKIP LOCKED",
+      "variant": "default",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "t-api-metrics",
+      "from": "api",
+      "to": "metrics",
+      "label": "đo mọi request",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "1 · Nghiệp vụ",
+      "items": [
+        "Flash sale áo thun: số lượng giới hạn theo từng SKU biến thể (size × màu)",
+        "Còn 100 chiếc thì phải bán ra đúng 100 — việc khó không phải bán hàng mà là bán đúng số có thật",
+        "Đơn PENDING giữ chỗ 15 phút, quá hạn thì tự huỷ và trả hàng về kho đúng một lần"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "2 · Thành phần",
+      "items": [
+        "Modular Monolith: hai tiến trình (API, worker) dùng chung một codebase",
+        "modules/ auth · product · order · payment · health, mỗi module một ranh giới",
+        "Ba kho dữ liệu: Postgres (sự thật), Redis dữ liệu, Redis hàng đợi"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "3 · Công nghệ",
+      "items": [
+        "NestJS + TypeScript strict + Zod · Prisma 7 với pg.Pool tự cấu hình",
+        "PostgreSQL cho UPDATE … WHERE, SELECT FOR UPDATE, FOR UPDATE SKIP LOCKED",
+        "Redis + Lua và BullMQ (delayed job, retry, DLQ) — chưa cần Kafka",
+        "Jest + Testcontainers, k6 1.000 VU, prom-client + Pino"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "4 · Kiến thức tổng kết",
+      "items": [
+        "Đưa điều kiện vào chính câu ghi rồi đọc số dòng bị ảnh hưởng",
+        "Outbox + SKIP LOCKED là một cặp: không mất việc, và nhiều worker không giẫm nhau",
+        "Đo trên dữ liệu thật: Seq Scan thắng GIN ở 10k dòng, pool 50 chậm hơn pool 10",
+        "Race condition không tồn tại trong thế giới của mock"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Bốn sơ đồ chi tiết (cùng thư mục)",
+      "items": [
+        "01-nghiep-vu.html — luồng nghiệp vụ săn flash sale",
+        "02-thanh-phan.html — thành phần hệ thống",
+        "03-cong-nghe.html — một request đi qua công nghệ nào",
+        "04-kien-thuc.html — kiến thức tổng kết theo 8 phase"
+      ]
+    }
+  ]
+}

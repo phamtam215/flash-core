@@ -1,9 +1,14 @@
 # CI của Phase 0: lint + typecheck + unit test. Mục tiêu là `main` luôn xanh
 # (docs/git-workflow.md §1).
 #
-# Integration test (Testcontainers) CHƯA chạy trên CI ở phase này — sẽ bật ở Phase 3 khi
-# đã có test concurrency thật. Lý do hoãn: dựng container trên runner làm CI chậm gấp
-# nhiều lần, và ở Phase 0 chưa có gì để test trên DB thật ngoài kết nối.
+# Integration test ĐÃ BẬT (2026-09-21). Nó dùng **service container** của GitHub Actions thay
+# vì Testcontainers: runner đã cấp sẵn Postgres + Redis trước khi job chạy, nên không phải
+# dựng container từ trong Jest — nhanh hơn, và không phụ thuộc vào việc runner có cho nối
+# `docker.sock` hay không. Đây chính là lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL` mà
+# `test/infra-fixture.ts` đã có sẵn cho máy dev.
+#
+# Tên database phải kết thúc bằng `_test` — `infra-fixture.ts` từ chối chạy nếu không, vì nó
+# xoá sạch schema trước mỗi lần chạy.
 
 name: CI
 
@@ -55,3 +60,57 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  integration:
+    name: Integration test (Postgres + Redis thật)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flashcore
+          POSTGRES_PASSWORD: flashcore
+          POSTGRES_DB: flashcore_test
+        ports: ['5432:5432']
+        # Không có health check thì job chạy `migrate deploy` khi Postgres còn đang khởi
+        # động, và lỗi trông như "DB sai cấu hình" chứ không phải "chưa kịp lên".
+        options: >-
+          --health-cmd "pg_isready -U flashcore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: postgresql://flashcore:flashcore@localhost:5432/flashcore_test?schema=public
+
+      - name: Integration test
+        run: npm run test:int
+        env:
+          TEST_DATABASE_URL: postgresql://flashcore:flashcore@localhost:5432/flashcore_test?schema=public
+          TEST_REDIS_URL: redis://localhost:6379
+          # `migrate deploy` bên trong test đọc biến này.
+          DATABASE_URL: postgresql://flashcore:flashcore@localhost:5432/flashcore_test?schema=public

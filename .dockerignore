@@ -1,8 +1,15 @@
+# Giữ context build nhỏ: mọi thứ ở đây không bao giờ vào ảnh, kể cả khi Dockerfile quên.
 node_modules
 dist
 coverage
 .git
-.env
-.claude
+.github
 docs
+test
+k6
+.tools
+worktrees
 *.md
+.env*
+!.env.example
+src/generated

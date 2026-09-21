@@ -6,16 +6,22 @@ thể (size × màu), và **oversell phải bằng 0**.
 
 Kiến trúc: **Modular Monolith** (NestJS + TypeScript, PostgreSQL 16 + Prisma, Redis + BullMQ).
 
-> **Trạng thái:** Phase 4/8 — Async, Queue & Payment Webhook **đã xong code + test**: Outbox
-> ghi cùng transaction với đơn, worker BullMQ chạy process riêng, huỷ đơn quá hạn bằng cả
-> delayed job lẫn sweeper, webhook verify HMAC trên raw body. **67/67 integration test xanh**,
-> trong đó hai cổng chính: tồn kho chỉ trả về một lần dù hai đường cùng huỷ đơn, và demo
-> "rút dây mạng" (giết worker giữa chừng) cho **đúng 20 email, không trùng, không mất**.
-> **70/70 integration + 74/74 unit.**
+> **Trạng thái:** Phase 7/8 — Deploy & FinOps (**cấu hình xong, chưa deploy thật**).
+> **163 unit + 120 integration test xanh**, `npm run check` sạch.
 >
-> Phase 3 trước đó: ba chiến lược chống oversell đổi bằng một biến môi trường, benchmark k6
-> 1.000 VU cho **oversell = 0 ở cả ba** — số đo ở
-> [`docs/specs/phase3-order-concurrency.md`](docs/specs/phase3-order-concurrency.md).
+> Những thứ đã chạy được, không phải kế hoạch:
+>
+> - **Oversell = 0** ở cả **ba** chiến lược chống tranh chấp (optimistic / pessimistic
+>   `SELECT FOR UPDATE` / Redis Lua), đổi bằng **một biến môi trường**. Benchmark k6 1.000 VU,
+>   4 cấu hình: bán đúng 100 chiếc trên 1.000 lượt bấm, 0 lỗi 5xx —
+>   [số đo](docs/specs/phase3-order-concurrency.md).
+> - **Không mất, không trùng**: outbox ghi cùng transaction với đơn, `processed_events` chặn
+>   xử lý lặp. Demo "rút dây mạng" (giết worker giữa chừng) cho **đúng 20 email**.
+> - **Huỷ đơn ba đường** (hết hạn / sweeper / người mua tự bấm) → tồn kho chỉ trả **một** lần.
+> - **Bảo mật**: Argon2, refresh token rotation + reuse detection, HMAC webhook trên raw body,
+>   CSRF double-submit có ký, RBAC hai vai trò.
+> - **Quan sát được**: `correlationId` đi xuyên cả worker, `/metrics` Prometheus, `/ready`
+>   kiểm cả Redis, tắt êm ba bước.
 >
 > README này chỉ mô tả những gì **đã thật sự chạy được**. Phần chưa làm nằm ở
 > [Lộ trình](#lộ-trình).
