@@ -229,6 +229,34 @@ và là thứ đáng vẽ ra vì nó cắt ngang 5 khối, 2 tiến trình và 3
         │                  │                  ◄─────────────────────────────────────┤
 ```
 
+### C. Người mua tự bấm "Huỷ đơn" — đường thứ ba vào cùng một câu `UPDATE`
+
+```diagram
+    Người mua                API                Postgres
+        │                     │                     │
+        │ 1. POST /orders/:id/cancel   (không cần Idempotency-Key)
+        ├─────────────────────►                     │
+        │                     │ 2. UPDATE ... WHERE status='PENDING' AND user_id=?
+        │                     ├─────────────────────►
+        │                     │                     │  ↑ KHÔNG có expires_at — khác biệt DUY NHẤT với đường hết hạn
+        │                     │ 3. trúng 1 dòng → danh sách order_items
+        │                     ◄─────────────────────┤
+        │                     │ 4. stock += n  cho từng dòng   (NGOÀI transaction)
+        │                     ├─────────────────────►
+        │ 5. 200  CANCELLED   │                     │
+        ◄─────────────────────┤                     │
+```
+
+Ba đường cùng huỷ được một đơn (delayed job, sweeper, người mua), nhưng **chỉ có một câu
+`UPDATE` có điều kiện** ở đáy — và điều kiện giữ cho tồn kho không bị trả hai lần là
+`status = 'PENDING'`, **không phải** `expires_at`. Đó là lý do đường C bỏ được `expires_at` mà
+vẫn an toàn y hệt hai đường kia, và là lý do cả ba dùng chung
+[`cancelPendingOrder`](../src/modules/order/order.repository.ts) thay vì mỗi đường một hàm.
+
+Delayed job `expire-<id>` **vẫn nằm trong queue** sau khi người mua huỷ và vẫn nổ đúng giờ —
+cố tình không gỡ: lúc đó nó đổi 0 dòng nên tự vô hại. Gỡ job là thêm một lệnh Redis có thể
+hỏng, để đổi lấy một thứ vốn đã an toàn. Xem [spec huỷ đơn chủ động](specs/huy-don-chu-dong.md).
+
 **Đặt hai sơ đồ cạnh nhau thì thấy điểm học lớn nhất của Phase 4:** bước 11–12 ở sơ đồ A và
 bước 6 ở sơ đồ B dùng **cùng một cơ chế** (một dòng `UNIQUE` trong `processed_events`), nhưng
 ranh giới transaction khác nhau nên **bảo đảm nhận được cũng khác nhau**:

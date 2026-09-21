@@ -12,6 +12,14 @@ import { PrismaService, type PrismaTx } from '../../infra/prisma';
  * *chính sách* (vòng retry, phối hợp với Redis), không chứa câu SQL nào — nếu SQL rải ra đó
  * thì nợ sẽ lan và không ai kiểm soát được ai đang ghi tồn kho.
  */
+/**
+ * Ai đang huỷ đơn — và điều kiện kèm theo của người đó.
+ *
+ * `EXPIRED`: delayed job và sweeper, không biết user nào, nhưng **bắt buộc** đơn phải quá hạn.
+ * `BY_USER`: người mua bấm huỷ, **không** đòi quá hạn, nhưng phải đúng chủ đơn.
+ */
+export type CancelScope = { kind: 'EXPIRED' } | { kind: 'BY_USER'; userId: string };
+
 @Injectable()
 export class OrderRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -182,29 +190,64 @@ export class OrderRepository {
   }
 
   /**
-   * Huỷ một đơn đã quá hạn giữ chỗ. Trả về các dòng hàng cần trả lại kho, hoặc `null` nếu
-   * đơn KHÔNG ở trạng thái huỷ được (đã trả tiền, đã huỷ, hoặc chưa tới hạn).
+   * Huỷ một đơn **đang `PENDING`** và trả về các dòng hàng cần hoàn kho, hoặc `null` nếu
+   * không có gì để huỷ.
    *
    * Điều kiện nằm trong chính câu `UPDATE`, không kiểm tra trong RAM rồi mới ghi — cùng một
    * bài học với `decrementStockConditional` ở Phase 3. Ở đây nó còn quan trọng hơn vì có
-   * **hai** đường cùng gọi (delayed job và sweeper): 0 dòng bị ảnh hưởng nghĩa là đường kia
-   * đã xử lý xong, và ta phải thoát êm — không throw, và tuyệt đối không trả kho lần hai.
+   * **ba** đường cùng gọi (delayed job, sweeper, và người mua bấm huỷ): 0 dòng bị ảnh hưởng
+   * nghĩa là đường kia đã xử lý xong, và ta phải thoát êm — không throw, và tuyệt đối không
+   * trả kho lần hai.
    *
-   * `RETURNING` lấy luôn danh sách item trong cùng transaction để người gọi biết trả lại bao
-   * nhiêu, không phải query lại (giữa hai lần query đơn có thể đã đổi).
+   * **`status = 'PENDING'` mới là điều kiện chống trả kho hai lần, KHÔNG phải `expires_at`.**
+   * Đó là lý do nhánh `BY_USER` bỏ được `expires_at` mà vẫn an toàn y hệt: dù người mua bấm
+   * huỷ lúc đơn còn 14 phút, câu `UPDATE` này vẫn chỉ đổi được đúng một lần.
+   *
+   * Hai nhánh cố tình nằm chung một hàm thay vì copy thành hai: hai câu SQL gần giống nhau
+   * cùng ghi vào đường trả tồn kho là cách chắc chắn nhất để một ngày nào đó chỉ một trong
+   * hai được sửa.
+   *
+   * Đọc `order_items` trong CÙNG transaction để người gọi biết trả lại bao nhiêu — query lại
+   * ở ngoài thì giữa hai lần đơn có thể đã đổi.
    */
-  async cancelIfExpired(orderId: string): Promise<{ skuId: string; quantity: number }[] | null> {
+  async cancelPendingOrder(
+    orderId: string,
+    scope: CancelScope,
+  ): Promise<{ skuId: string; quantity: number }[] | null> {
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.$executeRaw`
-        UPDATE orders
-        SET status = 'CANCELLED', cancelled_at = now(), updated_at = now()
-        WHERE id = ${orderId}::uuid AND status = 'PENDING' AND expires_at <= now()`;
+      // Hai câu tách riêng chứ không ghép điều kiện bằng biến: `$executeRaw` là tagged
+      // template nên mọi tham số đều được tham số hoá, còn nối chuỗi để "dùng chung một câu"
+      // sẽ mở đường cho SQL injection ngay ở câu ghi nhạy cảm nhất của hệ thống.
+      const updated =
+        scope.kind === 'EXPIRED'
+          ? await tx.$executeRaw`
+              UPDATE orders
+              SET status = 'CANCELLED', cancelled_at = now(), updated_at = now()
+              WHERE id = ${orderId}::uuid AND status = 'PENDING' AND expires_at <= now()`
+          : await tx.$executeRaw`
+              UPDATE orders
+              SET status = 'CANCELLED', cancelled_at = now(), updated_at = now()
+              WHERE id = ${orderId}::uuid AND status = 'PENDING' AND user_id = ${scope.userId}::uuid`;
 
       if (updated === 0) return null;
 
       return tx.$queryRaw<{ skuId: string; quantity: number }[]>`
         SELECT sku_id AS "skuId", quantity FROM order_items WHERE order_id = ${orderId}::uuid`;
     });
+  }
+
+  /**
+   * Đọc trạng thái đơn của chính user — dùng để phân biệt ba lý do khiến
+   * `cancelPendingOrder` trả `null`: đơn không tồn tại (hoặc của người khác), đã `CANCELLED`,
+   * hay đã `PAID`. Chỉ chạy ở nhánh lỗi nên không nằm trên đường nóng.
+   */
+  async findOrderStatusOfUser(
+    orderId: string,
+    userId: string,
+  ): Promise<{ status: string } | null> {
+    const rows = await this.prisma.$queryRaw<{ status: string }[]>`
+      SELECT status::text FROM orders WHERE id = ${orderId}::uuid AND user_id = ${userId}::uuid`;
+    return rows[0] ?? null;
   }
 
   /** Danh sách đơn `PENDING` đã quá hạn — đầu vào của sweeper. Đi thẳng theo index `[status, expires_at]`. */

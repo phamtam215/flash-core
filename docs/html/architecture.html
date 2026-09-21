@@ -133,6 +133,22 @@
         │                  │                  │  ↑ 0 dòng ⇒ đường kia xong trước ⇒ KHÔNG trả kho
         │                  │                  │ 9. stock += n   (chỉ khi bước 8 đổi được trạng thái)
         │                  │                  ◄─────────────────────────────────────┤</code></pre>
+<h3 id="c-người-mua-tự-bấm-huỷ-đơn-đường-thứ-ba-vào-cùng-một-câu-update">C. Người mua tự bấm "Huỷ đơn" — đường thứ ba vào cùng một câu <code>UPDATE</code></h3>
+<pre class="diagram"><code>    Người mua                API                Postgres
+        │                     │                     │
+        │ 1. POST /orders/:id/cancel   (không cần Idempotency-Key)
+        ├─────────────────────►                     │
+        │                     │ 2. UPDATE ... WHERE status='PENDING' AND user_id=?
+        │                     ├─────────────────────►
+        │                     │                     │  ↑ KHÔNG có expires_at — khác biệt DUY NHẤT với đường hết hạn
+        │                     │ 3. trúng 1 dòng → danh sách order_items
+        │                     ◄─────────────────────┤
+        │                     │ 4. stock += n  cho từng dòng   (NGOÀI transaction)
+        │                     ├─────────────────────►
+        │ 5. 200  CANCELLED   │                     │
+        ◄─────────────────────┤                     │</code></pre>
+<p>Ba đường cùng huỷ được một đơn (delayed job, sweeper, người mua), nhưng <strong>chỉ có một câu <code>UPDATE</code> có điều kiện</strong> ở đáy — và điều kiện giữ cho tồn kho không bị trả hai lần là <code>status = 'PENDING'</code>, <strong>không phải</strong> <code>expires_at</code>. Đó là lý do đường C bỏ được <code>expires_at</code> mà vẫn an toàn y hệt hai đường kia, và là lý do cả ba dùng chung <code><code>cancelPendingOrder</code></code> thay vì mỗi đường một hàm.</p>
+<p>Delayed job <code>expire-&lt;id&gt;</code> <strong>vẫn nằm trong queue</strong> sau khi người mua huỷ và vẫn nổ đúng giờ — cố tình không gỡ: lúc đó nó đổi 0 dòng nên tự vô hại. Gỡ job là thêm một lệnh Redis có thể hỏng, để đổi lấy một thứ vốn đã an toàn. Xem <a href="spec-huy-don-chu-dong.html">spec huỷ đơn chủ động</a>.</p>
 <p><strong>Đặt hai sơ đồ cạnh nhau thì thấy điểm học lớn nhất của Phase 4:</strong> bước 11–12 ở sơ đồ A và bước 6 ở sơ đồ B dùng <strong>cùng một cơ chế</strong> (một dòng <code>UNIQUE</code> trong <code>processed_events</code>), nhưng ranh giới transaction khác nhau nên <strong>bảo đảm nhận được cũng khác nhau</strong>:</p>
 <div class="table-wrap"><table><thead><tr><th></th><th>Hệ quả nằm ở đâu</th><th>Dấu và hệ quả chung transaction?</th><th>Được gì</th></tr></thead><tbody><tr><td>Gửi email (A)</td><td>Ngoài DB (SMTP)</td><td>Không thể</td><td><em>At-most-once</em> — không trùng, có thể mất</td></tr><tr><td>Đánh dấu PAID (B)</td><td>Trong DB</td><td>Có</td><td><strong><em>Exactly-once</em> thật</strong></td></tr></tbody></table></div>
 <p>Và ở nhánh dưới của sơ đồ B: bước 8 là câu <code>UPDATE</code> có điều kiện, bước 9 chỉ chạy khi bước 8 <strong>thật sự đổi được trạng thái</strong>. Đảo thứ tự hai bước đó là bug "tồn kho trả về hai lần" khi delayed job và sweeper cùng nổ trên một đơn — khoá lại bằng integration test #8 và <code><code>order.expiry.service.spec.ts</code></code>.</p>

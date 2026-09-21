@@ -1,5 +1,10 @@
 import { JOB } from '../../infra/queue';
-import { OrderNotFoundError, OutOfStockError, SkuNotFoundError } from './order.errors';
+import {
+  OrderNotCancellableError,
+  OrderNotFoundError,
+  OutOfStockError,
+  SkuNotFoundError,
+} from './order.errors';
 import { OrderService } from './order.service';
 
 /**
@@ -21,10 +26,13 @@ describe('OrderService', () => {
     findOrderByIdempotencyKey: jest.Mock;
     listOrdersOfUser: jest.Mock;
     findOrderOfUser: jest.Mock;
+    cancelPendingOrder: jest.Mock;
+    findOrderStatusOfUser: jest.Mock;
   };
   let queue: { add: jest.Mock };
   let reserver: { name: string; reserve: jest.Mock; release: jest.Mock };
   let ordersPlaced: { inc: jest.Mock };
+  let ordersCancelled: { inc: jest.Mock };
   let stopTimer: jest.Mock;
   let service: OrderService;
 
@@ -36,13 +44,17 @@ describe('OrderService', () => {
       findOrderByIdempotencyKey: jest.fn(),
       listOrdersOfUser: jest.fn(),
       findOrderOfUser: jest.fn(),
+      cancelPendingOrder: jest.fn(),
+      findOrderStatusOfUser: jest.fn(),
     };
     queue = { add: jest.fn().mockResolvedValue(undefined) };
     reserver = { name: 'optimistic', reserve: jest.fn(), release: jest.fn() };
     ordersPlaced = { inc: jest.fn() };
+    ordersCancelled = { inc: jest.fn() };
     stopTimer = jest.fn();
     const metrics = {
       ordersPlaced,
+      ordersCancelled,
       reserveDuration: { startTimer: jest.fn().mockReturnValue(stopTimer) },
     };
 
@@ -169,11 +181,91 @@ describe('OrderService', () => {
     });
   });
 
+  describe('cancelMyOrder — người mua tự huỷ', () => {
+    const ORDER_ID = '11111111-2222-3333-4444-555555555555';
+
+    it('huỷ được → trả kho đúng từng dòng hàng, đếm metric by=user', async () => {
+      repo.cancelPendingOrder.mockResolvedValue([
+        { skuId: 'sku-1', quantity: 2 },
+        { skuId: 'sku-2', quantity: 1 },
+      ]);
+      repo.findOrderOfUser.mockResolvedValue({ id: ORDER_ID, status: 'CANCELLED' });
+
+      const result = await service.cancelMyOrder(ORDER_ID, 'u1');
+
+      expect(result.cancelled).toBe(true);
+      expect(reserver.release).toHaveBeenNthCalledWith(1, 'sku-1', 2);
+      expect(reserver.release).toHaveBeenNthCalledWith(2, 'sku-2', 1);
+      expect(ordersCancelled.inc).toHaveBeenCalledWith({ by: 'user' });
+    });
+
+    it('⭐ huỷ với scope BY_USER — KHÔNG đòi hết hạn, nhưng đòi đúng chủ đơn', async () => {
+      repo.cancelPendingOrder.mockResolvedValue([]);
+      repo.findOrderOfUser.mockResolvedValue({ id: ORDER_ID });
+
+      await service.cancelMyOrder(ORDER_ID, 'u1');
+
+      // Lọt `kind: 'EXPIRED'` vào đây là người mua không huỷ được đơn của chính mình cho tới
+      // khi hết 15 phút — đúng thứ tính năng này sinh ra để bỏ đi.
+      expect(repo.cancelPendingOrder).toHaveBeenCalledWith(ORDER_ID, {
+        kind: 'BY_USER',
+        userId: 'u1',
+      });
+    });
+
+    it('⭐ đơn đã CANCELLED từ trước → 200 (cancelled=false), TUYỆT ĐỐI không trả kho lần hai', async () => {
+      repo.cancelPendingOrder.mockResolvedValue(null);
+      repo.findOrderStatusOfUser.mockResolvedValue({ status: 'CANCELLED' });
+      repo.findOrderOfUser.mockResolvedValue({ id: ORDER_ID, status: 'CANCELLED' });
+
+      const result = await service.cancelMyOrder(ORDER_ID, 'u1');
+
+      expect(result.cancelled).toBe(false);
+      expect(reserver.release).not.toHaveBeenCalled();
+      // Không đếm metric ở lần gọi thứ hai: nếu đếm thì "số đơn bị huỷ" phụ thuộc vào việc
+      // người dùng bấm mấy lần, và con số đó hết dùng được.
+      expect(ordersCancelled.inc).not.toHaveBeenCalled();
+    });
+
+    it('⭐ đơn đã PAID → 409 OrderNotCancellableError, không trả kho', async () => {
+      repo.cancelPendingOrder.mockResolvedValue(null);
+      repo.findOrderStatusOfUser.mockResolvedValue({ status: 'PAID' });
+
+      await expect(service.cancelMyOrder(ORDER_ID, 'u1')).rejects.toBeInstanceOf(
+        OrderNotCancellableError,
+      );
+      expect(reserver.release).not.toHaveBeenCalled();
+    });
+
+    it('đơn không tồn tại hoặc của người khác → 404, không phân biệt hai ca', async () => {
+      repo.cancelPendingOrder.mockResolvedValue(null);
+      repo.findOrderStatusOfUser.mockResolvedValue(null);
+
+      await expect(service.cancelMyOrder(ORDER_ID, 'u1')).rejects.toBeInstanceOf(
+        OrderNotFoundError,
+      );
+    });
+
+    it('id sai định dạng UUID → 404, KHÔNG để Postgres ném lỗi cast thành 500', async () => {
+      await expect(service.cancelMyOrder('khong-phai-uuid', 'u1')).rejects.toBeInstanceOf(
+        OrderNotFoundError,
+      );
+      expect(repo.cancelPendingOrder).not.toHaveBeenCalled();
+    });
+  });
+
   describe('đọc đơn', () => {
     it('đơn của người khác → 404 chứ không 403: không tiết lộ đơn đó có tồn tại', async () => {
       repo.findOrderOfUser.mockResolvedValue(null);
 
-      await expect(service.getMyOrder('o1', 'u-khac')).rejects.toBeInstanceOf(OrderNotFoundError);
+      await expect(
+        service.getMyOrder('11111111-2222-3333-4444-555555555555', 'u-khac'),
+      ).rejects.toBeInstanceOf(OrderNotFoundError);
+    });
+
+    it('GET đơn với id sai định dạng → 404 chứ không 500 (cùng lá chắn với huỷ đơn)', async () => {
+      await expect(service.getMyOrder('abc', 'u1')).rejects.toBeInstanceOf(OrderNotFoundError);
+      expect(repo.findOrderOfUser).not.toHaveBeenCalled();
     });
 
     it('cursor rỗng → không giải mã gì, vẫn trả trang đầu', async () => {

@@ -6,7 +6,12 @@ import { MetricsService } from '../../infra/metrics';
 import { JOB, QueueService, type OrderExpirePayload } from '../../infra/queue';
 import { INVENTORY_RESERVER, type InventoryReserver } from './inventory-reserver';
 import type { CreateOrderDto, ListOrderQueryDto } from './order.dto';
-import { OrderNotFoundError, OutOfStockError, SkuNotFoundError } from './order.errors';
+import {
+  OrderNotCancellableError,
+  OrderNotFoundError,
+  OutOfStockError,
+  SkuNotFoundError,
+} from './order.errors';
 import { OrderRepository } from './order.repository';
 
 @Injectable()
@@ -115,6 +120,49 @@ export class OrderService {
     return { order, created: true };
   }
 
+  /**
+   * Người mua tự huỷ đơn `PENDING` của mình và **trả hàng về kho ngay**, không phải đợi hết
+   * 15 phút giữ chỗ. Với flash sale, 15 phút đó là 15 phút hàng bị giam mà không ai mua được.
+   *
+   * Trả `cancelled` để controller biết đây là lần huỷ thật hay đơn vốn đã `CANCELLED` — cả hai
+   * đều `200`, nhưng chỉ lần thật mới được đếm vào metric.
+   */
+  async cancelMyOrder(orderId: string, userId: string) {
+    // Chặn ở đây thay vì để Postgres ném lỗi cast `::uuid` (thành 500). Một id sai định dạng
+    // chắc chắn không phải đơn của ai cả — nên nó là 404, cùng câu trả lời với "đơn của người
+    // khác": không tiết lộ gì về thứ mình không sở hữu.
+    if (!UUID_PATTERN.test(orderId)) throw new OrderNotFoundError();
+
+    const items = await this.repo.cancelPendingOrder(orderId, { kind: 'BY_USER', userId });
+
+    if (items === null) {
+      // 0 dòng bị đổi. Ba lý do khác nhau, và chúng cho ba câu trả lời khác nhau — đọc lại
+      // một lần ở nhánh lỗi (không nằm trên đường nóng) để phân biệt.
+      const existing = await this.repo.findOrderStatusOfUser(orderId, userId);
+      if (!existing) throw new OrderNotFoundError();
+      if (existing.status === 'PAID') throw new OrderNotCancellableError();
+
+      // Còn lại: đã `CANCELLED` từ trước — bấm hai lần, hoặc job tự huỷ chạy xong trước.
+      // Trạng thái người dùng muốn đã đạt được, nên đây là thành công, không phải lỗi.
+      this.logger.debug({ orderId, userId }, 'Đơn đã huỷ từ trước — không trả kho lần hai');
+      return { order: await this.getMyOrder(orderId, userId), cancelled: false };
+    }
+
+    // Trả kho NGOÀI transaction, giống hệt `OrderExpiryService`: chiến lược `redis` ghi sang
+    // Redis, mà gọi Redis trong transaction Postgres là giữ khoá DB suốt thời gian chờ mạng.
+    for (const item of items) {
+      await this.reserver.release(item.skuId, item.quantity);
+    }
+
+    // Delayed job `expire-<orderId>` vẫn nằm trong queue và vẫn sẽ nổ sau đó. Cố tình KHÔNG
+    // gỡ: lúc nổ, `UPDATE ... WHERE status = 'PENDING'` đổi 0 dòng nên nó tự vô hại. Gỡ job
+    // là thêm một lệnh Redis có thể hỏng, để đổi lấy một thứ vốn đã an toàn.
+    this.metrics.ordersCancelled.inc({ by: 'user' });
+    this.logger.log({ orderId, userId, items: items.length }, 'Người mua tự huỷ đơn — đã trả hàng về kho');
+
+    return { order: await this.getMyOrder(orderId, userId), cancelled: true };
+  }
+
   async listMyOrders(userId: string, query: ListOrderQueryDto) {
     const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
     const rows = await this.repo.listOrdersOfUser(userId, cursor, query.limit);
@@ -123,8 +171,17 @@ export class OrderService {
 
   /** Đơn của người khác coi như không tồn tại — 404, không 403. */
   async getMyOrder(orderId: string, userId: string) {
+    if (!UUID_PATTERN.test(orderId)) throw new OrderNotFoundError();
+
     const order = await this.repo.findOrderOfUser(orderId, userId);
     if (!order) throw new OrderNotFoundError();
     return order;
   }
 }
+
+/**
+ * Chặn id sai định dạng TRƯỚC khi nó tới DB. Không có nó thì `:id` bất kỳ (vd `abc`) làm
+ * Postgres ném lỗi cast `::uuid` — và một chuỗi người dùng gõ bừa lại thành `500` như thể hệ
+ * thống hỏng. Dùng regex thay vì thêm một Zod schema vì đây là một tham số đường dẫn duy nhất.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

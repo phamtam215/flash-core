@@ -329,10 +329,18 @@ async function payOrder() {
 // ── Màn 4: Đơn của tôi ─────────────────────────────────────────────────────────────────
 
 async function startOrders() {
+  // Uỷ quyền sự kiện cho `<tbody>` — phần tử này KHÔNG bao giờ bị thay, chỉ ruột của nó bị
+  // vẽ lại. Gắn `onclick` thẳng vào từng nút thì mỗi lần vẽ lại là mất hết listener, và nút
+  // trông vẫn bấm được nhưng không làm gì cả. Đây là bản mở rộng của bug Phase 5 (vẽ lại
+  // `<tbody>` giữa lúc bấm), xem `docs/specs/phase5-ui-demo.md`.
+  $('order-rows').addEventListener('click', onOrderRowsClick);
   await pollOrders();
   timers.push(setInterval(pollOrders, 3000));
   timers.push(setInterval(tickCountdowns, 1000));
 }
+
+/** Chữ ký của dữ liệu đang hiển thị — dùng để BỎ QUA việc vẽ lại khi không có gì đổi. */
+let renderedSignature = '';
 
 async function pollOrders() {
   try {
@@ -340,19 +348,57 @@ async function pollOrders() {
     const orders = page.items || [];
     $('no-orders').classList.toggle('hidden', orders.length > 0);
 
-    $('order-rows').innerHTML = orders
-      .map(
-        (o) => `<tr>
-          <td class="mono">${o.id.slice(0, 8)}…</td>
-          <td>${vnd(o.totalVnd)}</td>
-          <td><span class="badge ${o.status}">${o.status}</span></td>
-          <td>${o.status === 'PENDING' ? `<span class="countdown" data-expires="${o.expiresAt}"></span>` : '—'}</td>
-        </tr>`,
-      )
-      .join('');
+    // Chỉ vẽ lại khi có thứ THẬT SỰ đổi. Trạng thái đơn hiếm khi đổi, nên gần như mọi nhịp
+    // 3 giây đều bỏ qua — nhờ vậy nút "Huỷ" đứng yên thay vì bị thay mới liên tục dưới tay
+    // người đang bấm. (Đếm ngược không nằm trong chữ ký vì `tickCountdowns` tự cập nhật nó
+    // tại chỗ, không cần vẽ lại hàng.)
+    const signature = orders.map((o) => `${o.id}:${o.status}`).join('|');
+    if (signature !== renderedSignature) {
+      renderedSignature = signature;
+      $('order-rows').innerHTML = orders.map(orderRow).join('');
+    }
     tickCountdowns();
   } catch (err) {
     banner(err.message);
+  }
+}
+
+function orderRow(o) {
+  const pending = o.status === 'PENDING';
+  return `<tr>
+          <td class="mono">${o.id.slice(0, 8)}…</td>
+          <td>${vnd(o.totalVnd)}</td>
+          <td><span class="badge ${o.status}">${o.status}</span></td>
+          <td>${pending ? `<span class="countdown" data-expires="${o.expiresAt}"></span>` : '—'}</td>
+          <td>${pending ? `<button class="ghost small" data-cancel="${o.id}">Huỷ đơn</button>` : ''}</td>
+        </tr>`;
+}
+
+/**
+ * Huỷ đơn. Lưu ý hai điều nhỏ mà bỏ qua là demo trông như hỏng:
+ *
+ * - **Khoá nút ngay khi bấm.** Không khoá thì bấm liên tiếp gửi n request; server trả `200`
+ *   cho tất cả (huỷ là idempotent) nên không sai dữ liệu, nhưng vẫn là n request thừa.
+ * - **Ép vẽ lại** sau khi huỷ, thay vì đợi nhịp polling: xoá chữ ký để `pollOrders` lần sau
+ *   chắc chắn vẽ lại, rồi gọi luôn một nhịp.
+ */
+async function onOrderRowsClick(event) {
+  const button = event.target.closest('[data-cancel]');
+  if (!button) return;
+
+  const orderId = button.dataset.cancel;
+  if (!confirm('Huỷ đơn này? Hàng sẽ được trả về kho ngay.')) return;
+
+  button.disabled = true;
+  button.textContent = 'Đang huỷ…';
+  try {
+    await api(`/orders/${orderId}/cancel`, { method: 'POST' });
+    renderedSignature = '';
+    await pollOrders();
+  } catch (err) {
+    banner(err.message);
+    button.disabled = false;
+    button.textContent = 'Huỷ đơn';
   }
 }
 

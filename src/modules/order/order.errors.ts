@@ -53,3 +53,22 @@ export class OrderNotFoundError extends DomainError {
     super('Không tìm thấy đơn hàng');
   }
 }
+
+/**
+ * Đơn không còn ở trạng thái huỷ được — thực tế chỉ xảy ra khi đơn đã `PAID`.
+ *
+ * `409` chứ không `400`: client gửi đúng hết, đây là **xung đột trạng thái**, không phải sai
+ * input. Cùng họ với `OutOfStockError` — trạng thái nghiệp vụ, không phải lỗi hệ thống.
+ *
+ * Đơn đã `CANCELLED` KHÔNG rơi vào lỗi này mà trả `200`: huỷ là thao tác idempotent theo bản
+ * chất, gọi n lần cho cùng kết quả. Trả lỗi cho lần gọi thứ hai biến một thao tác an toàn
+ * thành thứ người dùng sợ bấm lại — trong khi bấm lại trên mạng chập chờn là chuyện thường.
+ */
+export class OrderNotCancellableError extends DomainError {
+  readonly httpStatus = HttpStatus.CONFLICT;
+  readonly code = 'ORDER_NOT_CANCELLABLE';
+
+  constructor() {
+    super('Đơn đã thanh toán, không huỷ được');
+  }
+}

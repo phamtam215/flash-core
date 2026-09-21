@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { MetricsService } from '../../infra/metrics';
 import { INVENTORY_RESERVER, type InventoryReserver } from './inventory-reserver';
 import { OrderRepository } from './order.repository';
 
@@ -10,6 +11,10 @@ const SWEEP_BATCH = 100;
  * Huỷ đơn quá hạn giữ chỗ và trả hàng về kho.
  *
  * **Có HAI đường vào cùng một hàm, và đó là chủ ý** (spec Phase 4, câu hỏi mở #3):
+ *
+ * (Từ 2026-09-21 có **đường thứ ba**: người mua tự bấm huỷ — `OrderService.cancelMyOrder`.
+ * Nó dùng chung `repo.cancelPendingOrder` với `scope` khác, nên lập luận idempotent dưới đây
+ * bao luôn cả nó.)
  *
  * - `order.expire` — delayed job hẹn sẵn lúc tạo đơn. Đúng giờ, nhưng nằm trong Redis: mất
  *   Redis, job bị xoá nhầm, hoặc worker chết đúng lúc là đơn treo `PENDING` vĩnh viễn.
@@ -24,12 +29,13 @@ export class OrderExpiryService {
 
   constructor(
     private readonly repo: OrderRepository,
+    private readonly metrics: MetricsService,
     @Inject(INVENTORY_RESERVER) private readonly reserver: InventoryReserver,
   ) {}
 
   /** Trả `true` nếu chính lần gọi NÀY huỷ đơn (và đã trả kho); `false` nếu không có gì để làm. */
   async cancelExpired(orderId: string): Promise<boolean> {
-    const items = await this.repo.cancelIfExpired(orderId);
+    const items = await this.repo.cancelPendingOrder(orderId, { kind: 'EXPIRED' });
 
     if (items === null) {
       // Đơn đã `PAID`, đã `CANCELLED`, hoặc chưa tới hạn. Đường kia xử lý trước rồi.
@@ -44,6 +50,7 @@ export class OrderExpiryService {
       await this.reserver.release(item.skuId, item.quantity);
     }
 
+    this.metrics.ordersCancelled.inc({ by: 'expiry' });
     this.logger.log({ orderId, items: items.length }, 'Đã huỷ đơn quá hạn và trả hàng về kho');
     return true;
   }

@@ -9,19 +9,21 @@ import { OrderExpiryService } from './order.expiry.service';
  * `UPDATE`: lúc đó DB vẫn đúng một đơn `CANCELLED`, nhưng tồn kho cộng hai lần.
  */
 describe('OrderExpiryService', () => {
-  let repo: { cancelIfExpired: jest.Mock; findExpiredPendingOrderIds: jest.Mock };
+  let repo: { cancelPendingOrder: jest.Mock; findExpiredPendingOrderIds: jest.Mock };
   let reserver: { release: jest.Mock };
+  let ordersCancelled: { inc: jest.Mock };
   let service: OrderExpiryService;
 
   beforeEach(() => {
-    repo = { cancelIfExpired: jest.fn(), findExpiredPendingOrderIds: jest.fn() };
+    repo = { cancelPendingOrder: jest.fn(), findExpiredPendingOrderIds: jest.fn() };
     reserver = { release: jest.fn() };
-    service = new OrderExpiryService(repo as never, reserver as never);
+    ordersCancelled = { inc: jest.fn() };
+    service = new OrderExpiryService(repo as never, { ordersCancelled } as never, reserver as never);
   });
 
   describe('cancelExpired', () => {
     it('huỷ được → trả kho đúng từng dòng hàng của đơn', async () => {
-      repo.cancelIfExpired.mockResolvedValue([
+      repo.cancelPendingOrder.mockResolvedValue([
         { skuId: 'sku-1', quantity: 2 },
         { skuId: 'sku-2', quantity: 1 },
       ]);
@@ -36,14 +38,40 @@ describe('OrderExpiryService', () => {
     it('⭐ đường kia huỷ trước rồi (UPDATE ảnh hưởng 0 dòng) → TUYỆT ĐỐI không trả kho lần hai', async () => {
       // `null` = đơn đã PAID, đã CANCELLED, hoặc chưa tới hạn. Chính là ca delayed job và
       // sweeper cùng nổ trên một đơn.
-      repo.cancelIfExpired.mockResolvedValue(null);
+      repo.cancelPendingOrder.mockResolvedValue(null);
 
       await expect(service.cancelExpired('o1')).resolves.toBe(false);
       expect(reserver.release).not.toHaveBeenCalled();
     });
 
+    it('⭐ luôn huỷ với scope EXPIRED — đường này KHÔNG được bỏ điều kiện quá hạn', async () => {
+      repo.cancelPendingOrder.mockResolvedValue([]);
+
+      await service.cancelExpired('o1');
+
+      // Đổi nhầm sang BY_USER ở đây là sweeper huỷ được cả đơn CHƯA tới hạn — người mua đang
+      // trong trang thanh toán thì đơn biến mất.
+      expect(repo.cancelPendingOrder).toHaveBeenCalledWith('o1', { kind: 'EXPIRED' });
+    });
+
+    it('đếm metric theo nguồn huỷ = expiry, tách khỏi người mua tự bấm', async () => {
+      repo.cancelPendingOrder.mockResolvedValue([{ skuId: 's', quantity: 1 }]);
+
+      await service.cancelExpired('o1');
+
+      expect(ordersCancelled.inc).toHaveBeenCalledWith({ by: 'expiry' });
+    });
+
+    it('không có gì để huỷ → KHÔNG đếm metric (nếu không con số luôn gấp đôi thực tế)', async () => {
+      repo.cancelPendingOrder.mockResolvedValue(null);
+
+      await service.cancelExpired('o1');
+
+      expect(ordersCancelled.inc).not.toHaveBeenCalled();
+    });
+
     it('đơn không có dòng hàng nào → vẫn tính là đã huỷ, không gọi trả kho', async () => {
-      repo.cancelIfExpired.mockResolvedValue([]);
+      repo.cancelPendingOrder.mockResolvedValue([]);
 
       await expect(service.cancelExpired('o1')).resolves.toBe(true);
       expect(reserver.release).not.toHaveBeenCalled();
@@ -55,12 +83,12 @@ describe('OrderExpiryService', () => {
       repo.findExpiredPendingOrderIds.mockResolvedValue([]);
 
       await expect(service.sweepExpired()).resolves.toBe(0);
-      expect(repo.cancelIfExpired).not.toHaveBeenCalled();
+      expect(repo.cancelPendingOrder).not.toHaveBeenCalled();
     });
 
     it('chỉ ĐẾM những đơn mà chính lần quét này huỷ được', async () => {
       repo.findExpiredPendingOrderIds.mockResolvedValue(['o1', 'o2', 'o3']);
-      repo.cancelIfExpired
+      repo.cancelPendingOrder
         .mockResolvedValueOnce([{ skuId: 's', quantity: 1 }]) // o1: quét huỷ được
         .mockResolvedValueOnce(null) // o2: delayed job đã huỷ xong trước đó
         .mockResolvedValueOnce([{ skuId: 's', quantity: 1 }]); // o3: quét huỷ được

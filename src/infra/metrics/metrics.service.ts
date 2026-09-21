@@ -27,6 +27,7 @@ export class MetricsService {
 
   // ── Nghiệp vụ: phần đáng giá hơn ─────────────────────────────────────────────────────
   readonly ordersPlaced: Counter<'result'>;
+  readonly ordersCancelled: Counter<'by'>;
   readonly reserveDuration: Histogram<'strategy'>;
   readonly outboxPending: Gauge<string>;
   readonly queueJobs: Counter<'job' | 'outcome'>;
@@ -57,6 +58,20 @@ export class MetricsService {
       name: 'orders_placed_total',
       help: 'Số lần đặt đơn, tách theo KẾT QUẢ (created / out_of_stock / duplicate / sku_not_found)',
       labelNames: ['result'] as const,
+      registers: [this.registry],
+    });
+
+    this.ordersCancelled = new Counter({
+      name: 'orders_cancelled_total',
+      help: 'Số đơn bị huỷ, tách theo NGUỒN huỷ (user tự bấm / hết hạn giữ chỗ)',
+      // Hai giá trị cố định, biết trước — đúng luật cardinality ở đầu file.
+      //
+      // Vì sao đáng đếm: nhìn từ ngoài, "đơn CANCELLED" của hai nguồn này giống hệt nhau,
+      // nhưng ý nghĩa ngược nhau. `by="user"` tăng là người mua đổi ý (vấn đề của giá, của
+      // sản phẩm). `by="expiry"` tăng là người mua bấm rồi bỏ đi giữa chừng (vấn đề của
+      // luồng thanh toán, hoặc cổng thanh toán đang hỏng). Không tách thì cả hai chìm vào
+      // một con số không hành động được.
+      labelNames: ['by'] as const,
       registers: [this.registry],
     });
 

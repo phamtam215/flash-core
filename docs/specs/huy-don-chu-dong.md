@@ -2,7 +2,7 @@
 
 - **Phase:** 7 (nợ chuyển tiếp từ Phase 4)
 - **Ngày:** 2026-09-21
-- **Trạng thái:** Draft — chờ Tâm duyệt
+- **Trạng thái:** Đã implement 2026-09-21 (spec duyệt cùng ngày, 4 câu hỏi mở chốt theo khuyến nghị)
 
 > Hợp đồng của tính năng. Phần *vì sao* (huỷ đơn idempotent, hai đường cùng huỷ, `UPDATE` có
 > điều kiện) đã có ở [`tech-playbook.md` §Phase 4](../tech-playbook.md) — spec này không chép
@@ -163,15 +163,15 @@ Integration (Postgres + Redis thật) trừ khi ghi rõ.
 
 ## Definition of Done
 
-- [ ] 13 test case trên xanh; tổng integration ≥ 101, unit ≥ 135.
-- [ ] `npm run check` sạch (lint + typecheck + unit).
-- [ ] `OrderExpiryService` **không đổi hành vi** — 90 test cũ vẫn xanh, không sửa test nào để
-      chúng xanh trở lại.
-- [ ] Ngưỡng coverage trong `jest.config.js` vẫn qua.
-- [ ] UI có nút "Huỷ đơn" ở tab *Đơn của tôi* cho dòng `PENDING` — xem Câu hỏi mở #3.
-- [ ] Cập nhật: `docs/architecture.md` (sơ đồ tuần tự B thêm đường huỷ chủ động), §Trạng thái
-      trong `CLAUDE.md`, mục nợ ở `docs/specs/phase4-async-queue-payment.md`, và
-      `docs/tech-playbook.md` nếu có bug thật tìm được.
+- [x] 13 test case trên xanh — integration **101/101** (8 suite), unit **139/139**.
+- [x] `npm run check` sạch (lint + typecheck + unit).
+- [x] `OrderExpiryService` **không đổi hành vi** — 90 integration test cũ vẫn xanh, không sửa
+      test nào để chúng xanh trở lại. (3 unit test của nó phải đổi vì **constructor** thêm
+      `MetricsService`, không phải vì hành vi đổi.)
+- [x] Ngưỡng coverage trong `jest.config.js` vẫn qua.
+- [x] UI có nút "Huỷ đơn" ở tab *Đơn của tôi* cho dòng `PENDING`.
+- [x] Cập nhật: `docs/architecture.md`, §Trạng thái trong `CLAUDE.md`, mục nợ ở
+      `docs/specs/phase4-async-queue-payment.md`.
 
 ## Ngoài phạm vi (Non-goals)
 
@@ -184,9 +184,14 @@ Integration (Postgres + Redis thật) trừ khi ghi rõ.
   điểm hỏng.
 - **Email báo "đơn đã huỷ".** Thêm một consumer nữa; để dành nếu thấy thật sự cần.
 
-## Câu hỏi mở cho Tâm quyết
+## Câu hỏi mở — ĐÃ CHỐT 2026-09-21
+
+> Tâm duyệt cả bốn theo khuyến nghị. Giữ nguyên phần lập luận bên dưới vì *lý do* mới là thứ
+> đáng đọc lại; kết luận ghi ngay dưới mỗi mục.
 
 ### 1. Huỷ đơn đã `CANCELLED` → `200` hay `409`?
+
+**Chốt: `200`.**
 
 | | `200` (khuyến nghị) | `409` |
 |---|---|---|
@@ -201,6 +206,8 @@ thật sự **xung đột** với ý định.
 
 ### 2. Có bắt buộc `Idempotency-Key` cho endpoint này không?
 
+**Chốt: KHÔNG bắt buộc** — đã ghi dòng ngoại lệ vào `CLAUDE.md` §Convention code.
+
 CLAUDE.md: *"Mọi API ghi (POST/PUT) liên quan đơn hàng phải nhận `Idempotency-Key`"*. Chiếu
 theo chữ thì có.
 
@@ -214,6 +221,8 @@ Nếu Tâm muốn giữ luật cho nhất quán thì em làm theo — chỉ mấ
 
 ### 3. UI có nút "Huỷ đơn" luôn trong đợt này không?
 
+**Chốt: CÓ** — đã làm.
+
 **Em khuyến nghị CÓ** — một nút ở cột cuối của dòng `PENDING`, hỏi xác nhận rồi gọi API, xong
 thì để nhịp polling 1,5 giây tự cập nhật. Khoảng 25 dòng trong
 [`public/app.js`](../../public/app.js).
@@ -225,7 +234,47 @@ quay được). Có nút huỷ thì cảnh đó bấm một cái là xong.
 
 ### 4. Có đếm metric `orders_cancelled_total{by="user"|"expiry"}` không?
 
+**Chốt: CÓ** — đã làm.
+
 **Em khuyến nghị CÓ.** Một counter, hai nhãn, khoảng 10 dòng. Nó trả lời được câu đáng hỏi
 nhất khi hệ thống chạy thật: *người mua đang tự bỏ đơn, hay đơn đang chết vì hết giờ?* — hai
 nguyên nhân hoàn toàn khác nhau, và hôm nay không có cách nào phân biệt từ ngoài. Nhãn giữ ở
 hai giá trị cố định nên không có rủi ro cardinality.
+
+---
+
+## Trạng thái thật (2026-09-21)
+
+**Xong, toàn bộ xanh:** **139 unit** (tăng từ 129) + **101 integration** (tăng từ 90). `npm run check` sạch.
+
+| Việc | Ở đâu |
+|---|---|
+| `cancelPendingOrder(id, scope)` + `findOrderStatusOfUser` | [`order.repository.ts`](../../src/modules/order/order.repository.ts) |
+| `cancelMyOrder` | [`order.service.ts`](../../src/modules/order/order.service.ts) |
+| `POST /orders/:id/cancel` | [`order.controller.ts`](../../src/modules/order/order.controller.ts) |
+| `OrderNotCancellableError` (409) | [`order.errors.ts`](../../src/modules/order/order.errors.ts) |
+| `orders_cancelled_total{by}` | [`metrics.service.ts`](../../src/infra/metrics/metrics.service.ts) |
+| Nút "Huỷ đơn" | [`public/app.js`](../../public/app.js) |
+| 11 integration test | [`test/order-cancel.e2e-spec.ts`](../../test/order-cancel.e2e-spec.ts) |
+
+**Cách chạy lại 11 test đó** (sandbox chặn Jest nối `docker.sock`, nên dùng lối thoát sẵn có):
+
+```bash
+npm run up
+TEST_DATABASE_URL='postgresql://flashcore:flashcore@localhost:5433/flashcore_test' \
+TEST_REDIS_URL='redis://localhost:6379' npm run test:int
+```
+
+Lưu ý cổng **5433** — `docker-compose.yml` ánh xạ Postgres ra 5433 để không đụng Postgres cài
+thẳng trên máy (đang chiếm 5432). Trỏ nhầm 5432 là chạy test lên DB dev, và fixture sẽ **từ
+chối** vì tên database không kết thúc bằng `_test`. Hàng rào đó làm đúng việc của nó.
+
+### Hai thứ phát sinh ngoài spec
+
+1. **`GET /orders/:id` cũng trả `500` cho id sai định dạng**, không chỉ endpoint huỷ — cùng
+   một nguyên nhân (Postgres ném lỗi cast `::uuid`). Đã vá cả hai bằng một lá chắn chung trong
+   `OrderService`, vì để lại một cái là để lại đúng bug vừa sửa ở file bên cạnh.
+2. **UI: nút bấm nằm trong `<tbody>` bị vẽ lại mỗi 3 giây.** Đây là bản mở rộng của bug Phase 5
+   (vẽ lại `<tbody>` giữa lúc bấm). Xử lý bằng **hai** việc: uỷ quyền sự kiện cho `<tbody>`
+   (phần tử này không bao giờ bị thay), và **bỏ qua việc vẽ lại khi dữ liệu không đổi** — so
+   một chữ ký `id:status`. Nhờ vậy gần như mọi nhịp polling đều không đụng vào DOM.

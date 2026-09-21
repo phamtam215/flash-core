@@ -95,6 +95,11 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
   service của module khác — chỉ qua public interface được export.
 - Tiền tệ: lưu số nguyên (VND, không có phần thập phân). Không dùng float cho tiền.
 - Mọi API ghi (POST/PUT) liên quan đơn hàng phải nhận `Idempotency-Key` header.
+  **Ngoại lệ đã chốt 2026-09-21: `POST /orders/:id/cancel` KHÔNG đòi header này.** Lý do:
+  `Idempotency-Key` tồn tại để chống *tạo trùng* — hai lần bấm ra hai đơn. Huỷ đơn không tạo
+  gì; tính idempotent của nó đến từ `WHERE status = 'PENDING'` trong chính câu `UPDATE`, chặt
+  hơn một header do client tự sinh. Bắt buộc thêm ở đây là nghi lễ. Luật gốc vẫn áp dụng cho
+  mọi endpoint **tạo** ra thứ gì đó.
 - Log bằng Pino, JSON, luôn kèm `correlationId`. Không log dữ liệu nhạy cảm
   (password, token, số thẻ).
 - Lỗi: dùng exception filter thống nhất, không nuốt lỗi (không có catch rỗng).
@@ -268,6 +273,23 @@ Muốn xem lại thì `git log -- .claude/`.
   Cùng lúc sửa hai chỗ tài liệu đã lệch: dòng trạng thái đầu file còn ghi "Phase 4, ~4 700
   dòng", và §Một chỗ chưa ổn vẫn ghi nợ `/ready` log `error` như **chưa trả** trong khi Phase 6
   đã trả bằng `DomainError.logLevel`. Cây thư mục thiếu `common/correlation/` và `infra/metrics/`.
+- **Huỷ đơn chủ động — code xong 2026-09-21**, theo `docs/specs/huy-don-chu-dong.md` (spec đã
+  duyệt, 4 câu hỏi mở chốt theo khuyến nghị): `POST /orders/:id/cancel`, `OrderNotCancellableError`
+  (409 cho đơn đã `PAID`; đơn đã `CANCELLED` trả **200** vì huỷ là idempotent), metric
+  `orders_cancelled_total{by="user"|"expiry"}`, nút "Huỷ đơn" trên UI. **Unit 129 → 139, integration 90 → 101** (`test/order-cancel.e2e-spec.ts`, 11 test).
+  `cancelIfExpired` đã gộp thành **`cancelPendingOrder(orderId, scope)`** với
+  `scope = EXPIRED | BY_USER` — trả nợ ghi từ Phase 4. Điều đáng nhớ: **`status = 'PENDING'`
+  mới là điều kiện chống trả kho hai lần, không phải `expires_at`**, nên nhánh `BY_USER` bỏ
+  được `expires_at` mà vẫn an toàn. Delayed job `expire-<id>` cố tình KHÔNG gỡ khỏi queue khi
+  người mua huỷ: lúc nổ nó đổi 0 dòng nên tự vô hại.
+  **Hai thứ phát sinh ngoài spec:** `GET /orders/:id` cũng trả `500` cho id sai định dạng UUID
+  (lỗi cast `::uuid` của Postgres) — đã vá chung một lá chắn; và nút bấm nằm trong `<tbody>`
+  bị vẽ lại mỗi 3 giây nên phải uỷ quyền sự kiện **và** bỏ qua vẽ lại khi dữ liệu không đổi
+  (bản mở rộng của bug Phase 5).
+  **Chạy integration test trên máy này:** `npm run up`, rồi
+  `TEST_DATABASE_URL='postgresql://flashcore:flashcore@localhost:5433/flashcore_test'
+  TEST_REDIS_URL='redis://localhost:6379' npm run test:int`. **Cổng 5433**, không phải 5432 —
+  compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

@@ -55,6 +55,24 @@ export class OrderController {
     return this.orders.listMyOrders(req.userId, query);
   }
 
+  /**
+   * Huỷ đơn `PENDING` của chính mình. `200` cho cả lần huỷ thật lẫn đơn vốn đã `CANCELLED` —
+   * huỷ là thao tác idempotent, trả lỗi cho lần bấm thứ hai là phạt người dùng vì mạng chậm.
+   * `409` dành riêng cho đơn đã `PAID`, nơi trạng thái thật sự xung đột với ý định.
+   *
+   * **KHÔNG đòi `Idempotency-Key`**, khác với `POST /orders` — xem ghi chú ở CLAUDE.md
+   * §Convention code. Header đó tồn tại để chống *tạo trùng*; huỷ đơn không tạo gì, và tính
+   * idempotent của nó đến từ `WHERE status = 'PENDING'` trong chính câu `UPDATE` — chặt hơn
+   * một header do client tự sinh.
+   */
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const { order } = await this.orders.cancelMyOrder(id, req.userId);
+    const { items, ...rest } = order;
+    return { order: rest, items };
+  }
+
   @Get(':id')
   async detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const order = await this.orders.getMyOrder(id, req.userId);

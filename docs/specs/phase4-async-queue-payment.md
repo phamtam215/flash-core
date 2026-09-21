@@ -255,9 +255,11 @@ POST /payments/webhook
 - [ ] Redis chết đúng lúc controller `queue.add` cho webhook → trả `500` để cổng gửi lại.
       Code đi đúng đường đó (lỗi bay lên exception filter), nhưng chưa có test vì phải giết
       Redis giữa một request — cần công cụ chèn lỗi, chưa đáng dựng ở phase này.
-- [ ] User **tự huỷ đơn** rồi delayed job vẫn nổ. Chưa có endpoint huỷ đơn nào, nên tình
-      huống này chưa tồn tại. Khi thêm endpoint đó thì `cancelIfExpired` phải được xem lại:
-      hiện nó đòi `expires_at <= now()`, tức không dùng lại được cho huỷ chủ động.
+- [x] **ĐÃ TRẢ 2026-09-21** — User tự huỷ đơn rồi delayed job vẫn nổ. Endpoint
+      `POST /orders/:id/cancel` đã có; `cancelIfExpired` gộp thành `cancelPendingOrder(id, scope)`
+      với `scope = EXPIRED | BY_USER`. Test #6 của
+      [spec huỷ đơn chủ động](huy-don-chu-dong.md) khoá đúng tình huống này: huỷ chủ động rồi
+      gọi `cancelExpired` → trả `false`, tồn kho không tăng lần hai.
 
 ## Test cases phải pass
 
