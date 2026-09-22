@@ -301,15 +301,31 @@ Muốn xem lại thì `git log -- .claude/`.
     `npm run make-admin -- <email>`, cố tình không có endpoint.
   - **3 ADR** (009 CSRF, 010 keyset pagination, 011 Idempotency-Key lấy DB làm trọng tài) ⇒
     **DoD "~10 ADR" xong, giờ có 12**.
-- **Phase 7 — cấu hình xong, CHƯA deploy thật** (`docs/specs/phase7-deploy-finops.md`):
+- **Phase 7 — cấu hình xong, CHƯA deploy thật** (`docs/specs/phase7-deploy-gcp.md`):
   `Dockerfile` multi-stage (runtime không có devDependencies, chạy user `node`,
   `CMD ["node", "dist/main.js"]` chứ không `npm start` vì npm nuốt SIGTERM),
   `.github/workflows/deploy.yml` (build → migrate bằng Cloud Run Job → API → worker job →
   **kiểm `/ready`**), `src/worker-once.ts` + `npm run worker:once` cho Cloud Run Job.
-  **ADR-012** chốt: worker chạy **một lượt rồi thoát**, Cloud Scheduler gọi mỗi phút — vì
-  Cloud Run free tier scale về 0 và `min-instances=1` thì tốn tiền. Đổi lại độ trễ tệ nhất
-  1 phút thay vì ~2 giây. **Tâm phải làm phần ngoài repo**: tạo project GCP, WIF, Neon,
-  Upstash, 6 secret, Cloud Scheduler, **budget alert $1**.
+  **ADR-012** chốt: worker chạy **một lượt rồi thoát**, Cloud Scheduler gọi **mỗi 5 phút** —
+  vì Cloud Run free tier scale về 0 và `min-instances=1` thì tốn tiền. Đổi lại độ trễ tệ nhất
+  5 phút thay vì ~2 giây (vẫn đúng hợp đồng: đơn giữ chỗ 15 phút).
+  **Một lỗi của chính ADR-012, đã sửa cùng ngày:** bản đầu chốt **1 phút** theo cảm giác
+  "càng nhanh càng tốt" — phép tính hạn mức ở spec bác bỏ: 1.440 lượt/ngày × ~10s ≈ 432.000
+  vCPU-giây/tháng, **vượt trần free 180.000 tới 2,4 lần**, và giữ Neon thức gần như liên tục.
+  Bài học ghi lại trong ADR: quyết định vận hành phải đối chiếu **hạn mức theo đơn vị thật**
+  (vCPU-giây, compute-giờ, số lệnh), không theo trực giác về độ trễ.
+  **`deploy.yml` khớp bảng §Cấu hình Cloud Run của spec**, không dùng mặc định gcloud:
+  `--max-instances 2` (van an toàn kép — trần chi phí *và* trần connection Neon, pool 5 × 2),
+  `--concurrency 80`, `--timeout 30s`, **`--cpu-throttling` (billing request-based)**,
+  `INVENTORY_STRATEGY=pessimistic` (số đo Phase 3), và **rollback traffic về revision trước**
+  khi `/ready` không xanh.
+  **Tâm phải làm phần ngoài repo**: tạo project GCP, WIF, Neon, Upstash, 6 secret, Cloud
+  Scheduler (5 phút), **budget alert $1**. Còn nợ **ADR-013** (pool × max-instances) và
+  **ADR-014** (Workload Identity Federation).
+  **Hai spec Phase 7 viết song song đã gộp** 2026-09-21: giữ `phase7-deploy-gcp.md` (bản dày,
+  có phép tính FinOps theo đơn vị thật + bẫy vận hành rút từ hệ thống OfficeCube đang chạy),
+  **xoá `phase7-deploy-finops.md`**. Bài học quy trình: `git add -A` đã quét nhầm bản nháp
+  đang dở của Tâm vào một commit — từ giờ `git add` từng file mình sửa.
 - **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
   Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối

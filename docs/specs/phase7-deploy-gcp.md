@@ -2,16 +2,12 @@
 
 - **Phase:** 7
 - **Ngày:** 2026-09-21
-- **Trạng thái:** Draft — chờ Tâm duyệt (có 4 câu hỏi mở ở cuối, chưa quyết thì chưa code)
+- **Trạng thái:** Đã duyệt · **code + cấu hình xong, CHƯA deploy thật** (phần còn lại cần tài khoản GCP)
 
-> **Quan hệ với [`phase7-deploy-finops.md`](phase7-deploy-finops.md) — đọc trước khi dùng.**
-> File kia là **hợp đồng đã implement** (Dockerfile, `deploy.yml`, `worker-once.ts`, ADR-012)
-> và là nguồn sự thật cho *phase này đã làm gì*. File này ra đời song song, cùng ngày, và
-> hiện **trùng vai một phần** — vi phạm luật một chủ sở hữu. Phần **không** trùng, tức phần
-> đáng giữ lại: các phép tính FinOps theo đơn vị thật, cấu hình Cloud Run nên đặt gì, bảng
-> tra theo triệu chứng, và những cái bẫy vận hành rút từ một hệ thống GCP đang chạy thật.
-> **Tâm quyết:** gộp phần đó vào `phase7-deploy-finops.md` + `tech-playbook.md` §Phase 7 rồi
-> xoá file này, hay giữ riêng. Tôi không tự gộp vì luồng kia đang sửa cùng lúc.
+> **File này là spec Phase 7 duy nhất** (gộp xong 2026-09-21). `phase7-deploy-finops.md` —
+> bản viết song song cùng ngày bởi luồng implement — đã **xoá**: mọi thứ nó nói đều có ở đây,
+> chỉ mỏng hơn. Phần nó sở hữu riêng (ranh giới *máy làm gì / Tâm làm gì* và Definition of
+> Done) đã chuyển vào §Ranh giới và §Definition of Done bên dưới.
 >
 > **Nguồn của phần "bẫy vận hành":** bộ tài liệu học hạ tầng của dự án OfficeCube
 > (`officecube-renewal/docs/cloud-learning/`) — một hệ thống GCP thật đang chạy: Cloud Run +
@@ -81,6 +77,34 @@ mà không phá tính đúng đắn đã chứng minh ở Phase 3–4.
          Secret Manager ──(6 secret)──▶ Cloud Run service + job
          Cloud Logging  ◀──stdout JSON── cả hai (50 GiB/tháng free)
 ```
+
+## Ranh giới: việc nào máy làm, việc nào Tâm làm
+
+Đây là phase đầu tiên **không thể làm xong hoàn toàn bằng code** — nó cần tài khoản, thẻ, và
+những cú bấm trong console. Ghi rõ ranh giới để không ai tưởng phase đã xong.
+
+| Đã xong (trong repo) | Tâm phải làm (ngoài repo) |
+|---|---|
+| [`Dockerfile`](../../Dockerfile) multi-stage + [`.dockerignore`](../../.dockerignore) | Tạo project GCP, bật Cloud Run + Artifact Registry + Secret Manager + Cloud Scheduler |
+| [`deploy.yml`](../../.github/workflows/deploy.yml): build → migrate → API → worker job → kiểm `/ready` → **rollback nếu hỏng** | Dựng Workload Identity Federation + service account (4 role), đặt `vars` trong GitHub |
+| [`worker-once.ts`](../../src/worker-once.ts) — worker một lượt cho Cloud Run Job | Tạo Neon + Upstash, nạp 6 secret vào Secret Manager |
+| CI đã bật **integration test** với Postgres + Redis thật | Tạo Cloud Scheduler job gọi `flash-core-worker` **mỗi 5 phút** |
+| ADR-012 chốt cách chạy worker | **Budget alert $1 ngay ngày đầu** |
+
+## Definition of Done
+
+- [x] `Dockerfile` hai stage; ảnh runtime không có devDependencies; chạy user `node`;
+      `CMD ["node", "dist/main.js"]` chứ không `npm start`.
+- [x] `deploy.yml`: build → migrate (Cloud Run Job, ảnh vừa build) → API → worker job →
+      **kiểm `/ready`** → **rollback traffic về revision trước nếu hỏng**.
+- [x] `worker-once.ts` + `npm run worker:once`; ngân sách một lượt khớp phép tính Bài toán #4.
+- [x] CI chạy integration test trên Postgres + Redis thật.
+- [x] ADR-012 chốt cách chạy worker (và ghi lại lỗi chọn nhịp 1 phút để không lặp lại).
+- [ ] **API live trên Cloud Run** — cần tài khoản GCP.
+- [ ] **Budget alert $1** — cần console.
+- [ ] ADR-013 (pool × max-instances) và ADR-014 (Workload Identity Federation).
+- [ ] Chạy §Test cases, dán số đo thật vào §Bằng chứng.
+- [ ] README có URL live.
 
 ## Bài toán #1 — worker luôn thức là thứ giết free tier
 
@@ -245,6 +269,15 @@ Ghi ra để Flash-Core không phải học lại bằng trải nghiệm.
 | `--no-allow-unauthenticated` | **không dùng** | demo cần public |
 | startup probe | `GET /ready` | đúng ngữ nghĩa: sẵn sàng nhận traffic chưa |
 | liveness probe | `GET /health` | Postgres chết **không** được làm Cloud Run restart container — đã chốt từ spec Phase 0 |
+| billing | **request-based** | xem Bài toán #4 — quyết định chi phí lớn nhất, và là cờ ít người biết là có |
+
+**Revision cũ không bị xoá sau khi deploy** — đó là toàn bộ lý do rollback chỉ mất vài giây
+thay vì phải build lại. Hai hệ quả dùng được ngay:
+
+- **Traffic là phần trăm, không phải công tắc.** Có thể để 90/10 giữa hai revision để thử
+  dần, thay vì đổi 100% một nhát. Với demo thì không cần, nhưng biết là có.
+- **Mỗi revision có URL riêng.** Trước khi lùi traffic thật, mở URL của revision cũ kiểm tra
+  đã — lùi "mù" là cách biến một sự cố thành hai.
 
 **Một chỉnh quan trọng so với hình dung hiện có trong code:** Cloud Run **không có readiness
 probe điều khiển routing** như Kubernetes. Khi thay revision, nó tự ngừng gửi request rồi mới
@@ -269,7 +302,20 @@ version thứ 7 bắt đầu tính tiền.
 | — | `METRICS_ENABLED=?` ← xem câu hỏi mở #3 |
 | — | `DATABASE_URL_DIRECT` (chỉ CI dùng, không gắn vào service) |
 
-## Dockerfile (đề xuất — chưa tạo, đang chờ duyệt)
+Ba luật đi kèm, cái nào cũng từng làm người ta mất buổi chiều:
+
+1. **Đổi secret xong phải deploy lại** thì container mới đọc giá trị mới (Bài toán #6, ý 1).
+2. **Secret không nằm trong ảnh.** Ảnh bị lộ vẫn không kéo theo secret — đây là khác biệt
+   thật giữa "mount lúc chạy" và "`ENV` trong Dockerfile", không phải chuyện hình thức.
+3. **Mã hoá mặc định của Google là đủ** cho dự án này; CMEK (khoá tự quản) là thứ của hệ
+   thống có yêu cầu tuân thủ, thêm vào đây chỉ tốn thao tác.
+
+## Dockerfile
+
+> **Đã có thật** — [`Dockerfile`](../../Dockerfile) do luồng Phase 7 tạo cùng ngày. Bản phác
+> dưới đây giữ lại vì phần *vì sao* vẫn đúng; bản thật là nguồn sự thật, và nó chốt thêm một
+> điểm quan trọng bản phác này thiếu: `CMD ["node", "dist/main.js"]` chứ không `npm start`,
+> vì npm làm PID 1 sẽ **nuốt SIGTERM** và phần tắt êm ba bước của Phase 6 không bao giờ chạy.
 
 Multi-stage, ba tầng. Điểm đáng nhớ nằm ở chỗ **`npm run db:generate` phải chạy trong build**
 (Prisma Client sinh vào `src/generated/`, không có trong git), và **`public/` phải được copy**
@@ -328,7 +374,18 @@ Cần **ADR-014**.
 
 Service account cho deploy chỉ được 4 role: `run.admin`, `artifactregistry.writer`,
 `iam.serviceAccountUser`, `secretmanager.secretAccessor` — least privilege, đúng mục đã có
-tên trong `glossary.md`.
+tên trong `glossary.md`. Và theo Bài toán #6 ý 6: **quyền sửa `deploy.yml` phải được coi
+ngang quyền sửa IAM**, vì ai đổi được file đó thì đổi được thứ chạy dưới danh nghĩa SA này.
+
+**Deploy theo tag hay theo push `main`?** OfficeCube dùng tag (`^v.*-dev$`) để tách bạch
+"code đã merge" khỏi "code đã lên môi trường". Đổi lại, lỗi phổ biến nhất của họ là *gõ sai
+tag rồi ngồi đợi một build không bao giờ chạy*. Với Flash-Core một người, **push `main` là
+đủ** — nhưng nếu sau này muốn có bước "chín rồi mới lên", tag là chỗ thêm vào, và khi đó phải
+ghi rõ mẫu tag ở đầu `deploy.yml` để không phải đi đoán.
+
+**Không có bước phê duyệt tay trong pipeline.** Nghĩa là toàn bộ chốt chặn nằm ở CI xanh
+trước khi merge — đây là lý do việc bật integration test trong `ci.yml` không phải "làm cho
+đẹp" mà là *cái phanh duy nhất* của cả dây chuyền.
 
 ## Bảy chốt chặn chi phí
 
@@ -388,6 +445,36 @@ tên trong `glossary.md`.
     toán #1 — đây là bằng chứng FinOps, không phải số dự đoán
 12. Budget alert: xác nhận email đã nhận được ít nhất một báo cáo
 
+## Tra cứu nhanh theo triệu chứng
+
+Dùng khi đã deploy và có gì đó sai. Nguyên tắc: **mở đúng màn hình xác minh trước, đoán
+nguyên nhân sau.**
+
+| Thấy gì | Nhiều khả năng do | Mở đâu để xác minh |
+|---|---|---|
+| Request đầu chậm 3–5s, sau đó nhanh | Cold start, `min-instances=0` | Cloud Run → Metrics → startup latency |
+| 503 ngay sau deploy | Container không khởi động nổi — hay gặp nhất là **thiếu/sai env** (Zod chết ngay lúc boot, đúng như thiết kế) | Cloud Run → Logs, tìm dòng lỗi Zod đầu tiên |
+| Deploy xong mà không thấy đổi gì | Traffic còn ở revision cũ, **hoặc chỉ đổi secret mà chưa deploy lại** | Revision History: revision nào đang giữ 100% |
+| Đơn không tự huỷ, email không tới | Cloud Run Job không chạy: Scheduler sai, job lỗi, hoặc quota | Cloud Scheduler → last run; Cloud Run Jobs → Executions |
+| `/ready` 503 kéo dài | Neon đang suspend hoặc **đã chạm hard cutoff** | Neon console → compute hours còn lại |
+| Hết sạch lệnh Redis giữa tháng | Có gì đó đang poll Upstash — đúng Bài toán #1 | Upstash → command count theo ngày |
+| Hoá đơn khác 0 | Gần như luôn là một trong: min-instances, ping/uptime check dày, Artifact Registry phình | Billing → Reports, nhóm theo SKU |
+| Migration lỗi giữa chừng | Xem Bài toán #5 — **không chạy lại mù** | GitHub Actions log của bước migrate |
+
+## Vì sao không dùng IaC — và cái giá phải trả
+
+Terraform nằm trong Non-goals (11 bước bấm tay một lần, làm tay rồi mới hiểu Terraform sinh
+ra gì). Cái giá của lựa chọn đó có tên là **drift**: cấu hình thật trôi khỏi thứ tài liệu mô
+tả, và không ai biết cho tới lúc có sự cố.
+
+Ở OfficeCube — nơi *có* Terraform — vẫn đếm được ít nhất ba điểm lệch: `max-instances` khai 5
+nhưng console là 20, timeout khai 300s nhưng console 120s, backup retention tài liệu ghi 30
+bản nhưng thực tế còn 7. Có IaC mà còn lệch, thì không có IaC chắc chắn sẽ lệch.
+
+Nên đổi lại bằng một luật rẻ: **mọi giá trị bấm tay đều được chép vào §Bằng chứng của spec
+này kèm ngày**, và rà lại mỗi quý. Một bảng có ngày tháng còn dùng được; một bảng không ghi
+ngày thì sau ba tháng chỉ là phỏng đoán.
+
 ## Ngoài phạm vi (Non-goals)
 
 - Custom domain, Cloud CDN, Cloud Armor — demo dùng thẳng URL `*.run.app`
@@ -396,23 +483,34 @@ tên trong `glossary.md`.
 - Multi-region, blue-green thủ công — Cloud Run revision đã cho rollback
 - Load test trên cloud — vĩnh viễn không
 
-## Câu hỏi mở cho Tâm quyết
+## Câu hỏi mở — hai cái đã có đáp án, hai cái còn lại
 
-1. **Worker deploy theo phương án nào?** Khuyến nghị **A** (Cloud Run Job + Scheduler, viết
-   thêm `worker-once.ts`). Chọn A thì Phase 7 có thêm việc code, không chỉ cấu hình.
-2. **Nhịp cron của worker job:** 5 phút (email trễ ≤ 5') hay 1 phút (trễ ≤ 1', tốn ~5×
-   vCPU-giây, vẫn trong hạn mức)? Khuyến nghị **5 phút**, hạ xuống 1 phút khi quay video.
+1. ~~Worker deploy theo phương án nào?~~ **Đã quyết: phương án A**, chốt bằng
+   [ADR-012](../adr/012-worker-tren-cloud-run.md) và đã có [`worker-once.ts`](../../src/worker-once.ts).
+2. ~~Nhịp cron của worker job?~~ **Đã quyết: 5 phút** (ADR-012). Bản đầu của ADR ghi **1
+   phút** và **sai** — chính phép tính ở Bài toán #1/#4 của file này bác bỏ nó: 1 phút =
+   1.440 lượt/ngày × ~10s ≈ **432.000 vCPU-giây/tháng**, vượt hạn mức 180.000 hơn hai lần,
+   *và* giữ Neon thức gần như liên tục nên đốt luôn 100 compute-giờ. 5 phút cho ≈86.400
+   vCPU-giây, vừa khít. Đổi lại độ trễ tệ nhất 5 phút — vẫn đúng hợp đồng vì đơn giữ chỗ 15
+   phút. **Bài học: con số trong ADR phải đối chiếu với phép tính hạn mức, không chọn theo
+   cảm giác "càng nhanh càng tốt".**
 3. **`METRICS_ENABLED` trên cloud:** `false` (không ai scrape, đỡ lộ bề mặt) hay `true` (để
    `curl /metrics` làm cảnh quay demo)? Khuyến nghị **`true` trong lúc demo, `false` sau đó**.
-4. **Bật integration test trong `ci.yml` ngay phase này?** Khuyến nghị **có** — nó là món nợ
-   ghi từ Phase 0 và là phần Tâm tự nhận yếu nhất (playbook §Xuyên suốt — CI & Testing).
+4. ~~Bật integration test trong `ci.yml`?~~ **Đã bật** — `ci.yml` giờ chạy integration test
+   với service container Postgres + Redis.
+5. ~~Gộp hay giữ riêng hai spec Phase 7?~~ **Đã gộp 2026-09-21**: giữ file này, xoá
+   `phase7-deploy-finops.md`. Xem khối ghi chú đầu file.
 
 ## Kiến thức sẽ ghi vào `tech-playbook.md` §Phase 7 (không viết ở spec này)
 
 CPU throttling của Cloud Run và vì sao nó giết job nền · daemon vs chạy-một-lượt trên
 serverless · PgBouncer transaction mode giữ được gì và mất gì · vì sao migrate không chạy lúc
 khởi động container · Workload Identity Federation thay key JSON · cold start và ba cách trị
-(kèm giá) · đọc hoá đơn GCP: chi phí phát sinh đầu tiên xuất hiện ở đâu.
+(kèm giá) · đọc hoá đơn GCP: chi phí phát sinh đầu tiên xuất hiện ở đâu · **request-based vs
+instance-based và vì sao 180.000 vCPU-giây chỉ là 50 giờ** · **hai kiểu deploy đỏ và luật
+migration additive (expand → contract)** · **rollback đưa code về nhưng không đưa schema về**
+· **"IP allowlist trống" không phải là đóng cửa** · **drift: vì sao tài liệu hạ tầng phải có
+ngày tháng**.
 
 ## Bằng chứng (điền khi implement xong)
 

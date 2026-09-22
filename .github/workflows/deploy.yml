@@ -69,6 +69,17 @@ jobs:
             --max-retries 0 --task-timeout 5m --quiet
           gcloud run jobs execute flash-core-migrate --region "${{ vars.GCP_REGION }}" --wait --quiet
 
+      # Mọi con số dưới đây đến từ bảng §Cấu hình Cloud Run service của spec Phase 7, không
+      # phải mặc định của gcloud. Ba cái đáng nhớ nhất:
+      #   --max-instances 2   van an toàn KÉP: trần chi phí *và* trần connection tới Neon
+      #                       (pool 5 × 2 instance = 10 connection).
+      #   --concurrency 80    nhiều request chia nhau một instance ⇒ ít vCPU-giây hơn. Node
+      #                       xử lý I/O-bound tốt nên đây gần như là bữa trưa miễn phí.
+      #   --cpu-throttling    billing REQUEST-BASED: chỉ tính tiền lúc đang xử lý request.
+      #                       Đây là cờ quyết định chi phí lớn nhất, và cũng chính là thứ làm
+      #                       job nền không chạy được trong process này (xem ADR-012).
+      # `INVENTORY_STRATEGY=pessimistic` theo số đo Phase 3: khi phần lớn request là "hết
+      # hàng", pessimistic tốn 1 round-trip còn optimistic tốn 2.
       - name: Deploy API
         run: |
           gcloud run deploy flash-core-api \
@@ -76,9 +87,12 @@ jobs:
             --region "${{ vars.GCP_REGION }}" \
             --allow-unauthenticated \
             --min-instances 0 \
-            --max-instances 3 \
+            --max-instances 2 \
+            --concurrency 80 \
+            --timeout 30s \
             --cpu 1 --memory 512Mi \
-            --set-env-vars NODE_ENV=production,COOKIE_SECURE=true,INVENTORY_STRATEGY=optimistic,METRICS_ENABLED=true \
+            --cpu-throttling \
+            --set-env-vars NODE_ENV=production,LOG_LEVEL=info,COOKIE_SECURE=true,INVENTORY_STRATEGY=pessimistic,DATABASE_POOL_MAX=5,QUEUE_PREFIX=prod,METRICS_ENABLED=true \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,JWT_ACCESS_SECRET=JWT_ACCESS_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,PAYMENT_WEBHOOK_SECRET=PAYMENT_WEBHOOK_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest \
             --quiet
 
@@ -90,9 +104,9 @@ jobs:
             --image "$IMAGE" \
             --region "${{ vars.GCP_REGION }}" \
             --command node --args "dist/worker-once.js" \
-            --set-env-vars NODE_ENV=production,INVENTORY_STRATEGY=optimistic \
+            --set-env-vars NODE_ENV=production,LOG_LEVEL=info,INVENTORY_STRATEGY=pessimistic,DATABASE_POOL_MAX=5,QUEUE_PREFIX=prod \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,JWT_ACCESS_SECRET=JWT_ACCESS_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,PAYMENT_WEBHOOK_SECRET=PAYMENT_WEBHOOK_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest \
-            --max-retries 1 --task-timeout 2m --quiet
+            --max-retries 1 --task-timeout 120s --quiet
 
       # Cổng cuối: nếu readiness không xanh thì deploy coi như hỏng, dù `gcloud` đã trả về 0.
       - name: Kiểm tra readiness
@@ -103,4 +117,15 @@ jobs:
             [ "$CODE" = "200" ] && { echo "✓ $URL sẵn sàng"; exit 0; }
             echo "lần $i: /ready trả $CODE — chờ 5s (cold start)"; sleep 5
           done
-          echo "✗ /ready không xanh sau 50 giây"; exit 1
+          echo "✗ /ready không xanh sau 50 giây — lùi traffic về revision trước"
+          PREV=$(gcloud run revisions list --service flash-core-api --region "${{ vars.GCP_REGION }}" \
+                   --sort-by '~metadata.creationTimestamp' --format 'value(metadata.name)' --limit 2 | tail -1)
+          if [ -n "$PREV" ]; then
+            # Rollback chỉ đưa CODE về revision cũ — schema database KHÔNG lùi theo. Đó là lý
+            # do luật "migration phải additive" ở spec Phase 7 §Bài toán #5: revision cũ bắt
+            # buộc phải chạy được với schema mới.
+            gcloud run services update-traffic flash-core-api --region "${{ vars.GCP_REGION }}" \
+              --to-revisions "$PREV=100" --quiet
+            echo "↩ đã lùi traffic về $PREV"
+          fi
+          exit 1

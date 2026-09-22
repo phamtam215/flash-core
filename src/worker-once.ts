@@ -4,7 +4,7 @@
  * **Vì sao tồn tại, trong khi đã có `worker.ts`:** Cloud Run free tier **scale về 0** khi
  * không có request. Một tiến trình nền phải thức liên tục thì hoặc không chạy được ở đó, hoặc
  * phải đặt `min-instances=1` — mà cái đó tốn tiền, vi phạm ràng buộc FinOps 0đ của dự án
- * (`docs/SPEC.md` §5). Lời giải free-tier: **Cloud Scheduler gọi một Cloud Run Job mỗi phút**,
+ * (`docs/SPEC.md` §5). Lời giải free-tier: **Cloud Scheduler gọi một Cloud Run Job mỗi 5 phút**,
  * job đó dọn một lượt rồi thoát. Chi tiết và các phương án đã loại: ADR-012.
  *
  * Nó cố tình **không** dựng `Worker` của BullMQ. `Worker` là vòng lặp chờ-việc dài hạn; ở đây
@@ -26,8 +26,16 @@ import { QueueService } from './infra/queue';
 import { JobProcessor } from './worker/job.processor';
 import { WorkerModule } from './worker/worker.module';
 
-/** Ngân sách thời gian cho một lượt. Hết thì thoát êm — lượt sau (1 phút nữa) dọn tiếp. */
-const BUDGET_MS = 50_000;
+/**
+ * Ngân sách thời gian cho một lượt. Hết thì thoát êm — lượt sau (5 phút nữa) dọn tiếp.
+ *
+ * **10 giây không phải con số tuỳ ý**: nó là giả định trong phép tính hạn mức ở
+ * `docs/specs/phase7-deploy-gcp.md` §Bài toán #4 — 288 lượt/ngày × 10s ≈ 86.400 vCPU-giây/
+ * tháng, dưới trần free tier 180.000. Nới nó lên 50 giây (bản đầu) là tự đưa trường hợp xấu
+ * nhất lên 432.000 ⇒ vượt trần. Lượt bình thường chỉ mất ~1 giây; con số này là **trần**, và
+ * trần mới là thứ hoá đơn quan tâm.
+ */
+const BUDGET_MS = 10_000;
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: true });

@@ -60,7 +60,7 @@ const PAGES = [
   { src: 'docs/specs/huy-don-chu-dong.md', out: 'spec-huy-don-chu-dong.html', title: 'Spec — Huỷ đơn chủ động' },
   { src: 'docs/specs/csrf-token.md', out: 'spec-csrf-token.html', title: 'Spec — CSRF token' },
   { src: 'docs/specs/rbac.md', out: 'spec-rbac.html', title: 'Spec — RBAC' },
-  { src: 'docs/specs/phase7-deploy-finops.md', out: 'spec-phase-7.html', title: 'Spec Phase 7 — Deploy & FinOps' },
+  { src: 'docs/specs/phase7-deploy-gcp.md', out: 'spec-phase-7.html', title: 'Spec Phase 7 — Deploy GCP, FinOps & CI/CD' },
   { src: 'docs/adr/012-worker-tren-cloud-run.md', out: 'adr-012-worker-tren-cloud-run.html', title: 'ADR-012: Worker trên Cloud Run' },
 
   { src: 'docs/templates/feature-spec-template.md', out: 'template-spec.html', title: 'Khuôn spec tính năng' },
@@ -152,7 +152,7 @@ const LINK_MAP = new Map([
   ['huy-don-chu-dong.md', 'spec-huy-don-chu-dong.html'],
   ['csrf-token.md', 'spec-csrf-token.html'],
   ['rbac.md', 'spec-rbac.html'],
-  ['phase7-deploy-finops.md', 'spec-phase-7.html'],
+  ['phase7-deploy-gcp.md', 'spec-phase-7.html'],
   ['012-worker-tren-cloud-run.md', 'adr-012-worker-tren-cloud-run.html'],
   ['feature-spec-template.md', 'template-spec.html'],
   ['adr-template.md', 'template-adr.html'],

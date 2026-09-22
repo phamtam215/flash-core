@@ -18,13 +18,13 @@ Ràng buộc cứng: **0đ** (`docs/SPEC.md` §5 — free tier, budget alert $1)
 
 ## Quyết định
 
-**Cloud Run Job chạy một lượt rồi thoát, Cloud Scheduler gọi mỗi phút.**
+**Cloud Run Job chạy một lượt rồi thoát, Cloud Scheduler gọi mỗi 5 phút.**
 
 Điểm vào mới [`src/worker-once.ts`](../../src/worker-once.ts) (`npm run worker:once`):
 
 1. Gọi thẳng `outbox.relay` và `order.expire.sweep` — không qua lịch lặp của BullMQ (lịch đó
    cần một tiến trình thức để kích hoạt, đúng thứ ta không có).
-2. Rút job đang chờ trong queue ra xử lý tới khi hết, hoặc hết ngân sách 50 giây.
+2. Rút job đang chờ trong queue ra xử lý tới khi hết, hoặc hết **ngân sách 10 giây**.
 3. Thoát mã khác 0 nếu có job lỗi, để bảng điều khiển của Cloud Run không xanh giả.
 
 `worker.ts` (dài hạn) **giữ nguyên** và vẫn là cách chạy ở local + là thứ demo "rút dây mạng".
@@ -45,17 +45,32 @@ Ràng buộc cứng: **0đ** (`docs/SPEC.md` §5 — free tier, budget alert $1)
 
 **Mất — và đây là thứ phải nói với người phỏng vấn, không giấu:**
 
-- **Độ trễ tệ nhất là 1 phút** thay vì ~2 giây. Với email xác nhận thì chấp nhận được; với một
-  hệ thống thật cần phản hồi tức thì thì không.
+- **Độ trễ tệ nhất là 5 phút** thay vì ~2 giây. Với email xác nhận thì chấp nhận được (đơn
+  giữ chỗ 15 phút nên sweeper 5 phút vẫn đúng hợp đồng); với một hệ thống thật cần phản hồi
+  tức thì thì không.
 - Cloud Scheduler free tier là **3 job/tháng** — vừa đủ, không còn chỗ cho việc thứ hai.
-- Lượt chạy có thể **chồng nhau** nếu một lượt quá 60 giây. An toàn vì **mọi thứ nó gọi đều
+- Lượt chạy có thể **chồng nhau** nếu một lượt quá 5 phút. An toàn vì **mọi thứ nó gọi đều
   idempotent**: outbox dùng `FOR UPDATE SKIP LOCKED`, consumer dùng `processed_events`, huỷ
   đơn dùng `UPDATE ... WHERE status='PENDING'`. Đây không phải may mắn — đó đúng là ba cơ chế
   Phase 4 dựng lên, và ADR này là lần đầu chúng được dựa vào ngoài kịch bản gốc.
 - **Chưa deploy thật.** ADR chốt hướng và code đã có; số đo thật (cold start, độ trễ, chi phí)
   phải cập nhật vào đây sau lần deploy đầu tiên.
 
+## Một lỗi của chính ADR này, sửa cùng ngày
+
+Bản đầu chốt nhịp **1 phút**, chọn theo cảm giác "càng nhanh càng tốt". Phép tính hạn mức ở
+[spec Phase 7](../specs/phase7-deploy-gcp.md) §Bài toán #1 và #4 bác bỏ nó:
+
+| Nhịp | vCPU-giây/tháng | Hạn mức free | Neon |
+|---|---|---|---|
+| 1 phút | 1.440 lượt/ngày × ~10s ≈ **432.000** | 180.000 ⇒ **vượt 2,4 lần** | thức gần như liên tục ⇒ đốt hết 100 compute-giờ |
+| **5 phút** ⭐ | 288 lượt/ngày × ~10s ≈ **86.400** | 180.000 ⇒ vừa khít | thức ~24 giờ/tháng |
+
+**Bài học, đáng hơn cả con số:** một quyết định vận hành phải đối chiếu với **hạn mức tính
+theo đơn vị thật** (vCPU-giây, compute-giờ, số lệnh), không theo trực giác về độ trễ. Ở đây
+"nhanh gấp 5" đổi lấy "vượt hạn mức 2,4 lần" — tức là hỏng hẳn, không phải đắt hơn một chút.
+
 ## Liên quan
 
-[ADR-005](005-worker-chay-process-rieng.md) · [spec Phase 7](../specs/phase7-deploy-finops.md) ·
+[ADR-005](005-worker-chay-process-rieng.md) · [spec Phase 7](../specs/phase7-deploy-gcp.md) ·
 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)
