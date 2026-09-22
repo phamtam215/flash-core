@@ -40,7 +40,8 @@
     ├── index.html           cửa vào duy nhất
     ├── *.html               trang tham khảo, SINH từ .md (`npm run docs:html`)
     ├── hoc/                 giáo trình 8 phase (viết tay) + bộ theo dõi 113 ý
-    └── so-do/               5 sơ đồ tương tác (Archify), mỗi .html có .json nguồn cạnh nó</code></pre>
+    └── so-do/               5 sơ đồ tương tác (Archify) + index.html mục lục;
+                              mỗi .html có .json nguồn cạnh nó</code></pre>
 <blockquote class="note"><p><strong>Mỗi file <code>.md</code> đều có bản HTML.</strong> 30/30 — kể cả spec, checklist và template. Thêm một <code>.md</code> mới thì <strong>phải đăng ký nó vào <code>PAGES</code> trong <code>scripts/build-docs-html.mjs</code></strong>, nếu không nó vô hình với người đọc offline và mọi link trỏ tới nó sẽ hiện "(chưa có bản HTML)". ADR-008 từng bị sót đúng kiểu đó.</p>
 <p><strong>Chỉ có MỘT thư mục đọc bằng trình duyệt.</strong> Trước đây có hai (<code>docs/html/</code> và <code>docs/hoc/</code>), mỗi bên một <code>index.html</code> và một sidebar riêng, <strong>không hề trỏ sang nhau</strong> — ai vào cửa này không bao giờ biết cửa kia tồn tại. Và cả hai đều có trang viết tay về cùng những phase. Đã gộp: <code>hoc/</code> nằm trong <code>html/</code>, sáu trang phase trùng vai đã xoá.</p></blockquote>
 <h2 id="ba-nguyên-tắc-không-được-phá">Ba nguyên tắc không được phá</h2>

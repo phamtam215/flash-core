@@ -56,7 +56,24 @@ Ràng buộc cứng: **0đ** (`docs/SPEC.md` §5 — free tier, budget alert $1)
 - **Chưa deploy thật.** ADR chốt hướng và code đã có; số đo thật (cold start, độ trễ, chi phí)
   phải cập nhật vào đây sau lần deploy đầu tiên.
 
-## Một lỗi của chính ADR này, sửa cùng ngày
+## Hai lỗi của chính ADR này, sửa sau khi review
+
+### Lỗi 2 — bản đầu bỏ qua vòng đời của BullMQ
+
+`worker-once.ts` bản đầu tự `getJobs()` rồi gọi thẳng `processor.process()`. Hệ quả: job ném
+lỗi **không** vào trạng thái `failed`, `attemptsMade` không tăng, `backoff` không chạy, DLQ
+không bao giờ có gì — và vòng lặp lấy lại đúng job đó ngay lập tức, quay vòng tới hết ngân
+sách. Tức là **bỏ retry, backoff và DLQ mà cả Phase 4 dựng lên**, để đổi lấy… không gì cả.
+
+Đã sửa: vẫn dùng `Worker` của BullMQ, chỉ thêm điểm dừng — sự kiện `drained` (hàng rỗng) hoặc
+hết trần thời gian, cái nào tới trước, rồi `worker.close()` (chờ job đang chạy xong).
+
+Kèm một lỗi nhỏ hơn nhưng hỏng nặng hơn: bản đầu gọi `queue.connection.quit()` rồi mới
+`app.close()`, mà `QueueService.onModuleDestroy` **cũng** quit đúng client đó. Lần quit thứ
+hai reject (`Connection is closed.`), lời từ chối thoát ra ngoài nên `process.exit()` không
+bao giờ chạy — Cloud Run đánh dấu **mọi** lần chạy là thất bại.
+
+### Lỗi 1 — nhịp cron
 
 Bản đầu chốt nhịp **1 phút**, chọn theo cảm giác "càng nhanh càng tốt". Phép tính hạn mức ở
 [spec Phase 7](../specs/phase7-deploy-gcp.md) §Bài toán #1 và #4 bác bỏ nó:
@@ -69,6 +86,10 @@ Bản đầu chốt nhịp **1 phút**, chọn theo cảm giác "càng nhanh cà
 **Bài học, đáng hơn cả con số:** một quyết định vận hành phải đối chiếu với **hạn mức tính
 theo đơn vị thật** (vCPU-giây, compute-giờ, số lệnh), không theo trực giác về độ trễ. Ở đây
 "nhanh gấp 5" đổi lấy "vượt hạn mức 2,4 lần" — tức là hỏng hẳn, không phải đắt hơn một chút.
+
+**Và bài học chung của cả hai lỗi:** ADR này được viết *trước* khi có ai chạy thử. Cả hai chỗ
+sai đều lộ ra ở bước review chứ không phải ở bước code — nên phần "Hệ quả" của một ADR chưa
+triển khai phải được đọc như **giả thuyết**, không phải kết luận.
 
 ## Liên quan
 

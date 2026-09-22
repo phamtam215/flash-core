@@ -24,6 +24,7 @@ import { Counter, Trend } from 'k6/metrics';
 
 const SKU_ID = __ENV.SKU_ID;
 const TOKEN = __ENV.TOKEN;
+const CSRF = __ENV.CSRF;
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000';
 
 /**
@@ -51,10 +52,30 @@ export const options = {
   thresholds: {
     // Ràng buộc CỨNG của cả dự án: không được có lỗi hệ thống nào.
     errors_5xx: ['count==0'],
-    // Bán đúng số hàng có — không hơn. Ngưỡng này là thứ chứng minh oversell = 0.
-    orders_created: ['count<=100'],
+    // ── Hai ngưỡng dưới đây tồn tại vì một bug thật (2026-09-22) ──────────────────
+    //
+    // Khi `CsrfGuard` được thêm ở Phase 7, MỌI request của script này bắt đầu trả 403. Chúng
+    // rơi vào `errors_4xx_other`, mà lúc đó không ngưỡng nào nhìn tới nhãn đó — nên
+    // `errors_5xx: count==0` PASS (0 lỗi), `orders_created: count<=100` cũng PASS (0 ≤ 100),
+    // và **benchmark báo xanh trong khi không đo được gì**. Bằng chứng oversell = 0 im lặng
+    // biến mất.
+    //
+    // Bài học chung, đáng hơn cả hai dòng này: **một ngưỡng PASS ở giá trị 0 thì không phải
+    // ngưỡng.** Luôn hỏi "cái này có đỏ khi hệ thống không chạy gì không?"
+    // Bán đúng số hàng có — không hơn, và **không phải 0**. Vế `count>0` là thứ khiến một
+    // đợt 403 toàn tập làm benchmark ĐỎ thay vì xanh giả.
+    orders_created: ['count<=100', 'count>0'],
+    errors_4xx_other: ['count==0'],
   },
 };
+
+export function setup() {
+  // Chặn ở đây thay vì để 1.000 VU cùng nhận 403 rồi mới đi tìm nguyên nhân. Thiếu `CSRF` là
+  // lỗi cấu hình của người chạy, không phải kết quả đo — phải dừng ngay.
+  if (!SKU_ID || !TOKEN || !CSRF) {
+    throw new Error('Thiếu SKU_ID / TOKEN / CSRF. Chạy `node k6/seed-target.js` để lấy đủ ba giá trị.');
+  }
+}
 
 export default function () {
   const res = http.post(
@@ -65,7 +86,10 @@ export default function () {
         'Content-Type': 'application/json',
         // Mỗi VU một key riêng: đang đo tranh chấp tồn kho, không đo chống double-submit.
         'Idempotency-Key': `k6-${__VU}-${__ITER}-${Date.now()}`,
-        Cookie: `access_token=${TOKEN}`,
+        // Double-submit CSRF (ADR-009): cookie và header phải mang CÙNG một token đã ký.
+        // `seed-target.js` in sẵn giá trị này ra để dán vào `-e CSRF=...`.
+        'X-CSRF-Token': CSRF,
+        Cookie: `access_token=${TOKEN}; csrf_token=${CSRF}`,
       },
     },
   );

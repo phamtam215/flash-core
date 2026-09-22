@@ -334,12 +334,43 @@ Muốn xem lại thì `git log -- .claude/`.
   có phép tính FinOps theo đơn vị thật + bẫy vận hành rút từ hệ thống OfficeCube đang chạy),
   **xoá `phase7-deploy-finops.md`**. Bài học quy trình: `git add -A` đã quét nhầm bản nháp
   đang dở của Tâm vào một commit — từ giờ `git add` từng file mình sửa.
+- **Code review 2026-09-22 tìm 8 lỗi thật trong phần Phase 7 — ĐÃ SỬA HẾT** (chưa chạy lại
+  được k6 và integration test vì Docker tắt; xem dòng cuối mục này):
+  - **k6 xanh giả — nguy hiểm nhất.** `CsrfGuard` làm mọi request của `flash-sale.js` trả 403;
+    chúng rơi vào nhãn `errors_4xx_other` mà **không ngưỡng nào nhìn tới**, nên
+    `errors_5xx: count==0` PASS (0 lỗi) và `orders_created: count<=100` cũng PASS (0 ≤ 100).
+    **Bằng chứng oversell = 0 im lặng biến mất.** Đã thêm token CSRF vào cả hai script, nâng
+    quyền ADMIN trong `seed-target.js` (RBAC chặn `POST /products`), và thêm hai ngưỡng
+    `orders_created: count>0` + `errors_4xx_other: count==0`. **Luật: một ngưỡng PASS ở giá
+    trị 0 thì không phải ngưỡng.**
+  - **`worker-once.ts` bỏ qua vòng đời BullMQ**: tự `getJobs()` rồi gọi thẳng processor ⇒ job
+    lỗi không vào `failed`, `attemptsMade` không tăng, backoff/DLQ của Phase 4 mất tác dụng,
+    vòng lặp chạy lại đúng job đó tới hết ngân sách. Viết lại dùng `Worker` thật + dừng bằng
+    `drained` hoặc trần thời gian.
+  - **`worker-once.ts` quit Redis hai lần**: `QueueService.onModuleDestroy` cũng quit client
+    đó ⇒ lần hai reject, thoát ra ngoài nên `process.exit()` không chạy ⇒ Cloud Run đánh dấu
+    **mọi** lần chạy là thất bại. Bỏ lệnh quit thủ công.
+  - **Migrate không chạy được trong ảnh runtime**: `npm prune --omit=dev` xoá `prisma` và
+    `typescript` (đều là devDependency), mà `prisma.config.ts` là file `.ts`. Chuyển bước
+    migrate về **runner**, dùng `secrets.DATABASE_URL_DIRECT` — đúng ADR-013 (advisory lock
+    của Prisma ở mức session, pooler không giữ được).
+  - **`/metrics` công khai vĩnh viễn**: `METRICS_ENABLED=true` + `--allow-unauthenticated` và
+    `MetricsController` không có guard. Đổi mặc định thành `false`; bật tạm khi quay demo.
+  - **Chú thích Scheduler còn ghi "mỗi phút"** trong `deploy.yml` — mà Scheduler đặt bằng tay
+    ngoài repo nên chính dòng đó là thứ người ta làm theo. Sửa thành 5 phút kèm phép tính.
+  **Bài học chung:** ADR-012 được viết TRƯỚC khi ai chạy thử; cả hai lỗi của nó lộ ra ở bước
+  review chứ không phải bước code. Phần "Hệ quả" của một ADR chưa triển khai phải đọc như
+  **giả thuyết**, không phải kết luận.
 - **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
   Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
   `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
   không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
 - **Số test hiện tại: 163 unit + 120 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
+- **CẦN CHẠY LẠI khi bật Docker** (Tâm): `npm run up`, rồi `npm run test:int:local`, rồi
+  benchmark k6 đầu-cuối (`node k6/seed-target.js` → dán lệnh nó in ra, giờ có thêm `-e CSRF=`).
+  Bản sửa k6 ngày 2026-09-22 **chưa được chạy thật lần nào** — lần chạy đó mới là bằng chứng,
+  không phải việc code trông đúng.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân

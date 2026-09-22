@@ -10,7 +10,8 @@
 #
 # Secrets/vars phải đặt trước khi workflow chạy được (Settings → Secrets and variables):
 #   vars:    GCP_PROJECT_ID · GCP_REGION · GCP_WIF_PROVIDER · GCP_SERVICE_ACCOUNT
-#   secrets: (không có — mọi bí mật runtime nằm ở Secret Manager, xem bước Deploy)
+#   secrets: DATABASE_URL_DIRECT  ← endpoint **direct** của Neon, chỉ dùng cho bước migrate
+#            (mọi bí mật RUNTIME khác nằm ở Secret Manager, xem bước Deploy)
 #
 # Chi tiết cấu hình và các phương án đã loại: docs/adr/012-worker-tren-cloud-run.md
 
@@ -55,19 +56,32 @@ jobs:
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
-      # Migration chạy bằng CHÍNH ảnh vừa build, như một Cloud Run Job dùng một lần. Lý do
-      # không chạy từ runner: runner không nằm trong VPC và Neon chỉ nên mở cho Cloud Run.
-      # Lý do không chạy lúc app khởi động: hai instance khởi động cùng lúc sẽ migrate song
-      # song, và `prisma migrate deploy` không chịu được điều đó.
-      - name: Chạy migration
+      # Migration chạy ở **runner**, KHÔNG phải trong ảnh vừa build. Hai lý do, cả hai đều
+      # là bug thật của bản đầu:
+      #
+      # 1. Ảnh runtime đã `npm prune --omit=dev`, mà `prisma` (CLI) và `typescript` đều là
+      #    devDependency — `npx prisma migrate deploy` trong ảnh đó **không chạy được**, và
+      #    `prisma.config.ts` cũng không nạp nổi. Mỗi lần deploy sẽ hỏng ở đúng bước này.
+      # 2. ADR-013: Prisma khoá migration bằng **advisory lock mức session**, mà Neon pooler
+      #    chạy transaction pooling nên không giữ được session ⇒ phải đi endpoint **direct**.
+      #
+      # Runner nối thẳng Neon được: Neon bảo vệ bằng chuỗi kết nối chứ không bằng IP
+      # (spec Phase 7 §Bài toán #6 ý 5). Đổi lại `DATABASE_URL_DIRECT` phải là secret, không
+      # bao giờ vào `vars` và không bao giờ vào log.
+      #
+      # Chạy TRƯỚC khi deploy: migrate hỏng thì dừng hẳn, không đẩy code mới lên schema cũ.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Chạy migration (endpoint direct)
         run: |
-          gcloud run jobs deploy flash-core-migrate \
-            --image "$IMAGE" \
-            --region "${{ vars.GCP_REGION }}" \
-            --command npx --args "prisma,migrate,deploy" \
-            --set-secrets DATABASE_URL=DATABASE_URL:latest \
-            --max-retries 0 --task-timeout 5m --quiet
-          gcloud run jobs execute flash-core-migrate --region "${{ vars.GCP_REGION }}" --wait --quiet
+          npm ci
+          npm run db:generate
+          npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT }}
 
       # Mọi con số dưới đây đến từ bảng §Cấu hình Cloud Run service của spec Phase 7, không
       # phải mặc định của gcloud. Ba cái đáng nhớ nhất:
@@ -80,6 +94,13 @@ jobs:
       #                       job nền không chạy được trong process này (xem ADR-012).
       # `INVENTORY_STRATEGY=pessimistic` theo số đo Phase 3: khi phần lớn request là "hết
       # hàng", pessimistic tốn 1 round-trip còn optimistic tốn 2.
+      #
+      # `METRICS_ENABLED=false` là MẶC ĐỊNH CÓ CHỦ Ý. Service để `--allow-unauthenticated` và
+      # `MetricsController` không có guard nào, nên bật ở đây là công bố `/metrics` ra
+      # Internet vĩnh viễn — lộ tên route, số đơn, tỉ lệ lỗi cho bất kỳ ai. Không ai scrape nó
+      # cả. Muốn quay cảnh `curl /metrics` lúc demo thì bật TẠM bằng
+      # `gcloud run services update flash-core-api --update-env-vars METRICS_ENABLED=true`,
+      # quay xong tắt lại (spec Phase 7 §Câu hỏi mở #3).
       - name: Deploy API
         run: |
           gcloud run deploy flash-core-api \
@@ -92,12 +113,16 @@ jobs:
             --timeout 30s \
             --cpu 1 --memory 512Mi \
             --cpu-throttling \
-            --set-env-vars NODE_ENV=production,LOG_LEVEL=info,COOKIE_SECURE=true,INVENTORY_STRATEGY=pessimistic,DATABASE_POOL_MAX=5,QUEUE_PREFIX=prod,METRICS_ENABLED=true \
+            --set-env-vars NODE_ENV=production,LOG_LEVEL=info,COOKIE_SECURE=true,INVENTORY_STRATEGY=pessimistic,DATABASE_POOL_MAX=5,QUEUE_PREFIX=prod,METRICS_ENABLED=false \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,JWT_ACCESS_SECRET=JWT_ACCESS_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,PAYMENT_WEBHOOK_SECRET=PAYMENT_WEBHOOK_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest \
             --quiet
 
       # Worker KHÔNG chạy như một service thức liên tục — Cloud Run free tier scale về 0.
-      # Nó là một Job chạy một lượt rồi thoát, do Cloud Scheduler gọi mỗi phút. ADR-012.
+      # Nó là một Job chạy một lượt rồi thoát, do Cloud Scheduler gọi **mỗi 5 phút** (ADR-012).
+      #
+      # 5 phút, KHÔNG phải 1 phút — và con số này được đặt bằng tay ngoài repo nên dòng chú
+      # thích này chính là thứ người ta làm theo. 1 phút = 1.440 lượt/ngày × ~10s ≈ 432.000
+      # vCPU-giây/tháng, vượt trần free 180.000 tới 2,4 lần, và giữ Neon thức gần như liên tục.
       - name: Deploy worker (Cloud Run Job)
         run: |
           gcloud run jobs deploy flash-core-worker \
