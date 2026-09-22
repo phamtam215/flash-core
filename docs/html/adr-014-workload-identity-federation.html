@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR-014: Workload Identity Federation</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a><a href="adr-009-csrf-double-submit-co-ky.html">ADR-009: CSRF double-submit</a><a href="adr-010-keyset-pagination-thay-offset.html">ADR-010: Keyset pagination</a><a href="adr-011-idempotency-key-lay-db-lam-trong-tai.html">ADR-011: Idempotency-Key</a><a href="adr-012-worker-tren-cloud-run.html">ADR-012: Worker trên Cloud Run</a><a href="adr-013-pool-nho-tren-serverless.html">ADR-013: Pool trên serverless</a><a href="adr-014-workload-identity-federation.html" class="active">ADR-014: Workload Identity</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a><a href="spec-huy-don-chu-dong.html">Huỷ đơn chủ động</a><a href="spec-csrf-token.html">CSRF token</a><a href="spec-rbac.html">RBAC</a><a href="spec-phase-7.html">Phase 7 — Deploy &amp; FinOps</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="adr-014-ci-xác-thực-với-gcp-bằng-workload-identity-federation-không-dùng-key-json">ADR-014: CI xác thực với GCP bằng Workload Identity Federation, không dùng key JSON</h1>
+<ul><li><strong>Ngày:</strong> 2026-09-22</li><li><strong>Trạng thái:</strong> Đã chốt (workflow xong, <strong>chưa dựng WIF thật</strong> — cần console GCP)</li></ul>
+<h2 id="bối-cảnh">Bối cảnh</h2>
+<p><code>deploy.yml</code> phải đẩy ảnh vào Artifact Registry, chạy Cloud Run Job, và deploy service. Tức là GitHub Actions cần một danh tính GCP có quyền thật.</p>
+<p>Cách phổ biến nhất trên mạng: tạo <strong>service account key JSON</strong>, dán vào GitHub Secrets.</p>
+<h2 id="quyết-định">Quyết định</h2>
+<p><strong>Workload Identity Federation.</strong> GitHub Actions đổi <strong>OIDC token của chính nó</strong> lấy access token ngắn hạn của GCP. Không tạo key JSON nào.</p>
+<p>Service account deploy giữ đúng <strong>4 role</strong>: <code>run.admin</code>, <code>artifactregistry.writer</code>, <code>iam.serviceAccountUser</code>, <code>secretmanager.secretAccessor</code>.</p>
+<h2 id="vì-sao-không-dùng-key-json">Vì sao không dùng key JSON</h2>
+<p>Key JSON là <strong>bí mật dài hạn</strong>, và ba tính chất của nó đều xấu:</p>
+<ol><li><strong>Không hết hạn.</strong> Rò một lần là rò mãi, cho tới khi có người nhớ ra và xoay khoá.</li><li><strong>Không biết đã rò.</strong> Nó nằm trong GitHub Secrets, trong log build nếu ai đó lỡ <code>echo</code>, trong máy của người từng tải về để thử. Không có tín hiệu nào báo nó đang bị dùng ở nơi khác.</li><li><strong>Không gắn với ngữ cảnh.</strong> Ai cầm file đó đều dùng được, từ bất cứ đâu.</li></ol>
+<p>WIF bỏ cả ba: token sống vài phút, và <strong>gắn với đúng repo + đúng nhánh</strong> — token lấy được từ một repo khác không dùng được ở đây.</p>
+<div class="table-wrap"><table><thead><tr><th>Cách</th><th>Bí mật dài hạn?</th><th>Phải xoay khoá?</th><th>Chi phí</th></tr></thead><tbody><tr><td><strong>WIF</strong> ⭐</td><td>Không</td><td>Không</td><td>0đ</td></tr><tr><td>Service account key JSON</td><td>Có</td><td>Có, định kỳ, và thủ công</td><td>0đ</td></tr><tr><td>Tự dựng runner trong VPC</td><td>Không</td><td>Không</td><td>Tốn tiền, và thêm một máy phải vá</td></tr></tbody></table></div>
+<h2 id="luật-đi-kèm-deployyml-là-file-nhạy-cảm-nhất-repo">Luật đi kèm: <code>deploy.yml</code> là file nhạy cảm nhất repo</h2>
+<p>Hệ quả ít người nói ra: <strong>ai sửa được workflow thì điều khiển được service account.</strong> Thêm một dòng vào <code>deploy.yml</code> là chạy được lệnh bất kỳ dưới danh nghĩa 4 role kia.</p>
+<p>Nên hai thứ sau phải được coi ngang nhau: <em>quyền sửa IAM</em> và <em>quyền merge vào <code>main</code></em>. Với repo một người thì nó chỉ là một dòng ghi nhớ; với repo nhiều người thì nó là lý do phải bật branch protection và <strong>review bắt buộc cho riêng thư mục <code>.github/</code></strong>.</p>
+<p>(Bài học rút từ hạ tầng OfficeCube, nơi service account deploy mang gần 20 role admin — ở đó kết luận cũng y hệt: bảo vệ quyền sửa trigger CI còn quan trọng hơn bảo vệ chính service account.)</p>
+<h2 id="hệ-quả">Hệ quả</h2>
+<p><strong>Được:</strong> không có bí mật dài hạn nào để lộ — và đây là câu trả lời gọn nhất cho câu hỏi "bảo mật CI/CD của em thế nào" khi phỏng vấn.</p>
+<p><strong>Mất:</strong></p>
+<ul><li><strong>Dựng lần đầu phức tạp hơn nhiều</strong> so với dán một file JSON: phải tạo Workload Identity Pool, provider, điều kiện lọc theo repo, rồi gắn quyền <code>workloadIdentityUser</code>. Là việc làm <strong>một lần</strong>, nhưng dễ sai và thông báo lỗi khó đọc.</li><li><strong>Không chạy deploy từ máy local bằng cùng danh tính được</strong> — muốn thử tay thì phải <code>gcloud auth login</code> bằng tài khoản người. Đúng ra là tốt: deploy chỉ đi qua một đường.</li><li>Phụ thuộc vào OIDC issuer của GitHub. Đổi nhà cung cấp CI thì phải dựng lại phần này.</li></ul>
+<h2 id="liên-quan">Liên quan</h2>
+<p><a href="spec-phase-7.html">spec Phase 7 §CI/CD</a> · <code><code>.github/workflows/deploy.yml</code></code></p>
+</main>
+</div>
+</body>
+</html>

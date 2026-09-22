@@ -102,7 +102,9 @@ những cú bấm trong console. Ghi rõ ranh giới để không ai tưởng ph
 - [x] ADR-012 chốt cách chạy worker (và ghi lại lỗi chọn nhịp 1 phút để không lặp lại).
 - [ ] **API live trên Cloud Run** — cần tài khoản GCP.
 - [ ] **Budget alert $1** — cần console.
-- [ ] ADR-013 (pool × max-instances) và ADR-014 (Workload Identity Federation).
+- [x] [ADR-013](../adr/013-pool-nho-tren-serverless.md) (pool 5 × max-instances 2, đi qua Neon
+      pooler) và [ADR-014](../adr/014-workload-identity-federation.md) (Workload Identity
+      Federation thay key JSON).
 - [ ] Chạy §Test cases, dán số đo thật vào §Bằng chứng.
 - [ ] README có URL live.
 
@@ -151,8 +153,8 @@ hàm có điểm kết thúc.* Cần **ADR-012** vì nó sửa lại giới hạ
 - **Migrate chạy ở CI, không chạy lúc container khởi động.** Cloud Run có thể bật nhiều
   instance cùng lúc; ba instance cùng chạy migrate là một cuộc đua không cần thiết.
 - `DATABASE_POOL_MAX` × `max-instances` là trần connection. Đề xuất **pool 5 × max 2 = 10**.
-  Cần **ADR-013** chốt con số và lý do (đây cũng là nơi trả lời câu "connection pooling với
-  serverless" trong SPEC.md).
+  Chốt ở **[ADR-013](../adr/013-pool-nho-tren-serverless.md)** — cũng là nơi trả lời câu
+  "connection pooling với serverless" trong SPEC.md.
 
 ## Bài toán #3 — cold start và giờ mở bán
 
@@ -370,7 +372,7 @@ Hai workflow, tách bạch:
 **Xác thực bằng Workload Identity Federation, không bao giờ tạo service-account key JSON.**
 GitHub Actions đổi OIDC token của chính nó lấy access token ngắn hạn của GCP. 0đ, và là thứ
 đáng kể nhất trong phần bảo mật hạ tầng khi phỏng vấn: *không có bí mật dài hạn nào để lộ.*
-Cần **ADR-014**.
+Chốt ở **[ADR-014](../adr/014-workload-identity-federation.md)**.
 
 Service account cho deploy chỉ được 4 role: `run.admin`, `artifactregistry.writer`,
 `iam.serviceAccountUser`, `secretmanager.secretAccessor` — least privilege, đúng mục đã có

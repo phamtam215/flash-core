@@ -62,6 +62,8 @@ const PAGES = [
   { src: 'docs/specs/rbac.md', out: 'spec-rbac.html', title: 'Spec — RBAC' },
   { src: 'docs/specs/phase7-deploy-gcp.md', out: 'spec-phase-7.html', title: 'Spec Phase 7 — Deploy GCP, FinOps & CI/CD' },
   { src: 'docs/adr/012-worker-tren-cloud-run.md', out: 'adr-012-worker-tren-cloud-run.html', title: 'ADR-012: Worker trên Cloud Run' },
+  { src: 'docs/adr/013-pool-nho-tren-serverless.md', out: 'adr-013-pool-nho-tren-serverless.html', title: 'ADR-013: Pool nhỏ trên serverless' },
+  { src: 'docs/adr/014-workload-identity-federation.md', out: 'adr-014-workload-identity-federation.html', title: 'ADR-014: Workload Identity Federation' },
 
   { src: 'docs/templates/feature-spec-template.md', out: 'template-spec.html', title: 'Khuôn spec tính năng' },
   { src: 'docs/templates/adr-template.md', out: 'template-adr.html', title: 'Khuôn ADR' },
@@ -86,6 +88,8 @@ const NAV = [
     ['adr-010-keyset-pagination-thay-offset.html', 'ADR-010: Keyset pagination'],
     ['adr-011-idempotency-key-lay-db-lam-trong-tai.html', 'ADR-011: Idempotency-Key'],
     ['adr-012-worker-tren-cloud-run.html', 'ADR-012: Worker trên Cloud Run'],
+    ['adr-013-pool-nho-tren-serverless.html', 'ADR-013: Pool trên serverless'],
+    ['adr-014-workload-identity-federation.html', 'ADR-014: Workload Identity'],
   ]],
   ['Spec — hợp đồng từng phase', [
     ['spec-phase-0.html', 'Phase 0 — Nền móng'],
@@ -154,6 +158,8 @@ const LINK_MAP = new Map([
   ['rbac.md', 'spec-rbac.html'],
   ['phase7-deploy-gcp.md', 'spec-phase-7.html'],
   ['012-worker-tren-cloud-run.md', 'adr-012-worker-tren-cloud-run.html'],
+  ['013-pool-nho-tren-serverless.md', 'adr-013-pool-nho-tren-serverless.html'],
+  ['014-workload-identity-federation.md', 'adr-014-workload-identity-federation.html'],
   ['feature-spec-template.md', 'template-spec.html'],
   ['adr-template.md', 'template-adr.html'],
   ['007-ui-la-trang-tinh-mot-file.md', 'adr-007-ui-la-trang-tinh-mot-file.html'],

@@ -320,8 +320,16 @@ Muốn xem lại thì `git log -- .claude/`.
   `INVENTORY_STRATEGY=pessimistic` (số đo Phase 3), và **rollback traffic về revision trước**
   khi `/ready` không xanh.
   **Tâm phải làm phần ngoài repo**: tạo project GCP, WIF, Neon, Upstash, 6 secret, Cloud
-  Scheduler (5 phút), **budget alert $1**. Còn nợ **ADR-013** (pool × max-instances) và
-  **ADR-014** (Workload Identity Federation).
+  Scheduler (5 phút), **budget alert $1**.
+  **ADR-013** chốt `DATABASE_POOL_MAX=5` × `max-instances 2` = trần 10 connection, runtime đi
+  qua Neon `-pooler` còn `migrate deploy` đi endpoint **direct** (Prisma khoá migration bằng
+  advisory lock mức session, transaction pooling không giữ được session). Lý do pool **nhỏ**
+  chứ không to là số đo Phase 3: **pool 50 chậm hơn pool 10** — nới pool chỉ chuyển chỗ xếp
+  hàng từ app (rẻ) vào trong Postgres (đắt).
+  **ADR-014** chốt Workload Identity Federation thay service-account key JSON, SA giữ đúng 4
+  role. Luật đi kèm: **ai sửa được `deploy.yml` thì điều khiển được service account** — file
+  đó phải được coi ngang quyền sửa IAM.
+  **DoD "~10 ADR" giờ là 14.**
   **Hai spec Phase 7 viết song song đã gộp** 2026-09-21: giữ `phase7-deploy-gcp.md` (bản dày,
   có phép tính FinOps theo đơn vị thật + bẫy vận hành rút từ hệ thống OfficeCube đang chạy),
   **xoá `phase7-deploy-finops.md`**. Bài học quy trình: `git add -A` đã quét nhầm bản nháp
@@ -331,7 +339,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
   `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
   không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
-- **Số test hiện tại: 163 unit + 120 integration.**
+- **Số test hiện tại: 163 unit + 120 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân
