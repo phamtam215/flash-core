@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infra/prisma';
+import { QueueService } from '../src/infra/queue';
 import { csrfAgent } from './http-helper';
 import { startInfra } from './infra-fixture';
 
@@ -24,6 +25,7 @@ describe('RBAC (e2e)', () => {
   let stopInfra: () => Promise<void>;
   let app: INestApplication;
   let prisma: PrismaService;
+  let queue: QueueService;
 
   beforeAll(async () => {
     stopInfra = await startInfra();
@@ -43,10 +45,15 @@ describe('RBAC (e2e)', () => {
     app.use(cookieParser());
     await app.init();
     prisma = app.get(PrismaService);
+    queue = app.get(QueueService);
   }, 300_000);
 
   afterAll(async () => {
     await app?.close();
+    // `app.close()` đã gọi `QueueService.onModuleDestroy`, nhưng BullMQ còn giữ vài kết nối
+    // phụ do nó tự `duplicate()` bên trong. Thiếu dòng này thì Jest báo "did not exit one
+    // second after the test run has completed" — cả bộ vẫn xanh, nên rất dễ bỏ qua.
+    await queue?.connection.quit().catch(() => undefined);
     await stopInfra?.();
   });
 

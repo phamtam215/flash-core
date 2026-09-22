@@ -111,6 +111,7 @@ jobs:
         run: npm run test:int
         env:
           TEST_DATABASE_URL: postgresql://flashcore:flashcore@localhost:5432/flashcore_test?schema=public
-          TEST_REDIS_URL: redis://localhost:6379
+          # DB index 1, không phải 0 — fixture từ chối FLUSHDB vào DB 0 (xem infra-fixture.ts).
+          TEST_REDIS_URL: redis://localhost:6379/1
           # `migrate deploy` bên trong test đọc biến này.
           DATABASE_URL: postgresql://flashcore:flashcore@localhost:5432/flashcore_test?schema=public

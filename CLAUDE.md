@@ -363,6 +363,15 @@ Muốn xem lại thì `git log -- .claude/`.
   **giả thuyết**, không phải kết luận.
 - **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
   Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
+- **Một test FLAKY đã tìm ra và sửa 2026-09-22:** chạy `test:int:local` hai lần liên tiếp thì
+  lần sau đỏ (auth #12, UI #2/#3...). Gốc: **state trong Redis sống sót giữa hai lần chạy** —
+  `infra-fixture.ts` reset schema Postgres nhưng không đụng Redis, mà bộ đếm rate limit
+  (`ratelimit:login:<email>`, TTL 60s) dùng email **cố định** `user1@`, `user2@`…; 8.445 khoá
+  còn sót được tìm thấy lúc truy. Sửa: fixture `FLUSHDB` đầu mỗi lần chạy, **hàng rào là
+  `TEST_REDIS_URL` phải trỏ database index khác 0** (`redis://localhost:6379/1`) — DB 0 là
+  Redis dev đang chạy thật. Sau khi sửa: 3/3 lần chạy liên tiếp xanh.
+  **Còn một cảnh báo chưa dứt:** `Jest did not exit one second after...` — test vẫn xanh, chỉ
+  chậm thoát ~1 giây. Chưa truy ra handle nào; `--detectOpenHandles` không quy được cho ai.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
   `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
   không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
