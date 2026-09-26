@@ -65,7 +65,7 @@ chính Phase 8 tạo ra. Tổng **160 integration + 171 unit**.
 |---|---|---|
 | 6 | Trả lời câu hỏi bản chất Phase 3, 5, 6 | ~1 giờ |
 | 7 | Quay video demo 2 phút — dòng Definition of Done cuối cùng chưa tick. Cách dựng cảnh ở [demo-phong-van.md](demo-phong-van.md) Bước 7 | ~30 phút |
-| 8 | Dựng hạ tầng GCP: project, WIF, Neon, Upstash, 6 secret, Cloud Scheduler **5 phút**, và **budget alert $1 làm trước tiên**. 11 bước ở [spec Phase 7](specs/phase7-deploy-gcp.md) | ~nửa ngày |
+| 8 | Dựng hạ tầng GCP theo [hướng dẫn deploy](huong-dan-deploy-gcp.md): **budget alert làm trước tiên** (§1), rồi §2–§11 cho project **dev**, rồi lặp lại cho **prod**, rồi §18 (group, Required reviewers, ruleset khoá tag). Chỉ cần một môi trường thì làm prod và bỏ §18 | ~1 ngày |
 | 9 | Sau khi deploy: đo thật rồi cập nhật số vào [ADR-012](adr/012-worker-tren-cloud-run.md) và [ADR-013](adr/013-pool-nho-tren-serverless.md) — cả hai đang dùng số đo **local** | ~1 giờ |
 
 ---

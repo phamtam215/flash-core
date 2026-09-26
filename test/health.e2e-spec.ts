@@ -13,7 +13,7 @@ import { startInfra } from './infra-fixture';
  * cấu hình → pg.Pool → Prisma adapter → Postgres hoạt động đầu-cuối. Mock đi thì test còn
  * lại đúng thứ nó không cần kiểm tra.
  *
- * Dùng `postgres:16-alpine` khớp docker-compose.yml và khớp Neon (Phase 6) — test trên
+ * Dùng `postgres:16-alpine` khớp docker-compose.yml và khớp Cloud SQL Postgres 16 (Phase 7) — test trên
  * phiên bản khác rồi deploy là để dành lỗi cho môi trường thật.
  *
  * Chạy: `npm run test:int` (cần Docker đang bật; lần đầu sẽ pull image nên chậm).

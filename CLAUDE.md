@@ -31,7 +31,7 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
   không trôi lệch: xong một việc thì xoá dòng đó trong CHÍNH commit làm việc đó.** Khi Tâm hỏi
   "giờ cần làm gì", mở file này.
 - `docs/huong-dan-deploy-gcp.md` — **hướng dẫn deploy lên GCP từ con số không**, cho người lần
-  đầu deploy: 17 bước có lệnh copy-dán, bảng liệt kê **mọi bên thứ ba** (và cái nào $300
+  đầu deploy: 18 bước (§18 là hai môi trường + phân quyền), mỗi bước có cách bấm trên Console (UI) lẫn lệnh copy-dán, bảng liệt kê **mọi bên thứ ba** (và cái nào $300
   credit KHÔNG áp được), bảng tra theo triệu chứng khi hỏng, và mục "khi credit hết thì đổi
   gì". Nó KHÔNG giữ quyết định — mọi "vì sao" trỏ về `adr/` và `specs/phase7-deploy-gcp.md`.
 - `docs/onboarding.md` — **lộ trình cho người mới** (6 buổi, có bài thực hành phá code rồi
@@ -71,7 +71,7 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
 - **Redis + BullMQ** (queue, delayed jobs, DLQ), Lua script cho atomic decrement
 - **Jest + Supertest + Testcontainers** (integration test chạy trên Postgres/Redis thật)
 - **k6** cho load test (chạy LOCAL, không bắn lên cloud)
-- **Docker Compose** cho local, deploy **GCP Cloud Run** (region us-central1, free tier) + Neon Postgres + Upstash Redis
+- **Docker Compose** cho local, deploy **GCP Cloud Run** (region us-central1, free tier) + **Cloud SQL** Postgres (chạy liên tục trong giai đoạn credit, ADR-016) + Upstash Redis
 - Auth: Argon2, Access + Refresh Token (HttpOnly Cookie), Refresh Token Rotation
 
 ## Quy trình làm việc (bắt buộc)
@@ -338,15 +338,14 @@ Muốn xem lại thì `git log -- .claude/`.
   Bài học ghi lại trong ADR: quyết định vận hành phải đối chiếu **hạn mức theo đơn vị thật**
   (vCPU-giây, compute-giờ, số lệnh), không theo trực giác về độ trễ.
   **`deploy.yml` khớp bảng §Cấu hình Cloud Run của spec**, không dùng mặc định gcloud:
-  `--max-instances 2` (van an toàn kép — trần chi phí *và* trần connection Neon, pool 5 × 2),
+  `--max-instances 2` (van an toàn kép — trần chi phí *và* trần connection tới DB, pool 5 × 2),
   `--concurrency 80`, `--timeout 30s`, **`--cpu-throttling` (billing request-based)**,
   `INVENTORY_STRATEGY=pessimistic` (số đo Phase 3), và **rollback traffic về revision trước**
   khi `/ready` không xanh.
-  **Tâm phải làm phần ngoài repo**: tạo project GCP, WIF, Neon, Upstash, 6 secret, Cloud
-  Scheduler (5 phút), **budget alert $1**.
-  **ADR-013** chốt `DATABASE_POOL_MAX=5` × `max-instances 2` = trần 10 connection, runtime đi
-  qua Neon `-pooler` còn `migrate deploy` đi endpoint **direct** (Prisma khoá migration bằng
-  advisory lock mức session, transaction pooling không giữ được session). Lý do pool **nhỏ**
+  **Tâm phải làm phần ngoài repo**: tạo project GCP, WIF, Cloud SQL, Upstash, 6 secret, Cloud
+  Scheduler (5 phút), **budget alert** — làm theo `docs/huong-dan-deploy-gcp.md`.
+  **ADR-013** chốt `DATABASE_POOL_MAX=5` × `max-instances 2` = trần 10 connection (phần
+  Neon pooler/direct của nó đã bị ADR-016 thay — xem mục Cloud SQL bên dưới). Lý do pool **nhỏ**
   chứ không to là số đo Phase 3: **pool 50 chậm hơn pool 10** — nới pool chỉ chuyển chỗ xếp
   hàng từ app (rẻ) vào trong Postgres (đắt).
   **ADR-014** chốt Workload Identity Federation thay service-account key JSON, SA giữ đúng 4
@@ -357,6 +356,36 @@ Muốn xem lại thì `git log -- .claude/`.
   có phép tính FinOps theo đơn vị thật + bẫy vận hành rút từ hệ thống OfficeCube đang chạy),
   **xoá `phase7-deploy-finops.md`**. Bài học quy trình: `git add -A` đã quét nhầm bản nháp
   đang dở của Tâm vào một commit — từ giờ `git add` từng file mình sửa.
+- **Postgres trên cloud đổi từ Neon sang Cloud SQL** 2026-09-26 (Tâm quyết,
+  [ADR-016](docs/adr/016-cloud-sql-thay-neon.md)): `db-f1-micro`, edition **Enterprise** (ghi
+  rõ — Postgres 16 mặc định Enterprise Plus, không có máy nhỏ), cùng region `us-central1`.
+  Lý do: môi trường cloud chỉ để thử, và muốn học đúng dịch vụ doanh nghiệp dùng. **Trong giai
+  đoạn credit để chạy liên tục (~$9/tháng)** — bản đầu chốt "tắt khi nghỉ, ~$2–3" nhưng đối chiếu
+  lại thì **instance đã tắt vẫn tính tiền IP công khai**, xấp xỉ giá cái máy, nên tắt không rẻ
+  hơn. `scripts/gcp-db.sh` (`npm run gcp:off`) giữ lại cho hướng Private IP sau credit. Hết pooler
+  ⇒ `deploy.yml` migrate qua **Cloud SQL Auth Proxy** trên runner (secret `DATABASE_URL_MIGRATE`,
+  var `GCP_SQL_INSTANCE`), service/job gắn `--set-cloudsql-instances`. Deploy SA thêm role thứ 5
+  `cloudsql.client`. Budget **≈ $12 (300.000₫ — tài khoản tính bằng VND), bỏ tick hai ô
+  Savings** — mặc định budget tính sau credit nên sẽ im suốt 90 ngày.
+  **Hướng dẫn deploy giờ có 19 ảnh chụp Console thật** (`docs/html/assets/img/deploy/`, đã che
+  email/Project ID), chụp bằng Playwright MCP ngày 2026-09-26 — chỉ điền nháp rồi Cancel, không
+  tạo gì trên cloud. Ba bẫy chỉ lộ ra trên UI thật: đơn vị tiền của budget là ₫, preset *Sandbox*
+  của Cloud SQL vẫn là máy 2 vCPU ≈ $100/tháng, và *Create and continue* của service account
+  tạo luôn account. **Chưa chạy thật** — các lệnh `gcloud` và `deploy.yml` mới mới qua kiểm cú
+  pháp.
+  **Nhân tiện sửa một lỗi có từ trước:** hướng dẫn chạy `make-admin` trong ảnh runtime, mà
+  `make-admin` cần `ts-node` (devDependency, đã bị prune) — giờ chạy từ máy dev qua proxy.
+- **Hai môi trường + phân quyền theo mô hình công ty** 2026-09-26 ([ADR-017](docs/adr/017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md)),
+  khảo sát chỉ-đọc từ repo `officecube` (Terragrunt + Cloud Build). Bê nguyên: mỗi môi trường
+  một project, **deploy bằng tag `v*-dev` / `v*-prod`**, runtime SA riêng (`flash-core-runtime`)
+  đọc secret **theo từng secret**, deploy SA chỉ được `serviceAccountUser` trên đúng runtime SA.
+  Vá ba lỗ của công ty: environment `production` có **Required reviewers**, quyền người qua
+  **Google Group** (bảng ở hướng dẫn deploy §18.2), có **`.github/CODEOWNERS`** + ruleset khoá
+  tag prod. Cố ý không bê: Terraform, Cloud Build, IAP + LB. `deploy.yml` giờ trigger bằng tag,
+  gọi lại `ci.yml` (thêm `workflow_call`) trên đúng commit được tag, và từ chối commit chưa nằm
+  trên `main`; mọi biến riêng môi trường là biến của **GitHub Environment**. `github-deployer`
+  bỏ `secretAccessor` (build SA của công ty cũng không có). Tiền: project dev thêm một Cloud SQL
+  ~$9/tháng ⇒ budget ≈ 600.000₫ nếu dựng cả hai. **Chưa chạy thật.**
 - **Code review 2026-09-22 tìm 8 lỗi thật trong phần Phase 7 — ĐÃ SỬA HẾT** (chưa chạy lại
   được k6 và integration test vì Docker tắt; xem dòng cuối mục này):
   - **k6 xanh giả — nguy hiểm nhất.** `CsrfGuard` làm mọi request của `flash-sale.js` trả 403;

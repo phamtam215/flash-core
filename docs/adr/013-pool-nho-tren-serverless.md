@@ -1,7 +1,9 @@
 # ADR-013: Pool nhỏ (5) × max-instances nhỏ (2) trên serverless, đi qua Neon pooler
 
 - **Ngày:** 2026-09-22
-- **Trạng thái:** Đã chốt (cấu hình xong, **chưa đo trên cloud thật**)
+- **Trạng thái:** Đã chốt (cấu hình xong, **chưa đo trên cloud thật**). **Phần pooler đã được
+  thay bởi [ADR-016](016-cloud-sql-thay-neon.md)** (2026-09-26): DB chuyển sang Cloud SQL, không
+  còn pooler hay cặp endpoint pooled/direct. Phần pool 5 × max-instances 2 vẫn đúng.
 
 ## Bối cảnh
 

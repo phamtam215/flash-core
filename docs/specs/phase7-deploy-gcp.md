@@ -4,6 +4,17 @@
 - **Ngày:** 2026-09-21
 - **Trạng thái:** Đã duyệt · **code + cấu hình xong, CHƯA deploy thật** (phần còn lại cần tài khoản GCP)
 
+> **Hai môi trường 2026-09-26:** giờ có project dev và prod, deploy bằng tag `v*-dev`/`v*-prod`,
+> bộ role của `github-deployer` đã đổi — [ADR-017](../adr/017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md).
+> Danh sách role và luồng CI/CD ghi bên dưới là của bản gốc.
+>
+> **Đổi DB 2026-09-26 — đọc trước:** Postgres trên cloud giờ là **Cloud SQL** (chạy liên tục
+> trong giai đoạn credit), không phải Neon — [ADR-016](../adr/016-cloud-sql-thay-neon.md). Mọi chỗ nhắc Neon bên
+> dưới (pooler/direct, autosuspend, compute-giờ, hard cutoff) là lập luận **của bản gốc**, giữ
+> lại vì phép tính FinOps của Cloud Run và bài pool 5 × 2 vẫn đúng. Cấu hình đang chạy, các
+> bước setup và bảng tra triệu chứng hiện hành nằm ở
+> [hướng dẫn deploy](../huong-dan-deploy-gcp.md) và [`deploy.yml`](../../.github/workflows/deploy.yml).
+
 > **File này là spec Phase 7 duy nhất** (gộp xong 2026-09-21). `phase7-deploy-finops.md` —
 > bản viết song song cùng ngày bởi luồng implement — đã **xoá**: mọi thứ nó nói đều có ở đây,
 > chỉ mỏng hơn. Phần nó sở hữu riêng (ranh giới *máy làm gì / Tâm làm gì* và Definition of

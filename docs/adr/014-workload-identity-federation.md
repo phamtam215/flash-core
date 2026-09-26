@@ -1,7 +1,10 @@
 # ADR-014: CI xác thực với GCP bằng Workload Identity Federation, không dùng key JSON
 
 - **Ngày:** 2026-09-22
-- **Trạng thái:** Đã chốt (workflow xong, **chưa dựng WIF thật** — cần console GCP)
+- **Trạng thái:** Đã chốt (workflow xong, **chưa dựng WIF thật** — cần console GCP). **Bộ role
+  đã đổi bởi [ADR-016](016-cloud-sql-thay-neon.md) và [ADR-017](017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md)**:
+  mỗi project một `github-deployer`, 3 role mức project (`run.admin`, `artifactregistry.writer`,
+  `cloudsql.client`) + `serviceAccountUser` chỉ trên `flash-core-runtime`; **bỏ** `secretAccessor`.
 
 ## Bối cảnh
 

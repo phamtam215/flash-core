@@ -80,7 +80,7 @@ export class QueueService implements OnModuleDestroy {
     );
     // Mỗi giờ là đủ: hai bảng này phình theo NGÀY chứ không theo giây, và dọn thưa hơn thì
     // mỗi lần dọn nhiều hơn — vẫn nằm trong trần `MAX_ROUNDS`. Dọn dày chỉ tốn thêm truy vấn
-    // vào một DB mà Phase 7 đang cố giữ cho ngủ (Neon autosuspend sau 5 phút idle).
+    // vào DB mà không làm dữ liệu sạch hơn.
     await this.queue.upsertJobScheduler(
       'data-retention-sweeper',
       { every: 3_600_000 },

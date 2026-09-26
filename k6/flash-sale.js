@@ -2,7 +2,7 @@
  * Benchmark test #16 — so sánh BA chiến lược chống oversell dưới tải thật.
  *
  * CHỈ CHẠY LOCAL (`project-context.md` quyết định #11): bắn 1.000 VU lên free tier sẽ đốt hết
- * quota trong vài phút, và Neon Free là hard cutoff. Hook `guard_cloud_cost.py` chặn `k6 run`
+ * quota trong vài phút. Hook `guard_cloud_cost.py` chặn `k6 run`
  * khi biến kết nối trỏ ra cloud.
  *
  * Cách chạy (một chiến lược một lần, phải RESTART app giữa các lần vì INVENTORY_STRATEGY đọc

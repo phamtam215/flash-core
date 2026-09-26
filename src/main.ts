@@ -165,7 +165,7 @@ async function bootstrap(): Promise<void> {
   //
   // NẾU KHÔNG BẬT — hai thiệt hại cụ thể:
   //   1. Mỗi lần deploy lại, các connection cũ bị bỏ rơi và Postgres phải chờ hết timeout
-  //      mới thu hồi. Neon Free giới hạn số connection, nên deploy vài lần liên tiếp có thể
+  //      mới thu hồi. Cloud SQL db-f1-micro chỉ có 25 connection, nên deploy vài lần liên tiếp có thể
   //      hết connection dù chẳng có ai dùng app.
   //   2. Từ Phase 4 (BullMQ), job đang chạy dở sẽ bị cắt giữa chừng — đơn hàng xử lý một nửa.
   //

@@ -44,19 +44,22 @@
 | 9 | **Outbox pattern cho queue** | Giải quyết dual write problem (ghi DB xong, push queue fail) | "Ghi DB rồi push queue" đơn thuần |
 | 10 | **FE do AI làm 100%, timebox 2 buổi tối, tại Phase 5** | FE là *công cụ trực quan hóa*, không phải sản phẩm. Giá trị duy nhất: cảnh k6 chạy trong khi tồn kho trên màn hình rơi về 0 và **dừng đúng 0** → demo evidence | FE đẹp, responsive, state management phức tạp. Trước Phase 5 dùng Swagger UI thay FE |
 | 11 | **Load test CHỈ chạy local** (Docker Compose) | Bắn 1.000 VU lên cloud sẽ đốt hết free tier trong vài phút. Bonus: số đo local còn đáng tin hơn vì không nhiễu network | Load test trên môi trường cloud |
-| 12 | **Deploy Cloud Run (us-central1) + Neon + Upstash, mục tiêu 0đ/tháng** | Free tier vĩnh viễn. Chấp nhận cold start và độ trễ ~200ms từ VN để giữ chi phí 0đ — chính việc *giải thích được đánh đổi này* là câu chuyện FinOps để kể khi phỏng vấn | min-instances = 1 (mất phí); region gần VN (mất free tier) |
+| 12 | **Deploy Cloud Run (us-central1) + Cloud SQL + Upstash.** Cloud Run giữ mục tiêu 0đ; **Cloud SQL chạy liên tục trong giai đoạn credit, ~$9/tháng** (sửa 2026-09-26, [ADR-016](docs/adr/016-cloud-sql-thay-neon.md)) | Cloud Run: free tier vĩnh viễn, chấp nhận cold start và độ trễ ~200ms từ VN — chính việc *giải thích được đánh đổi này* là câu chuyện FinOps để kể khi phỏng vấn. Cloud SQL: môi trường cloud chỉ để thử chứ không phải production, và muốn học đúng dịch vụ doanh nghiệp dùng — đổi lại ~$9/tháng credit, hết credit thì chọn lại (hướng dẫn deploy §16) | min-instances = 1 (mất phí); region gần VN (mất free tier); **Neon Free** (bản đầu của quyết định này — 0đ nhưng xuyên đám mây và cắt cứng khi chạm hạn mức); Cloud SQL tắt khi nghỉ (không rẻ hơn — IP công khai vẫn tính tiền lúc tắt) |
 | 13 | **Không thêm công nghệ mới nữa** | 8 công nghệ hiểu sâu > 15 công nghệ hiểu lờ mờ. Người phỏng vấn giỏi phát hiện "resume-driven development" trong 2 câu hỏi. Câu "vì sao anh KHÔNG dùng Kafka" trả lời được bằng trade-off là câu ghi điểm Senior | Kafka, RabbitMQ, K8s, gRPC, Elasticsearch, CQRS/Event Sourcing |
 | 14 | **AI commit nhưng KHÔNG push trước khi Tâm review** | Bước review giữa commit và push chính là nơi kiến thức hình thành — nó buộc đọc diff với tâm thế người chịu trách nhiệm | Để AI chạy trọn vòng commit → push tự động |
+| 15 | **Hai môi trường (dev/prod, mỗi cái một GCP project), deploy bằng tag `v*-dev`/`v*-prod`, người nhận quyền qua Google Group** (2026-09-26, [ADR-017](docs/adr/017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md)) | Học đúng cấu trúc hệ thống công ty (OfficeCube), vá thêm ba lỗ của nó: prod có người duyệt, quyền người qua group thay vì một cá nhân, có CODEOWNERS + khoá tag | Một project duy nhất tự deploy khi `main` xanh (bản trước); Terraform/Terragrunt và Cloud Build như công ty (công cụ mới, chưa có ADR); IAP + Load Balancer (~$18/tháng, app là demo công khai) |
 
 ## 4. Ràng buộc chi phí (đã kiểm chứng, 08/2026)
 
 - **Cloud Run free tier:** 180.000 vCPU-giây, 360.000 GiB-giây, 2 triệu request/tháng
   — **chỉ áp dụng ở us-central1 / us-east1 / us-west1**.
-- **Neon Free:** 0.5 GB storage, 100 compute-giờ/tháng, scale-to-zero sau 5 phút idle.
-  Giới hạn là **hard cutoff** (chạm ngưỡng là DB treo tới chu kỳ sau), không phải giảm tốc.
+- **Cloud SQL `db-f1-micro`:** không có free tier — máy $0,01/giờ, ổ 10 GB ~$1,7/tháng; chạy
+  liên tục ~$9/tháng. **Tắt máy không rẻ hơn**: ổ và IP công khai vẫn tính tiền lúc tắt
+  ([ADR-016](docs/adr/016-cloud-sql-thay-neon.md)). *(Trước 2026-09-26 là Neon Free: 0,5 GB,
+  100 compute-giờ, scale-to-zero, hard cutoff — chạm ngưỡng là DB treo tới chu kỳ sau.)*
 - **Upstash Free:** 256 MB, 500.000 lệnh/tháng.
-- **Bắt buộc:** đặt **budget alert $1** ngay ngày đầu bật billing GCP. Không dùng
-  $300 credit trial một cách vô thức.
+- **Bắt buộc:** đặt **budget alert** ngay ngày đầu bật billing GCP — **≈ $12 (300.000₫), bỏ tick hai ô Savings**
+  (từ khi có Cloud SQL; lý do ở hướng dẫn deploy §1). Không dùng $300 credit trial một cách vô thức.
 
 > Số liệu free tier thay đổi theo thời gian — kiểm tra lại trước khi deploy Phase 7.
 
