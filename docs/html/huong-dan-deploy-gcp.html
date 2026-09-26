@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hướng dẫn deploy lên GCP</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a><a href="adr-009-csrf-double-submit-co-ky.html">ADR-009: CSRF double-submit</a><a href="adr-010-keyset-pagination-thay-offset.html">ADR-010: Keyset pagination</a><a href="adr-011-idempotency-key-lay-db-lam-trong-tai.html">ADR-011: Idempotency-Key</a><a href="adr-012-worker-tren-cloud-run.html">ADR-012: Worker trên Cloud Run</a><a href="adr-013-pool-nho-tren-serverless.html">ADR-013: Pool trên serverless</a><a href="adr-014-workload-identity-federation.html">ADR-014: Workload Identity</a><a href="adr-015-ton-kho-dot-cat-ra-tu-sku.html">ADR-015: Tồn kho đợt</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a><a href="spec-huy-don-chu-dong.html">Huỷ đơn chủ động</a><a href="spec-csrf-token.html">CSRF token</a><a href="spec-rbac.html">RBAC</a><a href="spec-phase-7.html">Phase 7 — Deploy &amp; FinOps</a><a href="spec-phase-8.html">Phase 8 — Đợt sale (draft)</a><a href="spec-phase-9.html">Phase 9 — Web hoàn thiện (draft)</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="viec-tiep-theo.html">★ Việc tiếp theo (viec-tiep-theo.md)</a><a href="huong-dan-deploy-gcp.html" class="active">★ Hướng dẫn deploy GCP (huong-dan-deploy-gcp.md)</a><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div>
+</nav>
+<main class="content">
+<h1 id="hướng-dẫn-deploy-lên-gcp-từ-con-số-không">Hướng dẫn deploy lên GCP — từ con số không</h1>
+<blockquote class="note"><p><strong>Dành cho người lần đầu deploy.</strong> Mỗi bước có lệnh copy-dán được, và nói rõ <em>vì sao</em> bước đó tồn tại — để khi nó hỏng thì biết đường sửa, không phải đi hỏi lại từ đầu.</p>
+<p><strong>Giả định:</strong> đã có tài khoản GCP với <strong>$300 credit / 90 ngày</strong>. Hướng dẫn này tận dụng credit đó, và §16 nói rõ phải đổi gì khi credit hết.</p>
+<p>Quyết định kiến trúc đứng sau mỗi lựa chọn: <a href="adr-012-worker-tren-cloud-run.html">ADR-012</a> (worker) · <a href="adr-013-pool-nho-tren-serverless.html">ADR-013</a> (pool) · <a href="adr-014-workload-identity-federation.html">ADR-014</a> (xác thực CI). Phép tính FinOps đầy đủ: <a href="spec-phase-7.html">spec Phase 7</a>.</p></blockquote>
+<hr>
+<h2 id="0-bức-tranh-toàn-cảnh-cái-gì-chạy-ở-đâu">0. Bức tranh toàn cảnh — cái gì chạy ở đâu</h2>
+<pre class="diagram"><code>        GitHub                          Google Cloud Platform
+   ┌──────────────┐              ┌────────────────────────────────┐
+   │ repo + CI/CD │──── WIF ────►│ Artifact Registry (ảnh Docker) │
+   │ deploy.yml   │   (không     │                                 │
+   └──────────────┘   có key)    │ Cloud Run SERVICE  flash-core-api│◄── người dùng
+                                 │   scale 0 → 2                   │
+                                 │                                 │
+                                 │ Cloud Run JOB  flash-core-worker│
+                                 │   Scheduler gọi mỗi 5 phút      │
+                                 │                                 │
+                                 │ Secret Manager (6 bí mật)       │
+                                 └───────┬──────────────┬──────────┘
+                                         │              │
+                                    ┌────▼────┐    ┌────▼─────┐
+                                    │  Neon   │    │ Upstash  │
+                                    │Postgres │    │  Redis   │
+                                    └─────────┘    └──────────┘</code></pre>
+<h3 id="bên-thứ-ba-liệt-kê-đầy-đủ">Bên thứ ba — liệt kê đầy đủ</h3>
+<div class="table-wrap"><table><thead><tr><th>Dịch vụ</th><th>Dùng làm gì</th><th>Có tính vào $300 credit không</th><th>Gói dùng</th></tr></thead><tbody><tr><td><strong>GCP Cloud Run</strong></td><td>Chạy API và worker</td><td>✅ Có</td><td>Free tier + credit</td></tr><tr><td><strong>GCP Artifact Registry</strong></td><td>Lưu ảnh Docker</td><td>✅ Có</td><td>0,5 GB free</td></tr><tr><td><strong>GCP Secret Manager</strong></td><td>6 bí mật runtime</td><td>✅ Có</td><td>6 version active free</td></tr><tr><td><strong>GCP Cloud Scheduler</strong></td><td>Gọi worker mỗi 5 phút</td><td>✅ Có</td><td>3 job free</td></tr><tr><td><strong>GCP Cloud Logging</strong></td><td>Log của app</td><td>✅ Có</td><td>50 GB/tháng free</td></tr><tr><td><strong>Neon</strong></td><td>PostgreSQL 16</td><td>❌ <strong>Không</strong> — bên thứ ba ngoài GCP</td><td>Free 0,5 GB</td></tr><tr><td><strong>Upstash</strong></td><td>Redis (queue + rate limit + tồn kho)</td><td>❌ <strong>Không</strong></td><td>Free 256 MB / 500k lệnh</td></tr><tr><td><strong>GitHub</strong></td><td>Repo + Actions chạy CI/CD</td><td>❌ Không</td><td>Free (repo công khai hoặc cá nhân)</td></tr></tbody></table></div>
+<blockquote class="note"><p><strong>Điểm dễ hiểu nhầm nhất:</strong> $300 credit <strong>chỉ tiêu được trong GCP</strong>. Neon và Upstash là công ty khác, credit không đụng tới. Nên dù có credit, vẫn dùng gói free của hai bên đó — và chính vì vậy khi credit hết thì <strong>không phải làm gì cả với chúng</strong>.</p></blockquote>
+<p><strong>Không cần cho bản chạy được:</strong> dịch vụ gửi email thật (Resend/Mailgun). Hiện <code>MAIL_SENDER</code> là bản ghi-ra-log; luồng outbox vẫn chạy đủ và chứng minh được "không mất, không trùng", chỉ là không có mail nào tới hộp thư. Muốn mail thật thì xem §17.</p>
+<hr>
+<h2 id="1-việc-đầu-tiên-đặt-cảnh-báo-ngân-sách">1. Việc ĐẦU TIÊN: đặt cảnh báo ngân sách</h2>
+<p>Làm trước cả khi tạo project. Lý do: mọi thứ sau đây đều có thể tạo ra chi phí, và <strong>cách duy nhất biết mình đang tiêu tiền là được báo</strong> — bảng điều khiển thì phải tự nhớ mở.</p>
+<ol><li>Mở <strong>Billing → Budgets &amp; alerts → Create budget</strong></li><li>Đặt ngân sách <strong>$1</strong>, cảnh báo ở <strong>50% / 90% / 100%</strong></li><li>Bật <em>"Email alerts to billing admins"</em></li><li><strong>Gửi thử một cảnh báo và xác nhận email tới nơi</strong> — một cảnh báo không ai nhận được thì không phải cảnh báo</li></ol>
+<blockquote class="note"><p>$1 chứ không phải $300: mục tiêu là biết <strong>ngay khi bắt đầu tiêu</strong>, không phải biết lúc sắp hết credit. Credit tiêu hết trong im lặng thì tháng sau hoá đơn thật mới tới.</p></blockquote>
+<hr>
+<h2 id="2-tạo-project-và-bật-api">2. Tạo project và bật API</h2>
+<pre><code class="language-bash"># Cài gcloud nếu chưa có: https://cloud.google.com/sdk/docs/install
+gcloud auth login
+
+# Tên project phải DUY NHẤT toàn cầu — thêm hậu tố nếu bị trùng
+export PROJECT_ID=flash-core-demo-$(date +%s | tail -c 5)
+export REGION=us-central1
+
+gcloud projects create "$PROJECT_ID"
+gcloud config set project "$PROJECT_ID"
+
+# Gắn project vào tài khoản thanh toán (lấy ID bằng: gcloud billing accounts list)
+gcloud billing projects link "$PROJECT_ID" --billing-account=&lt;BILLING_ACCOUNT_ID&gt;
+
+gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  cloudscheduler.googleapis.com \
+  iamcredentials.googleapis.com \
+  sts.googleapis.com</code></pre>
+<blockquote class="note"><p><strong><code>us-central1</code> không phải tuỳ tiện:</strong> free tier của Cloud Run chỉ áp ở một số region, và đây là region dự án đã chốt. Đổi region thì phải đổi cả nơi đặt Artifact Registry (§3) — ảnh ở region khác nghĩa là mỗi lần deploy kéo ảnh xuyên vùng, chậm mà không ai để ý.</p></blockquote>
+<hr>
+<h2 id="3-artifact-registry-chính-sách-dọn-ảnh">3. Artifact Registry + chính sách dọn ảnh</h2>
+<pre><code class="language-bash">gcloud artifacts repositories create flash-core \
+  --repository-format=docker --location="$REGION" \
+  --description="Ảnh Docker của Flash-Core"</code></pre>
+<p><strong>Bật chính sách dọn ngay bây giờ</strong>, đừng để sau:</p>
+<pre><code class="language-bash">cat &gt; /tmp/cleanup.json &lt;&lt;'JSON'
+[
+  {
+    "name": "giu-3-tag-moi-nhat",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {"keepCount": 3}
+  },
+  {
+    "name": "xoa-anh-khong-tag-qua-7-ngay",
+    "action": {"type": "Delete"},
+    "condition": {"tagState": "untagged", "olderThan": "7d"}
+  }
+]
+JSON
+
+gcloud artifacts repositories set-cleanup-policies flash-core \
+  --location="$REGION" --policy=/tmp/cleanup.json</code></pre>
+<blockquote class="note"><p><strong>Vì sao ngay bây giờ:</strong> mỗi lần deploy đẩy một ảnh mới ~150–200 MB. Free tier là <strong>0,5 GB</strong> — tức là chạm trần sau khoảng ba lần deploy. Không có chính sách dọn thì đây là thứ đầu tiên phát sinh tiền, và nó phát sinh một cách âm thầm.</p></blockquote>
+<hr>
+<h2 id="4-neon-postgresql">4. Neon (PostgreSQL)</h2>
+<ol><li>Đăng ký tại <strong>neon.tech</strong> bằng email cá nhân</li><li>Tạo project, chọn region <strong>AWS us-east-1</strong> hoặc <strong>us-east-2</strong> (gần <code>us-central1</code> nhất)</li><li>Vào <strong>Connection Details</strong>, lấy <strong>hai</strong> chuỗi kết nối:</li></ol>
+<div class="table-wrap"><table><thead><tr><th>Loại</th><th>Hình dạng</th><th>Dùng ở đâu</th></tr></thead><tbody><tr><td><strong>Pooled</strong></td><td><code>...-pooler.neon.tech/...</code></td><td><strong>Runtime</strong> của app</td></tr><tr><td><strong>Direct</strong></td><td><code>...neon.tech/...</code> (không có <code>-pooler</code>)</td><td><strong>Chỉ</strong> bước <code>prisma migrate deploy</code></td></tr></tbody></table></div>
+<blockquote class="note"><p><strong>Vì sao hai chuỗi, và vì sao không được dùng lẫn</strong> (<a href="adr-013-pool-nho-tren-serverless.html">ADR-013</a>): pooler là PgBouncer chạy <em>transaction pooling</em> — nó ghép nhiều kết nối ứng dụng vào ít kết nối thật, đúng thứ serverless cần. Nhưng Prisma khoá migration bằng <strong>advisory lock ở mức session</strong>, mà transaction pooling không giữ session ⇒ khoá đó vô hiệu và hai lần migrate chạy chồng được. Nên migrate <strong>phải</strong> đi đường direct.</p>
+<p>Thứ <strong>không</strong> mất qua pooler, hay bị hiểu nhầm: <code>SELECT ... FOR UPDATE</code> của chiến lược pessimistic <strong>vẫn đúng</strong>, vì nó nằm trọn trong một transaction. Pooler ảnh hưởng <em>sức chứa</em>, không ảnh hưởng <em>tính đúng đắn</em>.</p></blockquote>
+<ol><li>Kiểm tra <strong>autosuspend</strong> đang bật (mặc định 5 phút idle). Đừng để thứ gì poll nó liên tục.</li></ol>
+<hr>
+<h2 id="5-upstash-redis">5. Upstash (Redis)</h2>
+<ol><li>Đăng ký tại <strong>upstash.com</strong></li><li>Tạo database, region <strong>us-east-1</strong> (cùng phía với Neon)</li><li>Lấy chuỗi <code>rediss://...</code> (chú ý <strong>hai chữ s</strong> — TLS)</li></ol>
+<blockquote class="note"><p>Gói free: <strong>256 MB / 500.000 lệnh mỗi tháng</strong>. Worker gọi mỗi 5 phút là ~8.600 lệnh/tháng chỉ để hỏi việc — còn rất nhiều chỗ, nhưng đây là hạn mức <strong>chạm trần đầu tiên</strong> nếu có traffic thật (xem <a href="spec-phase-7.html">spec Phase 7</a> §Bài toán #4).</p></blockquote>
+<hr>
+<h2 id="6-nạp-6-bí-mật-vào-secret-manager">6. Nạp 6 bí mật vào Secret Manager</h2>
+<pre><code class="language-bash"># Sinh 4 khoá ngẫu nhiên
+for NAME in JWT_ACCESS_SECRET JWT_REFRESH_SECRET PAYMENT_WEBHOOK_SECRET CSRF_SECRET; do
+  openssl rand -hex 32 | gcloud secrets create "$NAME" --data-file=- --replication-policy=automatic
+done
+
+# Hai chuỗi kết nối — dán giá trị thật khi được hỏi, rồi Ctrl+D
+gcloud secrets create DATABASE_URL --data-file=- --replication-policy=automatic
+gcloud secrets create REDIS_URL    --data-file=- --replication-policy=automatic</code></pre>
+<p><code>DATABASE_URL</code> dùng chuỗi <strong>pooled</strong> của Neon.</p>
+<blockquote class="note"><p><strong>Free tier Secret Manager là 6 version <em>đang hoạt động</em>, và dự án có đúng 6 bí mật — vừa khít.</strong> Nên mỗi lần xoay khoá phải <strong>huỷ version cũ</strong>, nếu không version thứ 7 bắt đầu tính tiền:</p>
+<pre><code class="language-bash">gcloud secrets versions destroy &lt;SỐ_VERSION&gt; --secret=CSRF_SECRET</code></pre>
+<p><strong>Xoay <code>CSRF_SECRET</code> an toàn</strong> — token cũ thành không hợp lệ, middleware phát lại ở request kế tiếp, <strong>không ai bị đăng xuất</strong>. Xoay <code>JWT_*</code> thì mọi người phải đăng nhập lại.</p></blockquote>
+<hr>
+<h2 id="7-service-account-workload-identity-federation">7. Service account + Workload Identity Federation</h2>
+<p>Đây là bước rắc rối nhất. Làm <strong>một lần</strong>, và không bao giờ phải tạo file key JSON nào.</p>
+<pre><code class="language-bash">export REPO="&lt;github-user&gt;/&lt;ten-repo&gt;"      # ví dụ: phamtam215/flash-core
+export PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+
+# 7.1 — service account cho CI, đúng 4 quyền
+gcloud iam service-accounts create github-deployer --display-name="GitHub Actions deployer"
+export SA="github-deployer@$PROJECT_ID.iam.gserviceaccount.com"
+
+for ROLE in roles/run.admin roles/artifactregistry.writer \
+            roles/iam.serviceAccountUser roles/secretmanager.secretAccessor; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SA" --role="$ROLE"
+done
+
+# 7.2 — pool và provider cho GitHub OIDC
+gcloud iam workload-identity-pools create github --location=global --display-name="GitHub"
+
+gcloud iam workload-identity-pools providers create-oidc github-provider \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='$REPO'"
+
+# 7.3 — cho phép ĐÚNG repo này mượn service account
+gcloud iam service-accounts add-iam-policy-binding "$SA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/$REPO"
+
+# 7.4 — in ra giá trị cần dán vào GitHub
+echo "GCP_WIF_PROVIDER = projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github-provider"
+echo "GCP_SERVICE_ACCOUNT = $SA"</code></pre>
+<blockquote class="note"><p><strong><code>--attribute-condition</code> là dòng quan trọng nhất trong cả bước này.</strong> Thiếu nó thì <em>bất kỳ repo GitHub nào trên đời</em> cũng đổi được token của họ lấy quyền vào project của anh. Có nó thì chỉ đúng repo này.</p>
+<p><strong>Vì sao không dùng key JSON</strong> (<a href="adr-014-workload-identity-federation.html">ADR-014</a>): key JSON là bí mật <strong>dài hạn</strong> — không hết hạn, không biết đã rò, không gắn ngữ cảnh. WIF đổi lấy token sống vài phút và gắn với đúng repo.</p>
+<p><strong>Luật đi kèm:</strong> ai sửa được <code>deploy.yml</code> thì điều khiển được service account này. Coi quyền merge vào <code>main</code> ngang với quyền sửa IAM.</p></blockquote>
+<hr>
+<h2 id="8-khai-báo-bên-github">8. Khai báo bên GitHub</h2>
+<p>Vào <strong>Settings → Secrets and variables → Actions</strong>:</p>
+<p><strong>Tab Variables</strong> (không nhạy cảm):</p>
+<div class="table-wrap"><table><thead><tr><th>Tên</th><th>Giá trị</th></tr></thead><tbody><tr><td><code>GCP_PROJECT_ID</code></td><td>giá trị <code>$PROJECT_ID</code></td></tr><tr><td><code>GCP_REGION</code></td><td><code>us-central1</code></td></tr><tr><td><code>GCP_WIF_PROVIDER</code></td><td>chuỗi bước 7.4 in ra</td></tr><tr><td><code>GCP_SERVICE_ACCOUNT</code></td><td><code>github-deployer@....iam.gserviceaccount.com</code></td></tr></tbody></table></div>
+<p><strong>Tab Secrets</strong> (nhạy cảm):</p>
+<div class="table-wrap"><table><thead><tr><th>Tên</th><th>Giá trị</th></tr></thead><tbody><tr><td><code>DATABASE_URL_DIRECT</code></td><td>chuỗi <strong>direct</strong> của Neon (không có <code>-pooler</code>)</td></tr></tbody></table></div>
+<blockquote class="note"><p>Chuỗi direct là <strong>secret</strong>, không phải variable — nó mở được cả database từ bất kỳ đâu. Neon bảo vệ bằng chuỗi kết nối chứ <strong>không</strong> bằng danh sách IP, nên lộ chuỗi là lộ database.</p></blockquote>
+<hr>
+<h2 id="9-deploy-lần-đầu">9. Deploy lần đầu</h2>
+<pre><code class="language-bash">git push origin main</code></pre>
+<p>Workflow <code><code>deploy.yml</code></code> chạy 5 bước theo thứ tự:</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Bước</th><th>Hỏng thì sao</th></tr></thead><tbody><tr><td>1</td><td>Xác thực bằng WIF</td><td>Dừng, chưa đụng gì</td></tr><tr><td>2</td><td>Build và đẩy ảnh</td><td>Dừng, chưa đụng DB</td></tr><tr><td>3</td><td><code>prisma migrate deploy</code> (direct)</td><td><strong>Dừng — không deploy code mới lên schema cũ</strong></td></tr><tr><td>4</td><td>Deploy service + worker job</td><td>Revision cũ vẫn giữ 100% traffic</td></tr><tr><td>5</td><td>Kiểm <code>/ready</code></td><td><strong>Tự lùi traffic về revision trước</strong></td></tr></tbody></table></div>
+<p>Xem tiến trình ở tab <strong>Actions</strong>. Xong thì lấy URL:</p>
+<pre><code class="language-bash">gcloud run services describe flash-core-api --region "$REGION" --format='value(status.url)'</code></pre>
+<hr>
+<h2 id="10-cloud-scheduler-gọi-worker">10. Cloud Scheduler gọi worker</h2>
+<p>Worker <strong>không</strong> chạy liên tục — Cloud Run scale về 0 và cắt CPU ngoài lúc xử lý request, nên một tiến trình nền sẽ bị đóng băng. Thay vào đó nó là một <strong>Job chạy một lượt rồi thoát</strong> (<a href="adr-012-worker-tren-cloud-run.html">ADR-012</a>).</p>
+<pre><code class="language-bash"># Service account riêng cho Scheduler, chỉ đúng một quyền
+gcloud iam service-accounts create scheduler-invoker --display-name="Cloud Scheduler invoker"
+export INVOKER="scheduler-invoker@$PROJECT_ID.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$INVOKER" --role=roles/run.invoker
+
+gcloud scheduler jobs create http flash-core-worker-tick \
+  --location="$REGION" \
+  --schedule="*/5 * * * *" \
+  --uri="https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/flash-core-worker:run" \
+  --http-method=POST \
+  --oauth-service-account-email="$INVOKER"</code></pre>
+<blockquote class="note"><p><strong>5 phút, không phải 1 phút.</strong> Phép tính: 1 phút = 1.440 lượt/ngày × ~10 giây ≈ <strong>432.000 vCPU-giây/tháng</strong>, vượt trần free 180.000 hơn hai lần — <em>và</em> giữ Neon thức gần như liên tục nên đốt luôn 100 compute-giờ của nó. 5 phút cho ≈86.400 vCPU-giây, vừa khít.</p>
+<p>Đánh đổi: email xác nhận chậm tối đa 5 phút. Chấp nhận được vì đơn giữ chỗ 15 phút.</p></blockquote>
+<hr>
+<h2 id="11-kiểm-tra-7-việc-làm-đủ">11. Kiểm tra — 7 việc, làm đủ</h2>
+<pre><code class="language-bash">export URL=$(gcloud run services describe flash-core-api --region "$REGION" --format='value(status.url)')
+
+# 1. Sống chưa (lần đầu chậm vì cold start — bình thường)
+curl -s "$URL/health"
+
+# 2. Sẵn sàng chưa (kiểm cả Postgres lẫn Redis)
+curl -i -s "$URL/ready" | head -1
+
+# 3. Header bảo vệ — phải có đủ 5, gồm cả HSTS vì đây là HTTPS thật
+curl -sI "$URL/" | grep -iE 'content-security-policy|strict-transport|x-content-type|referrer|permissions'
+
+# 4. Trang demo
+open "$URL"</code></pre>
+<ol><li><strong>Đăng ký một tài khoản trên trang</strong>, rồi nâng nó lên admin: ``<code>bash gcloud run jobs deploy flash-core-admin \ --image "$(gcloud run services describe flash-core-api --region $REGION --format='value(spec.template.spec.containers[0].image)')" \ --region "$REGION" --command npm --args "run,make-admin,--,ban@example.com" \ --set-secrets DATABASE_URL=DATABASE_URL:latest --max-retries 0 --quiet gcloud run jobs execute flash-core-admin --region "$REGION" --wait </code>``</li><li><strong>Tạo dữ liệu demo qua giao diện</strong> — một product, vài SKU, một đợt sale. <strong>Không chạy <code>npm run seed</code></strong> (100.000 dòng) lên Neon free.</li><li><strong>Chạy thử luồng đầy đủ</strong>: đăng ký → xem đợt sale → săn → thanh toán → huỷ. Chờ 5 phút rồi kiểm đơn không trả tiền đã tự huỷ (worker tick).</li></ol>
+<hr>
+<h2 id="12-diễn-tập-rollback-làm-một-lần-lúc-rảnh-không-phải-lúc-sự-cố">12. Diễn tập rollback — làm một lần lúc rảnh, không phải lúc sự cố</h2>
+<pre><code class="language-bash"># Xem các revision
+gcloud run revisions list --service flash-core-api --region "$REGION"
+
+# Lùi 100% traffic về revision trước
+gcloud run services update-traffic flash-core-api --region "$REGION" \
+  --to-revisions=&lt;TEN_REVISION_CU&gt;=100</code></pre>
+<blockquote class="note"><p><strong>Rollback chỉ đưa CODE về, schema database KHÔNG lùi theo.</strong> Nghĩa là revision cũ <strong>bắt buộc phải chạy được với schema mới</strong>. Đó là lý do mọi migration của dự án đều <strong>additive</strong> (thêm cột nullable/có default, thêm bảng, thêm index) — muốn xoá cột thì tách hai lần deploy: lần 1 code thôi dùng cột, lần 2 mới xoá.</p>
+<p><strong>Neon gói Free không có Point-in-time recovery</strong> (⚠ kiểm lại theo gói hiện tại). Trước một migration có <code>DROP</code> hoặc đổi kiểu: tự tay tạo branch/snapshot trước, coi như một bước của quy trình.</p></blockquote>
+<hr>
+<h2 id="13-sau-48-giờ-đo-thật">13. Sau 48 giờ: đo thật</h2>
+<div class="table-wrap"><table><thead><tr><th>Đo gì</th><th>Ở đâu</th><th>Đối chiếu với</th></tr></thead><tbody><tr><td><strong>Tổng vCPU-giây</strong></td><td>Cloud Run → Metrics</td><td>Trần free 180.000/tháng</td></tr><tr><td><strong>Neon compute-giờ</strong></td><td>Neon dashboard</td><td>Hạn mức 100 giờ</td></tr><tr><td><strong>Số lệnh Upstash</strong></td><td>Upstash dashboard</td><td>500.000/tháng</td></tr><tr><td><strong>Dung lượng Artifact Registry</strong></td><td>Artifact Registry</td><td>0,5 GB</td></tr><tr><td>Cold start / warm</td><td><code>curl -w '%{time_total}'</code></td><td>ghi vào spec</td></tr></tbody></table></div>
+<p>Dán số vào <a href="spec-phase-7.html">spec Phase 7 §Bằng chứng</a> và cập nhật <a href="adr-012-worker-tren-cloud-run.html">ADR-012</a> / <a href="adr-013-pool-nho-tren-serverless.html">ADR-013</a> — cả hai hiện đang dùng <strong>số đo local</strong>, chưa phải số thật.</p>
+<hr>
+<h2 id="14-khi-hỏng-tra-theo-triệu-chứng">14. Khi hỏng — tra theo triệu chứng</h2>
+<div class="table-wrap"><table><thead><tr><th>Triệu chứng</th><th>Nguyên nhân thường gặp nhất</th><th>Cách chữa</th></tr></thead><tbody><tr><td>CI dừng ở bước <code>auth</code>, báo <em>"unable to get credentials"</em></td><td><code>--attribute-condition</code> không khớp tên repo, hoặc dán nhầm <code>GCP_WIF_PROVIDER</code></td><td>Chạy lại 7.2–7.4, đối chiếu <code>$REPO</code></td></tr><tr><td><code>migrate deploy</code> treo rồi timeout</td><td>Dùng nhầm chuỗi <strong>pooled</strong> cho migrate</td><td>Đổi <code>DATABASE_URL_DIRECT</code> sang chuỗi <strong>direct</strong></td></tr><tr><td>App lên nhưng mọi API trả <code>500</code>, log có <code>42P01</code></td><td>Chưa chạy migration</td><td>Kiểm bước 3 của workflow có xanh không</td></tr><tr><td>App chết lúc khởi động, log liệt kê biến thiếu</td><td>Thiếu secret trong <code>--set-secrets</code></td><td>Đối chiếu đủ <strong>6</strong> tên ở §6</td></tr><tr><td><code>/ready</code> trả <code>503</code> mãi</td><td>Redis hoặc Postgres không nối được</td><td>Kiểm <code>REDIS_URL</code> có <code>rediss://</code> (hai chữ s)</td></tr><tr><td>Đổi secret rồi mà app vẫn dùng giá trị cũ</td><td><strong>Secret Manager không tự áp dụng</strong></td><td>Phải <strong>deploy lại</strong> service</td></tr><tr><td>Mọi người dùng bị <code>429</code> cùng lúc</td><td><code>trust proxy</code> sai ⇒ mọi request trông như một IP</td><td>Đã đặt <code>trust proxy = 1</code> trong <code>main.ts</code>; thêm một lớp proxy nữa thì phải đổi thành 2</td></tr><tr><td>Deploy chậm bất thường</td><td>Artifact Registry khác region với Cloud Run</td><td>Tạo lại repo đúng <code>$REGION</code></td></tr><tr><td>Hoá đơn nhích lên dù không ai dùng</td><td>Ảnh Docker dồn, hoặc có thứ poll Neon</td><td>Kiểm §3 cleanup policy và §10 nhịp Scheduler</td></tr></tbody></table></div>
+<hr>
+<h2 id="15-bảy-chốt-chặn-chi-phí-kiểm-lại-sau-khi-deploy">15. Bảy chốt chặn chi phí — kiểm lại sau khi deploy</h2>
+<ul><li>☐ Budget alert <strong>$1</strong> đã bật và <strong>đã nhận được email thử</strong></li><li>☐ <code>--max-instances 2</code> trên service (trần chi phí <strong>và</strong> trần connection tới Neon)</li><li>☐ <code>--cpu-throttling</code> (billing request-based — cờ quyết định chi phí lớn nhất)</li><li>☐ Cleanup policy của Artifact Registry đã bật</li><li>☐ Neon autosuspend 5 phút, và <strong>không có gì poll nó</strong></li><li>☐ <code>LOG_LEVEL=info</code> (không <code>debug</code>) trên production</li><li>☐ Scheduler <strong>5 phút</strong>, không phải 1 phút</li></ul>
+<p><strong>Nghỉ dài thì xoá tài nguyên:</strong> Cloud Run 0 instance là 0đ, nhưng Neon vẫn tính dung lượng nếu vượt 0,5 GB. Quay video demo xong mà nghỉ vài tháng thì xoá dữ liệu demo đi.</p>
+<hr>
+<h2 id="16-khi-300-credit-hết-đổi-những-gì">16. Khi $300 credit hết — đổi những gì</h2>
+<p>Tin tốt: <strong>gần như không phải đổi gì</strong>, vì Neon và Upstash vốn đã dùng gói free (credit không áp cho chúng), còn cấu hình Cloud Run vốn đã được đặt cho mục tiêu 0đ.</p>
+<p>Nhưng nếu trong 90 ngày anh có nới cấu hình cho thoải mái, thì đây là chỗ phải trả lại:</p>
+<div class="table-wrap"><table><thead><tr><th>Nếu đã bật trong lúc có credit</th><th>Khi hết credit</th></tr></thead><tbody><tr><td><code>--min-instances 1</code> (hết cold start, ~$10–15/tháng)</td><td><strong>Trả về 0</strong></td></tr><tr><td><code>--no-cpu-throttling</code> (instance-based billing)</td><td><strong>Trả về <code>--cpu-throttling</code></strong></td></tr><tr><td>Worker chạy như service thức liên tục</td><td><strong>Trả về Cloud Run Job + Scheduler</strong></td></tr><tr><td>Uptime check nhiều vùng, nhịp dày</td><td>Còn 1 check, 1 vùng, nhịp 15 phút</td></tr></tbody></table></div>
+<blockquote class="note"><p><strong>Ghi ngày hết credit vào lịch ngay hôm nay.</strong> Đây là loại quyết định có hạn sử dụng mà ba tháng sau không ai còn nhớ lý do — và lúc phát hiện ra thì phát hiện bằng hoá đơn.</p>
+<p>Và giữ nguyên đường <code>worker-once</code> + Scheduler kể cả khi đang chạy min-instances, để còn lùi về được.</p></blockquote>
+<hr>
+<h2 id="17-tuỳ-chọn-gửi-email-thật">17. Tuỳ chọn: gửi email thật</h2>
+<p>Hiện <code>MAIL_SENDER</code> là bản ghi-ra-log — luồng outbox vẫn chứng minh được "không mất, không trùng", chỉ là không có mail nào tới hộp thư. Muốn mail thật:</p>
+<ol><li>Đăng ký <strong>Resend</strong> hoặc <strong>Mailgun</strong> (cả hai có gói free ~100 mail/ngày) — <strong>bên thứ ba ngoài GCP, credit không áp</strong></li><li>Thêm secret <code>MAIL_API_KEY</code> vào Secret Manager (⚠ lúc đó là <strong>7</strong> secret — vượt free tier 6 version, phải huỷ bớt version cũ hoặc chấp nhận trả phí vài xu)</li><li>Viết một <code>MailSender</code> mới cạnh <code>LoggingMailSender</code> và đổi provider trong <code>MailModule</code></li></ol>
+<p>Việc này <strong>chưa làm</strong>, và nó là điều kiện để mở khoá hai tính năng đang nằm trong Non-goals: xác thực email và quên mật khẩu.</p>
+</main>
+</div>
+</body>
+</html>

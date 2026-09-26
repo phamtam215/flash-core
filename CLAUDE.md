@@ -30,6 +30,10 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
   giữ hợp đồng (`specs/` giữ), không giữ kiến thức (`tech-playbook.md` giữ). **Luật giữ cho nó
   không trôi lệch: xong một việc thì xoá dòng đó trong CHÍNH commit làm việc đó.** Khi Tâm hỏi
   "giờ cần làm gì", mở file này.
+- `docs/huong-dan-deploy-gcp.md` — **hướng dẫn deploy lên GCP từ con số không**, cho người lần
+  đầu deploy: 17 bước có lệnh copy-dán, bảng liệt kê **mọi bên thứ ba** (và cái nào $300
+  credit KHÔNG áp được), bảng tra theo triệu chứng khi hỏng, và mục "khi credit hết thì đổi
+  gì". Nó KHÔNG giữ quyết định — mọi "vì sao" trỏ về `adr/` và `specs/phase7-deploy-gcp.md`.
 - `docs/onboarding.md` — **lộ trình cho người mới** (6 buổi, có bài thực hành phá code rồi
   sửa). Nó KHÔNG chứa kiến thức — nó sở hữu *thứ tự học* và các bài thực hành, còn kiến thức
   vẫn trỏ về `tech-playbook.md`. Khi Tâm hỏi "học lại từ đâu", trỏ vào file này.
