@@ -387,8 +387,19 @@ Muốn xem lại thì `git log -- .claude/`.
   **`test/security.e2e-spec.ts` (8 test)** — đáng tiền nhất là #3/#3b: **quét file** `public/`
   tìm `<script>` inline, `on*=` và `style=`. Không cần trình duyệt, chạy mili giây, và bắt
   đúng kiểu hỏng mà mọi test khác vẫn xanh.
-  **CÒN LẠI:** chạy `npm run test:int:local` — lúc code xong thì Docker đã tắt nên 8 test này
-  **chưa chạy lần nào**; unit 163/163 + lint + typecheck sạch.
+  **Đã chạy thật 2026-09-26: integration 120 → 131 (11 test mới), unit 163/163**, 3 lần chạy
+  liên tiếp đều xanh. Lần chạy đó bắt được **hai bug thật của chính bản security này**:
+  - **Body quá lớn trả `500` thay vì `413`** — lỗi `body-parser` không kế thừa `HttpException`
+    nên filter cho nó rơi xuống nhánh cuối. Tệ hơn: log ở mức `error` ⇒ ai gửi body to liên
+    tục là tự tạo bão cảnh báo. Sửa ở `all-exceptions.filter.ts` bằng cách soi `type`.
+    JSON hỏng thì Nest đã tự bọc thành 400 rồi — viết nhánh cho nó là **code chết**, đã thử và
+    bỏ.
+  - **Rate limit mới chặn luôn chính bộ test** — cả bộ đăng ký hàng trăm user từ cùng
+    `127.0.0.1`, nên hai test **ở giữa** `async-payment` đỏ `429` còn mọi test trước xanh.
+    Chữa đúng cách là đưa ngưỡng ra env (`REGISTER_RATE_LIMIT_MAX`, `REFRESH_RATE_LIMIT_MAX`)
+    giống `LOGIN_RATE_LIMIT_MAX` đã làm từ Phase 1; `infra-fixture` nới cho mọi spec, riêng
+    `security.e2e-spec` hạ xuống 5 để vẫn kiểm được cơ chế. **Decorator không nhận được số** vì
+    nó đánh giá lúc nạp class, sớm hơn lúc validate env — nên nó chỉ mang *tên biến*.
 - **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
   Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
 - **Một test FLAKY đã tìm ra và sửa 2026-09-22:** chạy `test:int:local` hai lần liên tiếp thì

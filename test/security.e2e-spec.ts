@@ -47,6 +47,10 @@ describe('Security baseline (e2e)', () => {
     process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret-toi-thieu-32-ky-tu';
     // Tắt: test #2 kiểm rằng HSTS KHÔNG được gửi khi chạy http.
     process.env.COOKIE_SECURE = 'false';
+    // Hạ ngưỡng để KIỂM chính cơ chế rate limit. `infra-fixture` nới nó lên rất cao cho mọi
+    // spec khác (cả bộ test đăng ký hàng trăm user từ một IP) — spec này ghi đè lại.
+    process.env.REGISTER_RATE_LIMIT_MAX = '5';
+    process.env.REFRESH_RATE_LIMIT_MAX = '5';
     process.env.QUEUE_PREFIX = `test-${randomUUID().slice(0, 8)}`;
 
     execFileSync('npx', ['prisma', 'migrate', 'deploy'], { env: { ...process.env }, stdio: 'pipe' });
@@ -148,8 +152,9 @@ describe('Security baseline (e2e)', () => {
       'x-forwarded-for': ip,
     };
 
+    // Ngưỡng ở spec này là 5 (đặt trong beforeAll), nên 7 lần là chắc chắn chạm.
     const codes: number[] = [];
-    for (let i = 0; i < 22; i += 1) {
+    for (let i = 0; i < 7; i += 1) {
       const res = await fetch(`${baseUrl()}/auth/register`, {
         method: 'POST',
         headers,
@@ -173,7 +178,7 @@ describe('Security baseline (e2e)', () => {
 
     // Đốt hết hạn mức của một IP...
     const burnt = `198.51.100.${String(Math.floor(Math.random() * 200) + 1)}`;
-    for (let i = 0; i < 22; i += 1) {
+    for (let i = 0; i < 7; i += 1) {
       await fetch(`${baseUrl()}/auth/register`, {
         method: 'POST',
         headers: headers(burnt),
@@ -213,6 +218,48 @@ describe('Security baseline (e2e)', () => {
 
     expect(res.status).toBe(413);
     expect(await prisma.user.count()).toBe(before);
+  });
+
+  it('6b. ⭐ body quá lớn phải là 413, KHÔNG phải 500', async () => {
+    // Bug thật, bắt được ngay lần chạy test đầu tiên sau khi đặt `json({ limit })`: lỗi của
+    // `body-parser` không kế thừa `HttpException` nên filter cho nó rơi xuống nhánh cuối và
+    // thành 500 — báo "server hỏng" trong khi thật ra client gửi sai, VÀ log ở mức `error`
+    // nên ai gửi body to liên tục là tự tạo một trận bão cảnh báo.
+    const { token, csrfCookie } = await csrfAgent(app);
+
+    const res = await fetch(`${baseUrl()}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': token,
+        cookie: csrfCookie,
+        'x-forwarded-for': '192.0.2.201',
+      },
+      body: JSON.stringify({ email: 'a@b.com', password: 'matkhau123', rac: 'x'.repeat(64 * 1024) }),
+    });
+
+    expect(res.status).toBe(413);
+    expect(((await res.json()) as { code: string }).code).toBe('PAYLOAD_TOO_LARGE');
+  });
+
+  it('6c. JSON hỏng → 400, cũng không phải 500', async () => {
+    const { token, csrfCookie } = await csrfAgent(app);
+
+    const res = await fetch(`${baseUrl()}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': token,
+        cookie: csrfCookie,
+        'x-forwarded-for': '192.0.2.202',
+      },
+      body: '{ khong phai json',
+    });
+
+    // Chỉ khẳng định 400. Nest đã tự bọc lỗi parse thành HttpException trước khi tới filter,
+    // nên mã lỗi là `HTTP_ERROR` chứ không phải mã riêng — và đó là hành vi đúng sẵn, không
+    // cần thêm code. Test này ở đây để nếu một ngày nó thành 500 thì có cái bắt.
+    expect(res.status).toBe(400);
   });
 
   it('7. đăng ký bình thường vẫn 201 (ngưỡng không chặn nhầm người thật)', async () => {

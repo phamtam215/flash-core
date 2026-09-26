@@ -201,7 +201,8 @@
         "NestJS + TypeScript strict + Zod · Prisma 7 với pg.Pool tự cấu hình",
         "PostgreSQL cho UPDATE … WHERE, SELECT FOR UPDATE, FOR UPDATE SKIP LOCKED",
         "Redis + Lua và BullMQ (delayed job, retry, DLQ) — chưa cần Kafka",
-        "Jest + Testcontainers, k6 1.000 VU, prom-client + Pino"
+        "Jest + Testcontainers, k6 1.000 VU, prom-client + Pino",
+        "Docker + Cloud Run: worker chạy một lượt rồi thoát, Scheduler gọi mỗi 5 phút (ADR-012)"
       ]
     },
     {
@@ -216,8 +217,9 @@
     },
     {
       "dot": "slate",
-      "title": "Bốn sơ đồ chi tiết (cùng thư mục)",
+      "title": "Mục lục và bốn sơ đồ chi tiết",
       "items": [
+        "index.html — trang mục lục, vào đây trước cho dễ",
         "01-nghiep-vu.html — luồng nghiệp vụ săn flash sale",
         "02-thanh-phan.html — thành phần hệ thống",
         "03-cong-nghe.html — một request đi qua công nghệ nào",

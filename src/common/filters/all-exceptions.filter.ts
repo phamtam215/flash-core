@@ -89,6 +89,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
     }
 
+    /**
+     * Lỗi của `body-parser` **không** phải `HttpException`, nên nếu không bắt riêng thì nó
+     * rơi xuống nhánh cuối và thành `500` — báo với client rằng *server hỏng*, trong khi thật
+     * ra **client gửi sai**.
+     *
+     * Gặp thật ngay lần chạy test đầu tiên sau khi đặt `json({ limit: '32kb' })` ở Phase 9:
+     * body 64kb trả `500` thay vì `413`. Hai hệ quả, cái thứ hai tệ hơn:
+     *
+     * 1. Client không biết phải sửa gì (413 nói "gửi nhỏ lại", 500 không nói gì).
+     * 2. Nó được log ở mức `error` ⇒ ai đó gửi body to liên tục là tự tạo ra một trận bão
+     *    cảnh báo, và cảnh báo kêu sai vài lần là người ta tắt tiếng nó.
+     *
+     * `type` là trường riêng của `body-parser` (`entity.too.large`, `entity.parse.failed`...),
+     * và `status` nó gắn sẵn đã đúng — chỉ cần chuyển tiếp thay vì nuốt.
+     */
+    const parserError = asBodyParserError(exception);
+    if (parserError) {
+      return {
+        status: parserError.status,
+        body: { code: parserError.code, message: parserError.message },
+      };
+    }
+
     if (exception instanceof HttpException) {
       const payload = exception.getResponse();
       const base = typeof payload === 'string' ? { message: payload } : payload;
@@ -106,4 +129,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
       },
     };
   }
+}
+
+/**
+ * Nhận diện lỗi "body quá lớn" do `body-parser` ném ra. Nó không kế thừa `HttpException` nên
+ * phải soi trường.
+ *
+ * Không bắt bừa mọi thứ có `status`: bắt rộng quá thì một lỗi hệ thống tình cờ có trường
+ * `status` sẽ bị hạ xuống thành lỗi của client, và lúc đó `500` thật bị giấu mất.
+ */
+function asBodyParserError(
+  exception: unknown,
+): { status: number; code: string; message: string } | null {
+  if (typeof exception !== 'object' || exception === null) return null;
+
+  const { type, status } = exception as { type?: unknown; status?: unknown };
+  if (typeof status !== 'number') return null;
+
+  if (type === 'entity.too.large') {
+    return {
+      status: HttpStatus.PAYLOAD_TOO_LARGE,
+      code: 'PAYLOAD_TOO_LARGE',
+      message: 'Nội dung gửi lên quá lớn.',
+    };
+  }
+  // CỐ Ý chỉ nhận `entity.too.large`. Lỗi JSON hỏng (`entity.parse.failed`) đã được Nest bọc
+  // thành `HttpException` 400 trước khi tới đây, nên một nhánh cho nó sẽ là **code chết** —
+  // đã thử và xác nhận bằng test 6c. Code chết tệ hơn không có code: nó làm người đọc tin
+  // rằng đường đó đang chạy.
+  return null;
 }

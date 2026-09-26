@@ -125,8 +125,8 @@
       "lane": "lotrinh",
       "col": 4,
       "type": "cloud",
-      "label": "Phase 5–6 · Vận hành",
-      "sublabel": "UI · metric · correlationId",
+      "label": "Phase 5–7 · Vận hành",
+      "sublabel": "UI · metric · Cloud Run",
       "width": 164
     },
     {
@@ -281,8 +281,8 @@
       "title": "Cách làm việc đã chốt",
       "items": [
         "Không có spec thì không code; spec giữ hợp đồng, playbook giữ kiến thức",
-        "Test là hợp đồng: 139 unit + 101 integration chạy trên Postgres/Redis thật",
-        "Quyết định kiến trúc phải thành ADR — hiện có 8 ADR",
+        "Test là hợp đồng: 163 unit + 120 integration chạy trên Postgres/Redis thật",
+        "Quyết định kiến trúc phải thành ADR — hiện có 14 ADR",
         "Race condition không tồn tại trong thế giới của mock"
       ]
     },
@@ -290,9 +290,9 @@
       "dot": "rose",
       "title": "Còn nợ gì",
       "items": [
-        "Phase 7: deploy Cloud Run + Neon + Upstash, chưa làm",
-        "Phase 1, 5, 6 và huỷ đơn chủ động: code + test xong, chờ Tâm review rồi push",
-        "CSRF token mới có spec, chưa đóng",
+        "Phase 7 mới cấu hình xong: hạ tầng GCP/Neon/Upstash + 6 secret do Tâm tạo, chưa deploy thật",
+        "Phase 1, 5, 6, huỷ đơn, CSRF, RBAC: code + test xong, chờ Tâm review rồi push",
+        "ADR-012 từng chốt worker chạy mỗi 1 phút theo cảm giác — phép tính hạn mức bác bỏ, đổi thành 5 phút",
         "order.repository cố tình không đặt ngưỡng coverage — integration test mới là thứ khoá nó"
       ]
     }

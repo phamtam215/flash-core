@@ -166,8 +166,8 @@ refresh token; đổi mật khẩu = thu hồi cả family (chính là reuse-det
 
 ## Definition of Done
 
-- [x] `npm run check` sạch (lint + typecheck + **163 unit**). ⚠️ 8 integration test ở
-      `test/security.e2e-spec.ts` **chưa chạy** — Docker tắt lúc code xong.
+- [x] `npm run check` sạch (lint + typecheck + **163 unit**) và **131 integration** (10 test
+      ở `test/security.e2e-spec.ts`), 3 lần chạy liên tiếp đều xanh.
 - [x] **Bảng rà baseline: 19/19 ✅** — deliverable chính, và là thứ mở ra được khi người
       phỏng vấn hỏi "em xử lý security thế nào".
 - [ ] Chạy đầu-cuối trên Chrome thật, **Console sạch** khi CSP bật — không một vi phạm nào.

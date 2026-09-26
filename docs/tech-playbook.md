@@ -578,6 +578,39 @@ Chốt: **chặn `critical`, báo cáo `high` mà không chặn**. Bài học ch
 **một cổng chất lượng chỉ có giá trị khi nó XANH ĐƯỢC** — và cách duy nhất biết điều đó là
 chạy nó trước khi đưa vào CI.
 
+### 4. Đặt `limit` cho body xong thì lỗi thành `500`, không phải `413`
+
+Lỗi của `body-parser` **không kế thừa `HttpException`**, nên exception filter cho nó rơi xuống
+nhánh cuối và trả `500`. Hai hệ quả, cái thứ hai tệ hơn:
+
+1. Client không biết phải sửa gì — `413` nói "gửi nhỏ lại", `500` không nói gì.
+2. Nó được log ở mức **`error`** ⇒ ai gửi body to liên tục là tự tạo một trận bão cảnh báo, và
+   cảnh báo kêu sai vài lần thì người ta tắt tiếng nó.
+
+Chữa bằng cách soi trường `type` (`entity.too.large`) trong filter và chuyển tiếp `status` mà
+`body-parser` đã gắn sẵn. **Không bắt bừa mọi thứ có trường `status`** — bắt rộng quá thì một
+lỗi hệ thống tình cờ có `status` sẽ bị hạ xuống thành lỗi của client, và `500` thật bị giấu mất.
+
+Chi tiết đáng nhớ: JSON hỏng (`entity.parse.failed`) thì **Nest đã tự bọc thành `HttpException`
+400 rồi**, nên viết thêm nhánh cho nó là **code chết**. Đã thử và xác nhận bằng test. *Code chết
+tệ hơn không có code — nó làm người đọc tin rằng đường đó đang chạy.*
+
+### 5. Rate limit mới chặn luôn chính bộ test của mình
+
+Thêm giới hạn 20 lần/giờ theo IP cho `register`. Chạy `npm run test:int` thì **hai test ở giữa**
+file `async-payment` đỏ với `429`, còn mọi test trước đó xanh — triệu chứng khó đoán nhất có thể.
+
+Nguyên nhân: cả bộ test đăng ký hàng trăm user, và tất cả đi từ **cùng một IP** (`127.0.0.1`).
+
+Chữa đúng cách không phải nới ngưỡng trong code, mà là **đưa ngưỡng ra biến môi trường** —
+giống `LOGIN_RATE_LIMIT_MAX` vốn đã vậy từ Phase 1. Được hai thứ: vận hành chỉnh được khi bị
+spam mà không cần deploy, và test nới lên được. Spec nào muốn *kiểm* chính cơ chế đó thì hạ
+ngưỡng xuống trong `beforeAll` của nó.
+
+**Chi tiết dễ vấp:** ngưỡng không truyền được qua decorator dưới dạng số, vì decorator được
+đánh giá lúc **nạp class** — sớm hơn cả lúc `ConfigModule` validate env. Decorator chỉ mang
+*tên biến*; guard đọc giá trị tại thời điểm request.
+
 ## Rate limit theo email hay theo IP — hai bài toán, không thay nhau được
 
 | | Theo email (login) | Theo IP (register) |

@@ -1,7 +1,8 @@
-import { type CanActivate, type ExecutionContext, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { type CanActivate, type ExecutionContext, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
+import { ENV, type Env } from '../../config';
 import { RedisService } from '../../infra/redis';
 import { DomainError } from '../errors/domain.error';
 import { IP_RATE_LIMIT_KEY, type IpRateLimitOptions } from './ip-rate-limit.decorator';
@@ -35,6 +36,7 @@ export class IpRateLimitGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly redis: RedisService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -47,12 +49,13 @@ export class IpRateLimitGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request>();
     const ip = req.ip ?? 'unknown';
 
+    const max = this.env[options.maxEnv];
     const count = await this.redis.incrementWithExpiry(
       `ratelimit:ip:${options.name}:${ip}`,
       options.windowSeconds,
     );
 
-    if (count > options.max) {
+    if (count > max) {
       this.logger.warn({ ip, route: options.name, count }, 'Chặn vì quá ngưỡng theo IP');
       throw new TooManyRequestsError(options.windowSeconds);
     }

@@ -66,6 +66,21 @@ export const envSchema = z.object({
    * Đếm ở Redis chứ không trong RAM — nhiều instance thì đếm RAM sai ngay (spec §Quyết định 1).
    */
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+
+  /**
+   * Ngưỡng theo **IP** cho hai endpoint không đếm theo email được.
+   *
+   * Vì sao là biến môi trường chứ không phải hằng số trong code — hai lý do, lý do thứ hai
+   * chỉ lộ ra khi chạy thật:
+   *
+   * 1. Vận hành chỉnh được khi bị spam mà không cần deploy lại.
+   * 2. **Chính bộ integration test đăng ký hàng trăm user từ cùng một IP** (`127.0.0.1`).
+   *    Ngưỡng production 20/giờ chặn luôn bộ test của mình — phát hiện ngay lần chạy đầu sau
+   *    khi thêm rate limit. Test nới ngưỡng lên; riêng `security.e2e-spec` hạ xuống để KIỂM
+   *    chính cơ chế này.
+   */
+  REGISTER_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  REFRESH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   LOGIN_RATE_LIMIT_WINDOW: z.coerce.number().int().positive().default(60),
 
   /**

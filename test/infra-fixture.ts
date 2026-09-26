@@ -32,6 +32,23 @@ import { GenericContainer, type StartedTestContainer } from 'testcontainers';
  * tác không hoàn tác được, nên phải có một hàng rào không phụ thuộc vào việc con người nhớ.
  */
 export async function startInfra(): Promise<() => Promise<void>> {
+  /**
+   * Nới ngưỡng rate-limit-theo-IP cho toàn bộ integration test.
+   *
+   * **Vì sao cần:** cả bộ test đăng ký hàng trăm user, và tất cả đi từ cùng một IP
+   * (`127.0.0.1`). Ngưỡng production 20 lần/giờ chặn luôn chính bộ test — phát hiện ngay lần
+   * chạy đầu sau khi thêm rate limit ở Phase 9, với triệu chứng khó đoán: hai test **ở giữa**
+   * file `async-payment` đỏ với `429`, còn mọi test trước đó xanh.
+   *
+   * Đặt ở đây chứ không rải vào từng spec: nó đúng cho mọi spec, và quên một chỗ là lại một
+   * lần đi truy `429` từ đầu.
+   *
+   * `security.e2e-spec.ts` **ghi đè lại giá trị thấp** trong `beforeAll` của nó để kiểm chính
+   * cơ chế này — nên dòng dưới đây không làm mất phần test của rate limit.
+   */
+  process.env.REGISTER_RATE_LIMIT_MAX ??= '100000';
+  process.env.REFRESH_RATE_LIMIT_MAX ??= '100000';
+
   if (process.env.TEST_DATABASE_URL && process.env.TEST_REDIS_URL) {
     await resetSchema(process.env.TEST_DATABASE_URL);
     await resetRedis(process.env.TEST_REDIS_URL);

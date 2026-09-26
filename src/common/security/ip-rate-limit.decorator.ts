@@ -5,7 +5,14 @@ export const IP_RATE_LIMIT_KEY = 'ip_rate_limit';
 export interface IpRateLimitOptions {
   /** Đi vào khoá Redis: `ratelimit:ip:<name>:<ip>`. Đổi tên = reset bộ đếm. */
   readonly name: string;
-  readonly max: number;
+
+  /**
+   * Tên biến môi trường giữ ngưỡng. **Không** nhận số trực tiếp: decorator được đánh giá lúc
+   * nạp class, sớm hơn cả lúc `ConfigModule` validate env — nên một con số ở đây là con số
+   * không ai chỉnh được nữa. Guard đọc env tại thời điểm request.
+   */
+  readonly maxEnv: 'REGISTER_RATE_LIMIT_MAX' | 'REFRESH_RATE_LIMIT_MAX';
+
   readonly windowSeconds: number;
 }
 

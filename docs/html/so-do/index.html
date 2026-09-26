@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash-Core — Sơ đồ tương tác</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Sơ đồ tương tác</span></a>
+<div class="nav-group"><h3>Năm sơ đồ</h3>
+<a href="00-tong-hop.html">★ Bản đồ tổng (4 câu trả lời)</a>
+<a href="01-nghiep-vu.html">1 · Luồng nghiệp vụ</a>
+<a href="02-thanh-phan.html">2 · Thành phần hệ thống</a>
+<a href="03-cong-nghe.html">3 · Công nghệ theo một request</a>
+<a href="04-kien-thuc.html">4 · Kiến thức tổng kết</a>
+</div>
+<div class="nav-group"><h3>Đi tiếp</h3>
+<a href="../index.html">Tài liệu dự án (index)</a>
+<a href="../hoc/index.html">Giáo trình 8 phase</a>
+<a href="../architecture.html">Bản đồ code</a>
+<a href="../tech-playbook.html">Sổ tay kỹ thuật</a>
+<a href="../demo-phong-van.html">Demo &amp; phỏng vấn</a>
+</div>
+</nav>
+<main class="content">
+
+<h1>Sơ đồ tương tác — Flash-Core</h1>
+<p>Năm trang tự chứa (một file HTML, mở thẳng bằng trình duyệt, không cần server). Mỗi trang
+đều có: tìm kiếm, bấm vào một khối để tô đường đi liên quan, vài "chương" xem nhanh, đổi
+sáng/tối và xuất ảnh PNG/SVG.</p>
+
+<blockquote class="note">
+<p><strong>Chỉ mở một trang?</strong> Mở <a href="00-tong-hop.html"><strong>Bản đồ tổng</strong></a>
+— nó trả lời cả bốn câu (nghiệp vụ, thành phần, công nghệ, kiến thức) ở mức tóm tắt, rồi tuỳ
+chỗ nào cần sâu thì nhảy sang trang tương ứng.</p>
+</blockquote>
+
+<div class="cards">
+  <div class="card">
+    <h3>★ Bản đồ tổng</h3>
+    <p class="status">Toàn cảnh trên một màn hình: người mua → API → Postgres, worker chạy nền,
+    và bốn thẻ tóm tắt nghiệp vụ / thành phần / công nghệ / kiến thức.</p>
+    <a href="00-tong-hop.html">Mở sơ đồ</a>
+  </div>
+  <div class="card">
+    <h3>1 · Luồng nghiệp vụ</h3>
+    <p class="status">Từ lúc bấm "Săn ngay" tới <code>PAID</code>: trừ kho ngay, giữ chỗ 15 phút,
+    nhánh 409 hết hàng và nhánh tự huỷ trả hàng về kho.</p>
+    <a href="01-nghiep-vu.html">Mở sơ đồ</a>
+  </div>
+  <div class="card">
+    <h3>2 · Thành phần hệ thống</h3>
+    <p class="status">Hai tiến trình (API, worker) trên cùng một codebase, các module nghiệp vụ,
+    ba kho dữ liệu và ba quy tắc giữ ranh giới.</p>
+    <a href="02-thanh-phan.html">Mở sơ đồ</a>
+  </div>
+  <div class="card">
+    <h3>3 · Công nghệ theo một request</h3>
+    <p class="status">Một <code>POST /orders</code> đi qua Guard → Zod → order → Postgres/Redis →
+    BullMQ → worker, kèm lý do chọn từng công nghệ.</p>
+    <a href="03-cong-nghe.html">Mở sơ đồ</a>
+  </div>
+  <div class="card">
+    <h3>4 · Kiến thức tổng kết</h3>
+    <p class="status">Lộ trình các phase, bốn bài học cốt lõi, hai bug thật mà không test nào đỏ,
+    và những con số đo được.</p>
+    <a href="04-kien-thuc.html">Mở sơ đồ</a>
+  </div>
+</div>
+
+<h2>Mở cái nào khi nào</h2>
+<ul>
+  <li><strong>Giới thiệu dự án cho người lạ trong 2 phút</strong> → Bản đồ tổng, rồi Luồng nghiệp vụ.</li>
+  <li><strong>Người mới vào code</strong> → Thành phần hệ thống, sau đó
+    <a href="../architecture.html">bản đồ code</a> để biết file nào ở đâu.</li>
+  <li><strong>Phỏng vấn hỏi "vì sao chọn cái này"</strong> → Công nghệ theo một request, chi tiết ở
+    <a href="../demo-phong-van.html">demo-phong-van</a>.</li>
+  <li><strong>Ôn lại đã học được gì</strong> → Kiến thức tổng kết, đáp án đầy đủ ở
+    <a href="../tech-playbook.html">sổ tay kỹ thuật</a>.</li>
+</ul>
+
+<h2>Sửa sơ đồ thế nào</h2>
+<p>Mỗi trang <code>.html</code> có một file <code>.json</code> nguồn nằm cạnh nó (ví dụ
+<code>01-nghiep-vu.workflow.json</code>). Sửa JSON rồi sinh lại bằng skill Archify — đừng sửa tay
+file HTML, nó là bản dựng ra.</p>
+<p class="muted">Nội dung trong sơ đồ không phải nguồn sự thật: mọi câu "vì sao" thuộc
+<a href="../tech-playbook.html">tech-playbook</a>, mọi con số thuộc <a href="../spec.html">specs</a>,
+trạng thái dự án thuộc <a href="../claude-md.html">CLAUDE.md</a>. Sơ đồ chỉ trình bày lại.
+Giao diện điều khiển của trang sơ đồ là tiếng Anh (Archify chỉ hỗ trợ en/zh-CN), nội dung thì
+tiếng Việt.</p>
+
+</main>
+</div>
+</body>
+</html>
