@@ -1,34 +1,33 @@
-# Deploy lên Cloud Run — Phase 7.
+# Deploy lên Cloud Run — Phase 7, hai môi trường theo ADR-017.
 #
-# CHỈ chạy khi CI đã xanh trên `main` (tự động, qua `workflow_run`), hoặc khi được bấm tay
-# (`workflow_dispatch`). Chưa đặt biến `GCP_WIF_PROVIDER` thì job tự bỏ qua. Không deploy từ pull request: PR chạy code của người lạ, và deploy nghĩa là
-# trao cho code đó quyền của service account.
+# KÍCH HOẠT BẰNG GIT TAG — cùng cách với hệ thống của công ty (OfficeCube):
+#   v1.2.0-dev   → project dev   (GitHub Environment `dev`)
+#   v1.2.0-prod  → project prod  (GitHub Environment `production`, có người duyệt)
+# Không deploy từ pull request và không tự deploy khi `main` xanh: deploy là một quyết định có
+# tên (tag), không phải tác dụng phụ của merge.
 #
-# Xác thực bằng **Workload Identity Federation**, KHÔNG phải service account key JSON. Key JSON
-# là bí mật dài hạn nằm trong GitHub Secrets — rò một lần là rò mãi, và không ai biết nó rò.
-# WIF đổi lấy token sống vài phút, gắn với đúng repo này.
+# Mọi giá trị riêng của từng môi trường (project, WIF, SA, instance Cloud SQL, chuỗi migrate)
+# là biến/secret **của GitHub Environment**, không phải của repo. Vì vậy cùng một file này
+# deploy được cả hai nơi, và secret của prod không bao giờ lộ cho job chạy ở dev.
+#   Environment vars:    GCP_PROJECT_ID · GCP_WIF_PROVIDER · GCP_SERVICE_ACCOUNT · GCP_SQL_INSTANCE
+#   Environment secrets: DATABASE_URL_MIGRATE ← nối 127.0.0.1:5432 qua Cloud SQL Auth Proxy
+#   Repo vars (chung):   GCP_REGION
+# (mọi bí mật RUNTIME khác nằm ở Secret Manager của từng project)
 #
-# Secrets/vars phải đặt trước khi workflow chạy được (Settings → Secrets and variables):
-#   vars:    GCP_PROJECT_ID · GCP_REGION · GCP_WIF_PROVIDER · GCP_SERVICE_ACCOUNT
-#   secrets: DATABASE_URL_DIRECT  ← endpoint **direct** của Neon, chỉ dùng cho bước migrate
-#            (mọi bí mật RUNTIME khác nằm ở Secret Manager, xem bước Deploy)
+# Xác thực bằng **Workload Identity Federation**, KHÔNG phải service account key JSON (ADR-014).
 #
-# Chi tiết cấu hình và các phương án đã loại: docs/adr/012-worker-tren-cloud-run.md
+# Chi tiết: docs/adr/017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md,
+#           docs/adr/012-worker-tren-cloud-run.md
 
 name: Deploy
 
-# `workflow_run` chứ KHÔNG phải `push`: với `push`, Deploy và CI chạy SONG SONG — CI đỏ mà
-# Deploy vẫn đẩy code lên production. Chờ CI xong rồi mới quyết định là cách duy nhất để lời
-# hứa "chỉ deploy khi CI xanh" ở đầu file là thật.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
-  workflow_dispatch:
+  push:
+    tags: ['v*-dev', 'v*-prod']
 
 concurrency:
-  group: deploy-production
+  # Mỗi môi trường một hàng đợi: deploy dev không chặn deploy prod và ngược lại.
+  group: deploy-${{ endsWith(github.ref_name, '-prod') && 'production' || 'dev' }}
   cancel-in-progress: false # deploy đang chạy dở mà bị huỷ là trạng thái tệ nhất
 
 permissions:
@@ -36,28 +35,34 @@ permissions:
   id-token: write # bắt buộc cho Workload Identity Federation
 
 jobs:
+  # Chạy lại TOÀN BỘ CI trên đúng commit được gắn tag, thay vì tin rằng "chắc nó đã xanh trên
+  # main rồi". Tag có thể gắn vào bất kỳ commit nào — kể cả một commit chưa từng qua CI.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
     name: Build · Migrate · Deploy
+    needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production
-    # Hai điều kiện:
-    # 1. CI xanh (bấm tay thì người bấm tự chịu trách nhiệm).
-    # 2. Hạ tầng GCP đã dựng — chưa đặt `GCP_WIF_PROVIDER` thì BỎ QUA thay vì đỏ. Không có
-    #    điều kiện này, mỗi commit lên `main` đều ra một dấu ✗ đỏ, và một CI lúc nào cũng đỏ
-    #    thì chẳng ai còn nhìn vào nó nữa.
-    if: >-
-      vars.GCP_WIF_PROVIDER != '' &&
-      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    # Chọn Environment theo đuôi tag. `production` có Required reviewers (cấu hình ở GitHub,
+    # hướng dẫn deploy §18) nên job dừng ở đây chờ bấm duyệt — trước khi đụng tới bất cứ thứ gì.
+    environment: ${{ endsWith(github.ref_name, '-prod') && 'production' || 'dev' }}
     env:
-      # `workflow_run` chạy trên HEAD của `main` lúc được kích hoạt — có thể MỚI HƠN commit
-      # mà CI vừa kiểm. Ghim đúng commit CI đã xanh.
-      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_SHA: ${{ github.sha }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 0
+
+      # Chỉ deploy commit ĐÃ vào `main`. Không có bước này thì gắn tag lên một nhánh chưa ai
+      # review là lên được prod — đúng lỗ mà review PR sinh ra để chặn.
+      - name: Commit phải nằm trên main
+        run: |
+          git merge-base --is-ancestor "$DEPLOY_SHA" origin/main \
+            || { echo "✗ $GITHUB_REF_NAME trỏ vào commit chưa merge vào main"; exit 1; }
 
       - id: auth
         uses: google-github-actions/auth@v2
@@ -81,31 +86,44 @@ jobs:
       # 1. Ảnh runtime đã `npm prune --omit=dev`, mà `prisma` (CLI) và `typescript` đều là
       #    devDependency — `npx prisma migrate deploy` trong ảnh đó **không chạy được**, và
       #    `prisma.config.ts` cũng không nạp nổi. Mỗi lần deploy sẽ hỏng ở đúng bước này.
-      # 2. ADR-013: Prisma khoá migration bằng **advisory lock mức session**, mà Neon pooler
-      #    chạy transaction pooling nên không giữ được session ⇒ phải đi endpoint **direct**.
-      #
-      # Runner nối thẳng Neon được: Neon bảo vệ bằng chuỗi kết nối chứ không bằng IP
-      # (spec Phase 7 §Bài toán #6 ý 5). Đổi lại `DATABASE_URL_DIRECT` phải là secret, không
-      # bao giờ vào `vars` và không bao giờ vào log.
+      # 2. Runner không nằm trong GCP, và Cloud SQL **không mở IP cho ai** (ADR-016). Đường
+      #    vào duy nhất là Cloud SQL Auth Proxy: nó xác thực bằng chính danh tính WIF ở bước
+      #    `auth` (role `cloudsql.client`), mở một cổng local, và mã hoá tới instance.
       #
       # Chạy TRƯỚC khi deploy: migrate hỏng thì dừng hẳn, không đẩy code mới lên schema cũ.
+      # Cloud SQL đang TẮT thì proxy đỏ ở đây — đúng thứ nên xảy ra: bật DB rồi chạy lại.
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Chạy migration (endpoint direct)
+      - name: Mở Cloud SQL Auth Proxy
+        run: |
+          curl -sSfL -o cloud-sql-proxy \
+            https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          # `--run-connection-test`: thử nối thật lúc khởi động và thoát nếu hỏng. Thiếu cờ này
+          # thì proxy vẫn mở cổng dù instance đang tắt, và lỗi chỉ lộ ra ở bước sau dưới dạng
+          # một câu khó hiểu của Prisma.
+          ./cloud-sql-proxy --port 5432 --run-connection-test "${{ vars.GCP_SQL_INSTANCE }}" &
+          for i in $(seq 1 20); do
+            nc -z 127.0.0.1 5432 && { echo "✓ proxy sẵn sàng"; exit 0; }
+            sleep 1
+          done
+          echo "✗ proxy không mở được — Cloud SQL đang tắt? (hướng dẫn deploy §15)"; exit 1
+
+      - name: Chạy migration (qua proxy)
         run: |
           npm ci
           npm run db:generate
           npx prisma migrate deploy
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_MIGRATE }}
 
       # Mọi con số dưới đây đến từ bảng §Cấu hình Cloud Run service của spec Phase 7, không
       # phải mặc định của gcloud. Ba cái đáng nhớ nhất:
-      #   --max-instances 2   van an toàn KÉP: trần chi phí *và* trần connection tới Neon
-      #                       (pool 5 × 2 instance = 10 connection).
+      #   --max-instances 2   van an toàn KÉP: trần chi phí *và* trần connection tới Cloud
+      #                       SQL (pool 5 × 2 instance = 10; db-f1-micro cho 25, ADR-016).
       #   --concurrency 80    nhiều request chia nhau một instance ⇒ ít vCPU-giây hơn. Node
       #                       xử lý I/O-bound tốt nên đây gần như là bữa trưa miễn phí.
       #   --cpu-throttling    billing REQUEST-BASED: chỉ tính tiền lúc đang xử lý request.
@@ -120,6 +138,13 @@ jobs:
       # cả. Muốn quay cảnh `curl /metrics` lúc demo thì bật TẠM bằng
       # `gcloud run services update flash-core-api --update-env-vars METRICS_ENABLED=true`,
       # quay xong tắt lại (spec Phase 7 §Câu hỏi mở #3).
+      #
+      # `--service-account flash-core-runtime`: container chạy dưới SA riêng chỉ đọc được đúng
+      # 6 secret của nó (quyền gắn theo từng secret), thay vì SA mặc định của Compute — mẫu của
+      # hệ thống công ty (ADR-017).
+      #
+      # `--set-cloudsql-instances` gắn Unix socket `/cloudsql/<instance>` vào container —
+      # `DATABASE_URL` trong Secret Manager trỏ vào socket đó (`?host=/cloudsql/...`).
       - name: Deploy API
         run: |
           gcloud run deploy flash-core-api \
@@ -132,6 +157,8 @@ jobs:
             --timeout 30s \
             --cpu 1 --memory 512Mi \
             --cpu-throttling \
+            --set-cloudsql-instances "${{ vars.GCP_SQL_INSTANCE }}" \
+            --service-account "flash-core-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --set-env-vars NODE_ENV=production,LOG_LEVEL=info,COOKIE_SECURE=true,INVENTORY_STRATEGY=pessimistic,DATABASE_POOL_MAX=5,QUEUE_PREFIX=prod,METRICS_ENABLED=false \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,JWT_ACCESS_SECRET=JWT_ACCESS_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,PAYMENT_WEBHOOK_SECRET=PAYMENT_WEBHOOK_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest \
             --quiet
@@ -141,13 +168,18 @@ jobs:
       #
       # 5 phút, KHÔNG phải 1 phút — và con số này được đặt bằng tay ngoài repo nên dòng chú
       # thích này chính là thứ người ta làm theo. 1 phút = 1.440 lượt/ngày × ~10s ≈ 432.000
-      # vCPU-giây/tháng, vượt trần free 180.000 tới 2,4 lần, và giữ Neon thức gần như liên tục.
+      # vCPU-giây/tháng, vượt trần free 180.000 tới 2,4 lần.
+      #
+      # Khi tắt Cloud SQL để nghỉ thì PHẢI tạm dừng job Scheduler này cùng lúc — không thì
+      # mỗi 5 phút một lượt worker nối vào DB đã tắt, đỏ, retry (hướng dẫn deploy §15).
       - name: Deploy worker (Cloud Run Job)
         run: |
           gcloud run jobs deploy flash-core-worker \
             --image "$IMAGE" \
             --region "${{ vars.GCP_REGION }}" \
             --command node --args "dist/worker-once.js" \
+            --set-cloudsql-instances "${{ vars.GCP_SQL_INSTANCE }}" \
+            --service-account "flash-core-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --set-env-vars NODE_ENV=production,LOG_LEVEL=info,INVENTORY_STRATEGY=pessimistic,DATABASE_POOL_MAX=5,QUEUE_PREFIX=prod \
             --set-secrets DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,JWT_ACCESS_SECRET=JWT_ACCESS_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,PAYMENT_WEBHOOK_SECRET=PAYMENT_WEBHOOK_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest \
             --max-retries 1 --task-timeout 120s --quiet

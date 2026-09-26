@@ -135,7 +135,7 @@ với một monolith thường.
 | **Modular Monolith**, không microservices | Dự án một người. Microservices sẽ ngốn toàn bộ thời gian vào hạ tầng thay vì vào concurrency |
 | **PostgreSQL** dù MySQL quen hơn | Cố tình mở rộng skill: JSONB + GIN, `SELECT FOR UPDATE SKIP LOCKED`, isolation level rõ ràng |
 | **Zod**, không class-validator | Một schema dùng cho cả validate runtime và suy ra type compile-time |
-| **Prisma 7 + driver adapter `pg`** | Prisma 7 bỏ engine Rust; `pg.Pool` do mình cấu hình → số connection thành biến điều khiển được, cần cho benchmark Phase 3 và Neon pooler Phase 7 |
+| **Prisma 7 + driver adapter `pg`** | Prisma 7 bỏ engine Rust; `pg.Pool` do mình cấu hình → số connection thành biến điều khiển được, cần cho benchmark Phase 3 và trần connection trên serverless Phase 7 |
 | **Làm CẢ BA chiến lược chống oversell**, đổi bằng config | Làm một cách chỉ là "đã làm"; so sánh ba cách kèm số đo mới là "đã hiểu". Số đo ra kết quả ngược trực giác — xem Lộ trình bên dưới |
 | **Ghi dấu đã-xử-lý TRƯỚC khi gửi email** | Gửi mail không nằm trong transaction nào, buộc phải chọn: có thể MẤT hay có thể TRÙNG. Với email xác nhận đơn, gửi hai lần mất lòng tin hơn là chậm một nhịp — [ADR-004](docs/adr/004-ghi-dau-truoc-khi-gui-mail.md) |
 | **Huỷ đơn quá hạn bằng CẢ delayed job lẫn sweeper** | Delayed job dạy cách hẹn giờ; sweeper dạy bài học lớn hơn — queue có thể mất job, **DB mới là sự thật**. Hai đường vào một hàm biến "phải idempotent" thành thứ test được |
@@ -157,7 +157,7 @@ và [`docs/adr/`](docs/adr/).
 | 4 | Async: BullMQ, Outbox, DLQ, payment webhook (verify HMAC, idempotent) | ✅ **Xong** — 21 test mới, "rút dây mạng" không mất/không trùng, ADR-004/005/006 |
 | 5 | UI demo: trang tĩnh 1 file, 4 màn hình, tồn kho realtime | ✅ **Xong** — chạy đầu-cuối trên Chrome thật, ADR-007 |
 | 6 | Observability: Pino + correlationId xuyên suốt, /health & /ready, metrics | ⬜ |
-| 7 | Deploy Cloud Run + Neon + Upstash, FinOps mục tiêu 0đ/tháng | ⬜ |
+| 7 | Deploy Cloud Run + Cloud SQL + Upstash, FinOps (Cloud SQL ~$9/tháng trong giai đoạn credit — ADR-016) | ⬜ |
 
 Chi tiết deliverable từng phase: [`docs/SPEC.md`](docs/SPEC.md).
 

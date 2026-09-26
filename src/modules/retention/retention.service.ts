@@ -11,8 +11,8 @@ const MAX_ROUNDS = 20;
  * Dọn hai bảng **chỉ ghi thêm, không bao giờ tự xoá**: `outbox_events` và `processed_events`.
  *
  * **Vì sao nợ này đáng trả trước khi deploy:** hai bảng đó tăng theo mỗi đơn hàng và không có
- * gì làm chúng nhỏ lại. Trên Neon free 0,5 GB, thứ vỡ không phải hiệu năng mà là **dung
- * lượng** — và nó lộ ra bằng **hoá đơn hoặc hard cutoff**, không bằng một dòng lỗi nào. Loại
+ * gì làm chúng nhỏ lại. Trên ổ Cloud SQL 10 GB không tự nở, thứ vỡ không phải hiệu năng mà là
+ * **dung lượng** — và nó lộ ra bằng **ổ đầy hoặc hoá đơn**, không bằng một dòng lỗi nào. Loại
  * sự cố im lặng nhất trong cả hệ thống.
  *
  * ### Xoá theo lô, không xoá một phát

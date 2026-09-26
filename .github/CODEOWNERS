@@ -1,0 +1,17 @@
+# Ai phải duyệt khi một PR đụng vào những file này (ADR-017).
+#
+# Chỉ có tác dụng khi branch ruleset bật "Require review from Code Owners" — làm một mình thì
+# chưa bật, vì GitHub không cho tự duyệt PR của mình. File có sẵn để khi có người thứ hai chỉ
+# cần bật một ô (hướng dẫn deploy §18.4).
+
+# Ai sửa được deploy.yml thì điều khiển được service account deploy (ADR-014) — coi ngang quyền
+# sửa IAM.
+/.github/                @phamtam215
+
+# Migration chạy thẳng lên DB prod và không lùi được (spec Phase 7 §Bài toán #5).
+/prisma/migrations/      @phamtam215
+/prisma/schema.prisma    @phamtam215
+
+# Kết nối DB, Redis, queue, metrics — đổi ở đây là đổi hành vi của cả hệ thống.
+/src/infra/              @phamtam215
+/Dockerfile              @phamtam215
