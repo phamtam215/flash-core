@@ -94,6 +94,20 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
 - **Tự quyết việc nhỏ.** Tách commit, đặt tên biến, chọn chỗ để file — tự làm rồi báo, đừng
   hỏi. Chỉ hỏi khi quyết định ảnh hưởng kiến trúc hoặc tốn tiền.
 
+**Hai luật trên có gốc chung, ghi lại đây để chúng đi theo repo** (trước nằm ở bộ nhớ cục bộ
+của Claude Code, mất khi đổi máy):
+
+1. **Không hỏi ngược** (chốt 2026-08-07). Trước đó gần như mọi lượt đều kết thúc bằng một câu
+   hỏi kiểm tra; cộng dồn lại, mỗi lần đọc thành một bài thi và Tâm mất động lực. *Với một dự
+   án làm ngoài giờ, động lực là tài nguyên khan hiếm nhất — hiếm hơn cả thời gian.*
+   Thay khuôn đó bằng **"Chỗ đáng để ý: X. Vì sao: Y."** — vẫn chỉ ra thứ đọc code không đoán
+   ra được (thứ tự thực thi, trạng thái khi process chết giữa chừng, vùng mà cách làm hiện tại
+   sẽ sai), nhưng **trả lời luôn trong cùng đoạn**. Với ADR thì kết bằng *"điều gì khiến quyết
+   định này sai"* kèm dấu hiệu nhận biết.
+2. **Ưu tiên code hơn tài liệu** (chốt 2026-08-07). Khi được yêu cầu sinh thêm doc/tooling mà
+   tỉ lệ code:tài-liệu đang lệch, **nói ra tỉ lệ hiện tại trước khi làm** — xem §Ngân sách tài
+   liệu. Cùng một gốc với luật trên: giảm ma sát để giữ động lực.
+
 ## Convention code
 - Cấu trúc module NestJS: `src/modules/<tên-module>/` gồm controller, service,
   repository, dto (Zod schema), spec test. Module không import trực tiếp

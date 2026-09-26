@@ -17,6 +17,7 @@ chép lại. Đây là luật khiến tài liệu không lệch nhau khi code đ
 | **Sơ đồ tương tác để trình bày** (zoom, tô đường đi, xuất ảnh) — nội dung bám theo các chủ sở hữu ở bảng này | [`so-do/`](html/so-do/index.html) |
 | **Tech stack nào giải quyết vấn đề gì** + kịch bản demo/thuyết trình khi phỏng vấn | [`demo-phong-van.md`](demo-phong-van.md) |
 | **Đang ở phase nào, còn nợ gì** | [`CLAUDE.md`](../CLAUDE.md) §Trạng thái hiện tại |
+| **Làm gì tiếp, theo thứ tự nào** | [`viec-tiep-theo.md`](viec-tiep-theo.md) |
 | Kế hoạch 8 phase + Definition of Done | [`SPEC.md`](SPEC.md) |
 | Code nằm ở đâu, sửa X thì mở file nào | [`architecture.md`](architecture.md) |
 | **Kiến thức**: cơ chế, bug thật, số đo, đáp án câu hỏi bản chất, ôn phỏng vấn | [`tech-playbook.md`](tech-playbook.md) |

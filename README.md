@@ -36,12 +36,20 @@ Kiến trúc: **Modular Monolith** (NestJS + TypeScript, PostgreSQL 16 + Prisma,
 git clone <repo> && cd flash-core
 npm install
 
-cp .env.example .env          # giá trị mặc định đã khớp docker-compose, chạy được ngay
+cp .env.example .env          # đủ mọi biến bắt buộc; giá trị khớp docker-compose
 npm run up                    # dựng Postgres 16 + Redis 7
 npm run db:generate           # sinh Prisma Client vào src/generated/prisma
+npx prisma migrate deploy     # TẠO BẢNG — bỏ bước này là app chạy nhưng mọi API chết 42P01
 npm run dev                   # http://localhost:3000  (terminal 1)
 npm run worker                # xử lý job nền           (terminal 2)
 ```
+
+> **Hai bước hay bị bỏ, và cả hai đều thất bại theo kiểu khó đoán:**
+>
+> - Quên `prisma migrate deploy` → app lên bình thường, nhưng mọi API chạm DB trả `500` với
+>   `42P01: relation does not exist`, và worker in lỗi đó **mỗi giây**.
+> - Sửa `.env` thiếu một biến bắt buộc → app **chết ngay lúc khởi động** kèm danh sách biến
+>   thiếu. Đây là chủ ý: sai cấu hình phải lộ lúc `npm run dev`, không phải lúc có khách.
 
 Mở **http://localhost:3000** là có trang demo (Phase 5): đăng nhập, săn áo, xem tồn kho rơi
 theo thời gian thực.
@@ -67,7 +75,10 @@ request, dùng để truy lại toàn bộ hành trình khi debug.
 | `npm run worker` | Chạy worker xử lý job nền (BullMQ) — process riêng. Dùng `nest start` chứ không `ts-node`: Prisma Client sinh import `.js` mà ts-node không ánh xạ được |
 | `npm run worker:dev` | Như trên, watch mode |
 | `npm test` | Unit test (nhanh, không cần Docker) |
-| `npm run test:int` | Integration test trên Postgres thật (Testcontainers, cần Docker). Không nối được docker socket thì đặt `TEST_DATABASE_URL`/`TEST_REDIS_URL` — xem `test/infra-fixture.ts` |
+| `npm run test:int` | Integration test trên Postgres + Redis thật (Testcontainers, cần Docker) |
+| **`npm run test:int:local`** | **Cách dùng hằng ngày** — dùng hạ tầng của `npm run up` thay vì Testcontainers. Cần khi sandbox/máy không cho Jest nối `docker.sock`. Lưu ý cổng **5433** (compose ánh xạ ra đó để né Postgres cài thẳng trên máy) và Redis **DB index 1** (fixture từ chối `FLUSHDB` vào DB 0) |
+| `npm run make-admin -- <email>` | Nâng một tài khoản lên `ADMIN`. Cố tình không có endpoint — một API tự nâng quyền là bề mặt leo thang đặc quyền |
+| `npm run worker:once` | Worker chạy **một lượt rồi thoát** — điểm vào cho Cloud Run Job ([ADR-012](docs/adr/012-worker-tren-cloud-run.md)) |
 | `npm run test:cov` | Unit test + coverage |
 | `npm run check` | lint + typecheck + test — chạy trước khi commit |
 | `npm run lint` / `lint:fix` | ESLint (có rule type-aware) |
