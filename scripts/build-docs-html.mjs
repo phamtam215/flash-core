@@ -21,6 +21,7 @@ const OUT_DIR = `${ROOT}docs/html/`;
 
 /** Trang tham khảo + ADR: sinh từ Markdown. */
 const PAGES = [
+  { src: 'docs/viec-tiep-theo.md', out: 'viec-tiep-theo.html', title: 'Việc tiếp theo' },
   { src: 'docs/onboarding.md', out: 'onboarding.html', title: 'Lộ trình cho người mới — 6 buổi có thực hành' },
   { src: 'docs/demo-phong-van.md', out: 'demo-phong-van.html', title: 'Demo & thuyết trình khi phỏng vấn' },
   { src: 'docs/README.md', out: 'docs-map.html', title: 'Bản đồ tài liệu — thông tin nào ở file nào' },
@@ -109,6 +110,7 @@ const NAV = [
     ['spec-phase-9.html', 'Phase 9 — Web hoàn thiện (draft)'],
   ]],
   ['Tham khảo', [
+    ['viec-tiep-theo.html', '★ Việc tiếp theo (viec-tiep-theo.md)'],
     ['onboarding.html', '★ Lộ trình người mới (onboarding.md)'],
     ['demo-phong-van.html', '★ Demo &amp; phỏng vấn (demo-phong-van.md)'],
     ['docs-map.html', 'Bản đồ tài liệu (docs/README.md)'],
@@ -131,6 +133,7 @@ const NAV = [
 
 /** Link `.md` → trang HTML tương ứng. Cái nào không có ở đây thì BỎ link, giữ chữ. */
 const LINK_MAP = new Map([
+  ['viec-tiep-theo.md', 'viec-tiep-theo.html'],
   ['onboarding.md', 'onboarding.html'],
   ['demo-phong-van.md', 'demo-phong-van.html'],
   ['readme.md', 'docs-map.html'],

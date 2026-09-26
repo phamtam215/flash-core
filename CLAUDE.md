@@ -25,6 +25,11 @@ không chép lại.** Ba ranh giới quan trọng nhất:
 Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, không viết vào spec; spec chỉ
 được giữ *bằng chứng* (số test, số đo, cấu hình chạy lại), không giữ trạng thái.
 
+- `docs/viec-tiep-theo.md` — **hàng đợi có thứ tự**: làm gì trước, ai làm, việc nào chặn việc
+  nào. Nó sở hữu đúng *thứ tự làm* — không giữ trạng thái (§Trạng thái của file này giữ), không
+  giữ hợp đồng (`specs/` giữ), không giữ kiến thức (`tech-playbook.md` giữ). **Luật giữ cho nó
+  không trôi lệch: xong một việc thì xoá dòng đó trong CHÍNH commit làm việc đó.** Khi Tâm hỏi
+  "giờ cần làm gì", mở file này.
 - `docs/onboarding.md` — **lộ trình cho người mới** (6 buổi, có bài thực hành phá code rồi
   sửa). Nó KHÔNG chứa kiến thức — nó sở hữu *thứ tự học* và các bài thực hành, còn kiến thức
   vẫn trỏ về `tech-playbook.md`. Khi Tâm hỏi "học lại từ đâu", trỏ vào file này.
@@ -382,5 +387,9 @@ Muốn xem lại thì `git log -- .claude/`.
   không phải việc code trông đúng.
 - **Trước khi chạy `npm run worker` lần đầu sau khi pull:** `npx prisma migrate deploy`.
   Thiếu bước này worker in lỗi `42P01`/`42703` mỗi giây (thiếu bảng / thiếu cột).
+- **Hàng đợi việc nằm ở `docs/viec-tiep-theo.md`** (tạo 2026-09-26), không nằm ở đây. Mục này
+  giữ *đã xong*; file kia giữ *làm gì tiếp*. Cố ý không dùng công cụ ngoài (ClickUp/Linear/
+  Jira): chúng cần connector mà công ty có thể cấm, và một danh sách việc nằm ngoài repo thì
+  chắc chắn trôi lệch khỏi code.
 - Cập nhật mục này mỗi khi xong một mốc. **Không tạo checklist riêng cho Phase 1/2/3** (§Ngân
   sách tài liệu) — spec đã là danh sách việc.
