@@ -56,6 +56,40 @@ export class SaleEventService {
     return this.repo.findById(saleEventId);
   }
 
+  /**
+   * Đóng mọi đợt đã hết giờ và trả hàng tồn về SKU. Chạy định kỳ ở worker.
+   *
+   * Đây là **thao tác ngược của publish**, và nó tồn tại vì chính quyết định cắt hàng
+   * (ADR-015): đợt kết thúc còn 7 chiếc thì 7 chiếc đó kẹt lại ở `sale_event_skus` — không ai
+   * mua được nữa, mà kho chung cũng không có. **Hàng biến mất khỏi hệ thống mà không có lỗi
+   * nào báo** — đúng loại sự cố im lặng nhất.
+   *
+   * Idempotent nhờ cờ `is_settled` nằm trong chính câu `UPDATE`: chạy chồng hai lần thì lần
+   * sau đổi 0 dòng và thoát êm, không trả hàng lần hai.
+   */
+  async settleEndedEvents(limit = 50): Promise<{ events: number; returned: number }> {
+    const ids = await this.repo.findEndedUnsettled(limit);
+    if (ids.length === 0) return { events: 0, returned: 0 };
+
+    let events = 0;
+    let returned = 0;
+
+    for (const id of ids) {
+      const result = await this.repo.settleEnded(id);
+      // `null` = đường khác đã đóng đợt này trước. Không phải lỗi, thoát êm — cùng lập luận
+      // với `cancelPendingOrder` khi hai đường cùng huỷ một đơn.
+      if (!result) continue;
+
+      events += 1;
+      returned += result.reduce((sum, row) => sum + row.returned, 0);
+    }
+
+    if (events > 0) {
+      this.logger.log({ events, returned }, 'Đã đóng đợt sale hết giờ và trả hàng tồn về kho chung');
+    }
+    return { events, returned };
+  }
+
   /** Danh sách đợt đã publish, kèm trạng thái TÍNH RA tại thời điểm đọc. */
   async listPublished(limit = 20) {
     const events = await this.repo.listPublished(limit);

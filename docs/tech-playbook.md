@@ -521,6 +521,75 @@ khi ai đó phá luật.
 
 ---
 
+# Vòng đời dữ liệu — bảng chỉ ghi thêm
+
+## Hai bảng không bao giờ tự nhỏ lại
+
+`outbox_events` và `processed_events` tăng theo **mỗi đơn hàng** và không có gì làm chúng nhỏ
+lại. Trên một gói free 0,5 GB, thứ vỡ không phải hiệu năng mà là **dung lượng** — và nó lộ ra
+bằng **hoá đơn hoặc hard cutoff**, không bằng một dòng lỗi nào. Đây là loại sự cố im lặng nhất
+trong cả hệ thống: mọi test xanh, mọi metric bình thường, cho tới ngày DB từ chối ghi.
+
+## Ngưỡng giữ dấu idempotent là núm vặn về TÍNH ĐÚNG, không phải về dung lượng
+
+Đây là điểm dễ sai nhất, và nó không giống mọi cấu hình retention khác.
+
+`processed_events` là thứ **duy nhất** chặn một sự kiện bị xử lý hai lần. Xoá dấu của một sự
+kiện rồi mà sự kiện đó quay lại — cổng thanh toán gửi lại, ai đó chạy lại relay từ bản sao
+lưu, một job cũ còn nằm trong Redis — thì nó được xử lý **lần nữa**. Với `markPaid` thì hệ quả
+là **tiền**.
+
+Nên ngưỡng phải **lớn hơn mọi cửa sổ gửi lại có thể xảy ra**:
+
+| Nguồn gửi lại | Cửa sổ |
+|---|---|
+| Retry của BullMQ | vài phút |
+| Cổng thanh toán gửi lại webhook | thường vài ngày |
+| Khôi phục từ bản sao lưu | vài ngày tới vài tuần |
+
+30 ngày là mức rộng rãi cho cả ba. **Hạ xuống thì tiết kiệm dung lượng và mua lấy rủi ro xử
+lý trùng** — đó là đánh đổi phải nói ra, không phải một con số cấu hình vô hại.
+
+## Ba dòng KHÔNG bao giờ được xoá
+
+| Trạng thái | Vì sao giữ |
+|---|---|
+| `PENDING` | Chưa đẩy vào queue. Xoá là **mất sự kiện** — email không bao giờ gửi, và không gì báo vì dòng đó biến mất luôn |
+| `FAILED` | Cạn số lần thử ⇒ đang **chờ người nhìn**. Dọn đi là dọn mất chính thứ cần điều tra |
+| Chưa đủ cũ | Còn trong cửa sổ gửi lại ở trên |
+
+Tiện thể: job dọn là **chỗ duy nhất đi ngang qua cả bảng một cách đều đặn**, nên cho nó đếm
+luôn số dòng `FAILED` và đẩy vào metric. Con số đó tăng đều nghĩa là có thứ hỏng mà chưa ai
+nhìn.
+
+## Xoá theo lô, không xoá một phát
+
+`DELETE FROM ... WHERE created_at < ...` trên vài triệu dòng là một transaction khổng lồ: giữ
+khoá lâu, phình WAL, và bị huỷ giữa chừng thì **cuộn lại toàn bộ** — mất hết công mà bảng vẫn
+nguyên.
+
+Xoá 5.000 dòng mỗi vòng thì mỗi vòng tự commit; dừng lúc nào cũng giữ được phần đã làm. Kèm
+một **trần số vòng**: tồn đọng một triệu dòng cũng chỉ dọn 100.000 mỗi lần chạy. *Thà dọn chậm
+còn hơn chiếm worker suốt đêm.*
+
+Dừng đúng lúc cũng quan trọng ngang: **lô không đầy nghĩa là đã hết dòng đủ cũ**. Không dừng
+thì chạy thêm những câu `DELETE` không xoá được gì và chạm trần vòng lặp mỗi lần.
+
+## Thao tác ngược của một thao tác cắt
+
+Phase 8 cắt hàng khỏi SKU lúc publish ([ADR-015](adr/015-ton-kho-dot-cat-ra-tu-sku.md)). Hệ
+quả không hiển nhiên: **đợt kết thúc còn 7 chiếc thì 7 chiếc đó kẹt lại** — không ai mua được
+nữa, mà kho chung cũng không có. Hàng biến mất khỏi hệ thống, không lỗi nào báo.
+
+**Luật rút ra: mỗi thao tác "cắt/chuyển" phải có thao tác ngược, và phải viết cùng lúc.** Viết
+sau thì khoảng giữa hai lần là một lỗ rò không ai thấy.
+
+Thao tác ngược đó phải **idempotent** vì nó chạy bằng job lặp: cờ `is_settled` nằm trong chính
+câu `UPDATE`, chạy chồng hai lần thì lần sau đổi 0 dòng và thoát êm. Không idempotent thì mỗi
+vòng **nhân đôi hàng từ hư không** — và cũng không lỗi nào báo, kho chỉ tự nhiên nhiều lên.
+
+---
+
 # Phase 8 — Đợt sale
 
 ## Trạng thái phải TÍNH, đừng lưu

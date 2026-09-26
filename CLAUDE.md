@@ -442,6 +442,26 @@ Muốn xem lại thì `git log -- .claude/`.
   (cùng cơ chế optimistic). Lý do ở ADR-015 §Một điều KHÔNG làm.
   **Nợ mới:** đóng đợt và trả hàng tồn về SKU (đợt hết còn 7 chiếc thì 7 chiếc đó kẹt lại);
   k6 chạy trên đợt sale.
+- **VÒNG ĐỜI DỮ LIỆU — XONG** 2026-09-26. Trả hai nợ, cả hai cùng một kiểu: **thứ hỏng im
+  lặng, không lỗi nào báo**.
+  - **`module retention`**: job lặp mỗi giờ dọn `outbox_events` (chỉ `DISPATCHED`) và
+    `processed_events` đủ cũ. Xoá **theo lô 5.000** kèm trần 20 vòng — `DELETE` một phát trên
+    vài triệu dòng là transaction khổng lồ, bị huỷ giữa chừng thì cuộn lại toàn bộ.
+    **`DATA_RETENTION_DAYS` (mặc định 30) là núm vặn về TÍNH ĐÚNG, không phải dung lượng**:
+    `processed_events` là thứ duy nhất chặn xử lý trùng, xoá dấu rồi mà sự kiện quay lại
+    (cổng gửi lại, khôi phục sao lưu) thì `markPaid` chạy lần nữa — hệ quả là tiền. **Không
+    bao giờ xoá `PENDING`** (mất sự kiện) và **`FAILED`** (đang chờ người nhìn); tiện thể đếm
+    số `FAILED` vào metric `outbox_failed` vì job dọn là chỗ duy nhất đi ngang cả bảng đều đặn.
+  - **Đóng đợt sale** (`sale-event.settle`, mỗi 5 phút): trả hàng tồn về SKU — **thao tác
+    ngược của publish**. Đợt hết giờ còn 7 chiếc thì 7 chiếc đó kẹt ở `sale_event_skus`, không
+    ai mua được mà kho chung cũng không có. Cờ `is_settled` trong chính câu `UPDATE` làm nó
+    idempotent — không thì job lặp **nhân đôi hàng từ hư không** mỗi vòng.
+  **Luật rút ra, ghi ở `tech-playbook.md` §Vòng đời dữ liệu: mỗi thao tác "cắt/chuyển" phải có
+  thao tác ngược, và phải viết CÙNG LÚC.** Viết sau thì khoảng giữa hai lần là một lỗ rò không
+  ai thấy.
+  Migration `20260926140000_add_sale_event_settled`. Biến mới có mặc định:
+  `DATA_RETENTION_DAYS`, `RETENTION_BATCH_SIZE`. Metric mới: `outbox_failed`,
+  `retention_rows_deleted_total{table}`.
 - **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
   Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
 - **Một test FLAKY đã tìm ra và sửa 2026-09-22:** chạy `test:int:local` hai lần liên tiếp thì
@@ -456,7 +476,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
   `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
   không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
-- **Số test hiện tại: 163 unit + 148 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
+- **Số test hiện tại: 171 unit + 160 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
 - **CẦN CHẠY LẠI khi bật Docker** (Tâm): `npm run up`, rồi `npm run test:int:local`, rồi
   benchmark k6 đầu-cuối (`node k6/seed-target.js` → dán lệnh nó in ra, giờ có thêm `-e CSRF=`).
   Bản sửa k6 ngày 2026-09-22 **chưa được chạy thật lần nào** — lần chạy đó mới là bằng chứng,

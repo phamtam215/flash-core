@@ -354,6 +354,12 @@ model SaleEvent {
   startsAt    DateTime @map("starts_at")
   endsAt      DateTime @map("ends_at")
   isPublished Boolean  @default(false) @map("is_published")
+
+  /// Đã đóng đợt và trả hàng tồn về SKU chưa. Cờ này PHẢI lưu — khác `status`, nó không suy
+  /// ra được từ thời gian: "đã hết giờ" và "đã trả hàng về kho" là hai chuyện khác nhau, và
+  /// khoảng giữa chúng chính là lúc job đóng đợt chưa chạy tới.
+  isSettled   Boolean  @default(false) @map("is_settled")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -361,6 +367,8 @@ model SaleEvent {
 
   // Danh sách đợt đang bán: lọc `is_published` rồi sắp theo giờ mở.
   @@index([isPublished, startsAt])
+  // Job đóng đợt quét đúng dòng cần xử lý: đã publish, chưa settle, đã hết giờ.
+  @@index([isPublished, isSettled, endsAt])
   @@map("sale_events")
 }
 

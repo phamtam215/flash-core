@@ -13,6 +13,8 @@ import { PrismaService } from '../src/infra/prisma';
 import { JOB, QueueService } from '../src/infra/queue';
 import { HealthService } from '../src/modules/health';
 import { OrderExpiryService, OrderNotifier } from '../src/modules/order';
+import { RetentionService } from '../src/modules/retention';
+import { SaleEventService } from '../src/modules/sale-event';
 import { OutboxRelay } from '../src/modules/outbox';
 import { PaymentService } from '../src/modules/payment';
 import { JobProcessor } from '../src/worker/job.processor';
@@ -104,6 +106,8 @@ describe('Observability (e2e)', () => {
       app.get(OrderExpiryService),
       app.get(PaymentService),
       metrics,
+      app.get(RetentionService),
+      app.get(SaleEventService),
     );
   }
 

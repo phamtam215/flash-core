@@ -57,6 +57,8 @@ async function bootstrap(): Promise<void> {
   // thức để kích hoạt, thứ chính xác là cái ta không có ở đây.
   await runSafely(() => processor.process({ name: 'outbox.relay' } as Job), logger, 'outbox.relay');
   await runSafely(() => processor.process({ name: 'order.expire.sweep' } as Job), logger, 'sweep');
+  await runSafely(() => processor.process({ name: 'data.retention' } as Job), logger, 'retention');
+  await runSafely(() => processor.process({ name: 'sale-event.settle' } as Job), logger, 'settle');
 
   // Worker thật: job đi đúng vòng đời active → completed/failed, nên `attempts`, `backoff` và
   // DLQ của `QueueService` hoạt động y như khi chạy worker dài hạn.

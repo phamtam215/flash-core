@@ -11,6 +11,8 @@ import {
 } from '../infra/queue';
 import { PermanentMailError } from '../modules/mail';
 import { OrderExpiryService, OrderNotifier } from '../modules/order';
+import { RetentionService } from '../modules/retention';
+import { SaleEventService } from '../modules/sale-event';
 import { OutboxRelay } from '../modules/outbox';
 import { PaymentService } from '../modules/payment';
 
@@ -31,6 +33,8 @@ export class JobProcessor {
     private readonly expiry: OrderExpiryService,
     private readonly payments: PaymentService,
     private readonly metrics: MetricsService,
+    private readonly retention: RetentionService,
+    private readonly saleEvents: SaleEventService,
   ) {}
 
   /**
@@ -76,6 +80,14 @@ export class JobProcessor {
 
       case JOB.ORDER_EXPIRE_SWEEP:
         await this.expiry.sweepExpired();
+        return;
+
+      case JOB.DATA_RETENTION:
+        await this.retention.sweep();
+        return;
+
+      case JOB.SALE_EVENT_SETTLE:
+        await this.saleEvents.settleEndedEvents();
         return;
 
       case JOB.PAYMENT_PROCESS:

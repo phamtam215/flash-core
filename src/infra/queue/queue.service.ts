@@ -78,7 +78,24 @@ export class QueueService implements OnModuleDestroy {
       { every: 60_000 },
       { name: JOB.ORDER_EXPIRE_SWEEP, opts: { removeOnComplete: 5, removeOnFail: 20 } },
     );
-    this.logger.log('Đã đăng ký 2 job lặp: outbox relay và sweeper huỷ đơn quá hạn');
+    // Mỗi giờ là đủ: hai bảng này phình theo NGÀY chứ không theo giây, và dọn thưa hơn thì
+    // mỗi lần dọn nhiều hơn — vẫn nằm trong trần `MAX_ROUNDS`. Dọn dày chỉ tốn thêm truy vấn
+    // vào một DB mà Phase 7 đang cố giữ cho ngủ (Neon autosuspend sau 5 phút idle).
+    await this.queue.upsertJobScheduler(
+      'data-retention-sweeper',
+      { every: 3_600_000 },
+      { name: JOB.DATA_RETENTION, opts: { removeOnComplete: 5, removeOnFail: 20 } },
+    );
+    // 5 phút: hàng tồn của một đợt đã đóng không gấp, nhưng để lâu thì nó nằm ngoài kho
+    // chung đúng chừng đó thời gian — và đợt kế tiếp có thể đang cần chính số hàng đó.
+    await this.queue.upsertJobScheduler(
+      'sale-event-settler',
+      { every: 300_000 },
+      { name: JOB.SALE_EVENT_SETTLE, opts: { removeOnComplete: 5, removeOnFail: 20 } },
+    );
+    this.logger.log(
+      'Đã đăng ký 4 job lặp: outbox relay, huỷ đơn quá hạn, dọn dữ liệu cũ, đóng đợt sale',
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

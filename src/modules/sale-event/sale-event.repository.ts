@@ -82,6 +82,64 @@ export class SaleEventRepository {
     });
   }
 
+  /**
+   * Đóng một đợt đã kết thúc và **trả hàng tồn về SKU** — thao tác ngược của publish.
+   *
+   * Vì sao cần: hàng được **cắt** khỏi SKU lúc publish (ADR-015), nên đợt kết thúc còn 7 chiếc
+   * thì 7 chiếc đó **kẹt lại** ở `sale_event_skus` — không ai mua được nữa, mà kho chung cũng
+   * không có. Hàng biến mất khỏi hệ thống mà không có lỗi nào báo.
+   *
+   * Ba hàng rào trong chính câu `UPDATE`, mỗi cái chặn một kiểu trả nhầm:
+   *
+   * - `is_published = true AND is_settled = false` — chưa publish thì chưa cắt, không có gì
+   *   để trả; đã settle rồi mà trả lần nữa là **nhân đôi hàng từ hư không**.
+   * - `now() > ends_at` — đợt còn đang bán thì rút hàng về là cướp hàng khỏi tay người mua.
+   *
+   * Trả `null` khi không có gì để làm — giống `cancelPendingOrder`, để người gọi thoát êm
+   * thay vì ném lỗi cho một tình huống bình thường (job chạy lại trên đợt đã settle).
+   */
+  async settleEnded(saleEventId: string): Promise<{ skuId: string; returned: number }[] | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const closed = await tx.$executeRaw`
+        UPDATE sale_events SET is_settled = true, updated_at = now()
+        WHERE id = ${saleEventId}::uuid
+          AND is_published = true
+          AND is_settled = false
+          AND now() > ends_at`;
+
+      if (closed === 0) return null;
+
+      // Lấy tồn dư SAU khi cờ đã đổi được — cùng lập luận với `cancelPendingOrder`: chỉ đọc
+      // số cần trả khi chắc chắn chính lần gọi NÀY là lần đóng đợt.
+      const leftovers = await tx.$queryRaw<{ skuId: string; stock: number }[]>`
+        SELECT sku_id AS "skuId", stock FROM sale_event_skus
+        WHERE sale_event_id = ${saleEventId}::uuid AND stock > 0`;
+
+      for (const row of leftovers) {
+        await tx.$executeRaw`
+          UPDATE product_skus
+          SET stock = stock + ${row.stock}, version = version + 1, updated_at = now()
+          WHERE id = ${row.skuId}::uuid`;
+        await tx.$executeRaw`
+          UPDATE sale_event_skus SET stock = 0, updated_at = now()
+          WHERE sale_event_id = ${saleEventId}::uuid AND sku_id = ${row.skuId}::uuid`;
+      }
+
+      return leftovers.map((row) => ({ skuId: row.skuId, returned: row.stock }));
+    });
+  }
+
+  /** Đợt đã publish, đã hết giờ, chưa settle — đầu vào của job đóng đợt. */
+  async findEndedUnsettled(limit: number): Promise<string[]> {
+    const rows = await this.prisma.saleEvent.findMany({
+      where: { isPublished: true, isSettled: false, endsAt: { lt: new Date() } },
+      select: { id: true },
+      orderBy: { endsAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => row.id);
+  }
+
   async findBySlug(slug: string) {
     return this.prisma.saleEvent.findUnique({
       where: { slug },

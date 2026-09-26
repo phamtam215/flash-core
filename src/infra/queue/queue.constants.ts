@@ -19,6 +19,10 @@ export const JOB = {
   OUTBOX_RELAY: 'outbox.relay',
   /** Lưới an toàn: quét đơn PENDING quá hạn mà delayed job không chạy. Repeatable. */
   ORDER_EXPIRE_SWEEP: 'order.expire.sweep',
+  /** Dọn dòng cũ ở `outbox_events` và `processed_events`. Repeatable, mỗi giờ. */
+  DATA_RETENTION: 'data.retention',
+  /** Đóng đợt sale hết giờ và trả hàng tồn về SKU. Repeatable, mỗi 5 phút. */
+  SALE_EVENT_SETTLE: 'sale-event.settle',
 } as const;
 
 export type JobName = (typeof JOB)[keyof typeof JOB];

@@ -22,6 +22,7 @@ import { OrderModule } from './modules/order';
 import { OutboxModule } from './modules/outbox';
 import { PaymentModule } from './modules/payment';
 import { ProductModule } from './modules/product';
+import { RetentionModule } from './modules/retention';
 import { SaleEventModule } from './modules/sale-event';
 
 /**
@@ -42,6 +43,7 @@ import { SaleEventModule } from './modules/sale-event';
     MetricsModule,
     AuthModule,
     ProductModule,
+    RetentionModule,
     SaleEventModule,
     MailModule,
     OutboxModule,

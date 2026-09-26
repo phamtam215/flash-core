@@ -30,6 +30,8 @@ export class MetricsService {
   readonly ordersCancelled: Counter<'by'>;
   readonly reserveDuration: Histogram<'strategy'>;
   readonly outboxPending: Gauge<string>;
+  readonly outboxFailed: Gauge<string>;
+  readonly retentionDeleted: Counter<'table'>;
   readonly queueJobs: Counter<'job' | 'outcome'>;
 
   constructor(@Inject(ENV) env: Env) {
@@ -86,6 +88,19 @@ export class MetricsService {
     this.outboxPending = new Gauge({
       name: 'outbox_pending',
       help: 'Số sự kiện đang chờ đẩy trong hộp thư đi — tăng đều nghĩa là relay đã chết',
+      registers: [this.registry],
+    });
+
+    this.outboxFailed = new Gauge({
+      name: 'outbox_failed',
+      help: 'Số sự kiện cạn số lần thử và nằm lại — KHÔNG bao giờ bị job dọn xoá đi',
+      registers: [this.registry],
+    });
+
+    this.retentionDeleted = new Counter({
+      name: 'retention_rows_deleted_total',
+      help: 'Số dòng đã dọn, tách theo bảng — dùng để biết bảng nào đang phình',
+      labelNames: ['table'] as const,
       registers: [this.registry],
     });
 

@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/infra/prisma';
 import { QueueService } from '../src/infra/queue';
 import { OrderExpiryService } from '../src/modules/order';
+import { SaleEventService } from '../src/modules/sale-event';
 import { csrfAgent } from './http-helper';
 import { startInfra } from './infra-fixture';
 
@@ -31,6 +32,7 @@ describe('Đợt sale (e2e)', () => {
   let prisma: PrismaService;
   let queue: QueueService;
   let expiry: OrderExpiryService;
+  let saleEvents: SaleEventService;
 
   beforeAll(async () => {
     stopInfra = await startInfra();
@@ -57,6 +59,7 @@ describe('Đợt sale (e2e)', () => {
     prisma = app.get(PrismaService);
     queue = app.get(QueueService);
     expiry = app.get(OrderExpiryService);
+    saleEvents = app.get(SaleEventService);
   }, 300_000);
 
   afterAll(async () => {
@@ -513,5 +516,83 @@ describe('Đợt sale (e2e)', () => {
 
     expect((res.body.order as { totalVnd: number }).totalVnd).toBe(300_000);
     expect(await skuStock(skuId)).toBe(49);
+  });
+
+  // ── Đóng đợt: trả hàng tồn về SKU ────────────────────────────────────────────────────
+
+  it('16. ⭐ đợt hết giờ → đóng đợt trả hàng TỒN về SKU', async () => {
+    const skuId = await seedSku(50);
+    const { itemId, eventId } = await seedEvent({ skuId, allocatedStock: 30 });
+    const buyer = await loginAsNewUser();
+
+    await buyer.agent
+      .post('/orders')
+      .set('Idempotency-Key', randomUUID())
+      .send({ saleEventSkuId: itemId, quantity: 2 })
+      .expect(201);
+
+    // 50 − 30 cắt ra = 20 ở SKU; đợt bán 2 còn 28.
+    expect(await skuStock(skuId)).toBe(20);
+    expect(await eventStock(itemId)).toBe(28);
+
+    await prisma.saleEvent.update({
+      where: { id: eventId },
+      data: { endsAt: new Date(Date.now() - 1_000) },
+    });
+
+    const result = await saleEvents.settleEndedEvents();
+
+    expect(result.events).toBeGreaterThanOrEqual(1);
+    expect(result.returned).toBeGreaterThanOrEqual(28);
+    // 20 + 28 = 48. Hai chiếc đã bán vẫn nằm trong đơn — tổng hệ thống vẫn đúng 50.
+    expect(await skuStock(skuId)).toBe(48);
+    expect(await eventStock(itemId)).toBe(0);
+  });
+
+  it('17. ⭐ chạy đóng đợt HAI lần → không trả hàng lần hai', async () => {
+    const skuId = await seedSku(50);
+    const { itemId, eventId } = await seedEvent({ skuId, allocatedStock: 30 });
+    await prisma.saleEvent.update({
+      where: { id: eventId },
+      data: { endsAt: new Date(Date.now() - 1_000) },
+    });
+
+    await saleEvents.settleEndedEvents();
+    const after = await skuStock(skuId);
+
+    // Chạy chồng hai lần là chuyện bình thường với job lặp. Không idempotent thì mỗi vòng
+    // nhân đôi hàng từ hư không — và không có lỗi nào báo, kho chỉ tự nhiên nhiều lên.
+    await saleEvents.settleEndedEvents();
+
+    expect(await skuStock(skuId)).toBe(after);
+    expect(await eventStock(itemId)).toBe(0);
+  });
+
+  it('18. đợt CÒN ĐANG BÁN → không bị đóng, hàng không bị rút về', async () => {
+    const skuId = await seedSku(50);
+    const { itemId } = await seedEvent({ skuId, allocatedStock: 30 });
+
+    await saleEvents.settleEndedEvents();
+
+    // Rút hàng khỏi một đợt đang mở là cướp hàng khỏi tay người đang bấm mua.
+    expect(await eventStock(itemId)).toBe(30);
+    expect(await skuStock(skuId)).toBe(20);
+  });
+
+  it('19. đợt chưa publish, đã qua endsAt → không đóng (chưa cắt thì không có gì để trả)', async () => {
+    const skuId = await seedSku(50);
+    const { eventId } = await seedEvent({
+      skuId,
+      allocatedStock: 30,
+      startsAt: new Date(Date.now() - 7_200_000),
+      endsAt: new Date(Date.now() - 3_600_000),
+      publish: false,
+    });
+
+    await saleEvents.settleEndedEvents();
+
+    const event = await prisma.saleEvent.findUniqueOrThrow({ where: { id: eventId } });
+    expect(event.isSettled).toBe(false);
+    expect(await skuStock(skuId)).toBe(50);
   });
 });

@@ -147,6 +147,26 @@ export const envSchema = z.object({
   OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
 
   /** Số dòng outbox lấy mỗi vòng quét. */
+  /**
+   * Giữ dòng đã xong của `outbox_events` / `processed_events` bao nhiêu ngày rồi mới xoá.
+   *
+   * **Đây là một núm vặn về TÍNH ĐÚNG, không phải về dung lượng.** `processed_events` là thứ
+   * duy nhất chặn một sự kiện bị xử lý hai lần. Xoá dấu của một sự kiện rồi mà sự kiện đó
+   * quay lại (cổng thanh toán gửi lại, ai đó chạy lại relay từ bản sao lưu) thì nó được xử lý
+   * **lần nữa** — và với `markPaid` thì hệ quả là tiền.
+   *
+   * Nên giá trị này phải **lớn hơn mọi cửa sổ gửi lại có thể xảy ra**: retry của BullMQ (vài
+   * phút), thời gian cổng thanh toán còn gửi lại (thường vài ngày), và thời gian một người
+   * còn có thể khôi phục từ bản sao lưu. 30 ngày là mức rộng rãi cho cả ba.
+   *
+   * Hạ xuống thì tiết kiệm dung lượng và mua lấy rủi ro xử lý trùng. Đó là đánh đổi phải nói
+   * ra, không phải một con số cấu hình vô hại.
+   */
+  DATA_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+
+  /** Mỗi vòng xoá tối đa ngần này dòng mỗi bảng — xem `retention.service.ts` §Xoá theo lô. */
+  RETENTION_BATCH_SIZE: z.coerce.number().int().positive().max(50_000).default(5_000),
+
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(1000).default(50),
 
   // ── Phase 6: Observability (spec: docs/specs/phase6-observability.md) ──────────────────

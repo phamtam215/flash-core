@@ -13,7 +13,7 @@
 > **Luật giữ cho nó không trôi lệch:** xong một việc thì **xoá dòng đó trong chính commit làm
 > việc đó**. Không để dành "dọn sau" — một hàng đợi cũ là một hàng đợi không ai tin.
 >
-> Cập nhật lần cuối: **2026-09-26** — vừa xong Phase 9 khối 1–3 (security) và Phase 8 (đợt sale).
+> Cập nhật lần cuối: **2026-09-26** — vừa xong Phase 9 khối 1–3, Phase 8, và vòng đời dữ liệu.
 
 ---
 
@@ -42,8 +42,12 @@
 Bảng rà 19 mục giờ **19/19**. [spec Phase 9](specs/phase9-web-hoan-thien.md)
 
 **Phase 8 — đợt sale thật** (2026-09-26). Giờ mở/đóng, giá riêng, giới hạn mua mỗi người;
-tồn kho đợt **cắt ra** khỏi SKU ([ADR-015](adr/015-ton-kho-dot-cat-ra-tu-sku.md)). 17 test
-mới, tổng **148 integration + 163 unit**. [spec Phase 8](specs/phase8-sale-event.md)
+tồn kho đợt **cắt ra** khỏi SKU ([ADR-015](adr/015-ton-kho-dot-cat-ra-tu-sku.md)).
+[spec Phase 8](specs/phase8-sale-event.md)
+
+**Vòng đời dữ liệu** (2026-09-26). Job dọn `outbox_events` + `processed_events` theo lô, và
+job **đóng đợt sale hết giờ trả hàng tồn về SKU** — thao tác ngược của publish, trả nốt nợ mà
+chính Phase 8 tạo ra. Tổng **160 integration + 171 unit**.
 
 ---
 
@@ -51,8 +55,7 @@ mới, tổng **148 integration + 163 unit**. [spec Phase 8](specs/phase8-sale-e
 
 | # | Việc | Ước lượng | Vì sao đứng ở đây |
 |---|---|---|---|
-| 5 | **Job dọn `outbox_events` + `processed_events`** | ~0,5 ngày | Nên xong **trước khi deploy**: hai bảng chỉ ghi thêm, trên Neon free 0,5 GB nó lộ ra bằng **hoá đơn**, không bằng lỗi |
-| 6 | **Phase 9 khối 4** — web dùng được: 6 màn, tách `app.js` thành module ESM | ~4 ngày | Không chặn gì, nhưng là thứ người phỏng vấn nhìn thấy đầu tiên |
+| 5 | **Phase 9 khối 4** — web dùng được: 6 màn, tách `app.js` thành module ESM | ~4 ngày | Không chặn gì, nhưng là thứ người phỏng vấn nhìn thấy đầu tiên |
 
 ---
 
@@ -60,10 +63,10 @@ mới, tổng **148 integration + 163 unit**. [spec Phase 8](specs/phase8-sale-e
 
 | # | Việc | Mất bao lâu |
 |---|---|---|
-| 7 | Trả lời câu hỏi bản chất Phase 3, 5, 6 | ~1 giờ |
-| 8 | Quay video demo 2 phút — dòng Definition of Done cuối cùng chưa tick. Cách dựng cảnh ở [demo-phong-van.md](demo-phong-van.md) Bước 7 | ~30 phút |
-| 9 | Dựng hạ tầng GCP: project, WIF, Neon, Upstash, 6 secret, Cloud Scheduler **5 phút**, và **budget alert $1 làm trước tiên**. 11 bước ở [spec Phase 7](specs/phase7-deploy-gcp.md) | ~nửa ngày |
-| 10 | Sau khi deploy: đo thật rồi cập nhật số vào [ADR-012](adr/012-worker-tren-cloud-run.md) và [ADR-013](adr/013-pool-nho-tren-serverless.md) — cả hai đang dùng số đo **local** | ~1 giờ |
+| 6 | Trả lời câu hỏi bản chất Phase 3, 5, 6 | ~1 giờ |
+| 7 | Quay video demo 2 phút — dòng Definition of Done cuối cùng chưa tick. Cách dựng cảnh ở [demo-phong-van.md](demo-phong-van.md) Bước 7 | ~30 phút |
+| 8 | Dựng hạ tầng GCP: project, WIF, Neon, Upstash, 6 secret, Cloud Scheduler **5 phút**, và **budget alert $1 làm trước tiên**. 11 bước ở [spec Phase 7](specs/phase7-deploy-gcp.md) | ~nửa ngày |
+| 9 | Sau khi deploy: đo thật rồi cập nhật số vào [ADR-012](adr/012-worker-tren-cloud-run.md) và [ADR-013](adr/013-pool-nho-tren-serverless.md) — cả hai đang dùng số đo **local** | ~1 giờ |
 
 ---
 
@@ -79,9 +82,8 @@ Nợ đã ghi chép, có chủ ý hoãn. **Danh sách đầy đủ kèm lý do �
 - Xác thực email + quên mật khẩu — cần SMTP thật
 - Captcha — **điều kiện kích hoạt:** thấy `429` của `register` tăng đều trong metric
 
-Nợ mới phát sinh từ Phase 8: **đóng đợt và trả hàng tồn về SKU** — đợt kết thúc còn 7 chiếc
-thì 7 chiếc đó vẫn nằm ở `sale_event_skus`, chưa có thao tác nào đưa chúng về kho chung. Và
-**k6 chạy trên đợt sale** (hiện `seed-target.js` vẫn dựng SKU thường).
+Còn lại từ Phase 8: **k6 chạy trên đợt sale** (hiện `seed-target.js` vẫn dựng SKU thường) và
+**màn đếm ngược tới giờ mở** (thuộc Phase 9 khối 4).
 
 Hướng mở tiếp, chưa có spec: **Phase 10** đơn nhiều dòng (mở ra deadlock ordering) ·
 **Phase 11** cache đọc (mở ra cache stampede) · **Phase 12** saga hoàn tiền ·

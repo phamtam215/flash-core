@@ -10,6 +10,8 @@ import { MailModule } from '../modules/mail';
 import { OrderModule } from '../modules/order';
 import { OutboxModule } from '../modules/outbox';
 import { PaymentModule } from '../modules/payment';
+import { RetentionModule } from '../modules/retention';
+import { SaleEventModule } from '../modules/sale-event';
 import { JobProcessor } from './job.processor';
 
 /**
@@ -34,6 +36,8 @@ import { JobProcessor } from './job.processor';
     OutboxModule,
     OrderModule,
     PaymentModule,
+    RetentionModule,
+    SaleEventModule,
   ],
   providers: [JobProcessor],
 })

@@ -153,6 +153,27 @@ curl -i -H 'x-correlation-id: TAM-TEST-001' localhost:3000/health | grep -i x-co
 <h4 id="3-ranh-giới-module-được-ép-bằng-gì-trong-nestjs">3. Ranh giới module được ép bằng gì trong NestJS?</h4>
 <p>Hai tầng, <strong>cả hai đều là máy, không phải quy ước</strong>: (1) <strong>DI container</strong> — provider không nằm trong <code>exports</code> thì module khác không <em>inject</em> được; nhưng nó chỉ chặn inject, không chặn <code>import</code> thẳng file rồi tự <code>new</code>. (2) <strong>ESLint <code>no-restricted-imports</code></strong> — chặn import sâu vào file bên trong module khác, đúng lỗ hổng tầng 1 để lọt. Thiếu tầng 2 thì ranh giới chỉ còn là quy ước, và nó xói mòn <strong>im lặng</strong> — không test nào đỏ khi ai đó phá luật.</p>
 <hr>
+<h1 id="vòng-đời-dữ-liệu-bảng-chỉ-ghi-thêm">Vòng đời dữ liệu — bảng chỉ ghi thêm</h1>
+<h2 id="hai-bảng-không-bao-giờ-tự-nhỏ-lại">Hai bảng không bao giờ tự nhỏ lại</h2>
+<p><code>outbox_events</code> và <code>processed_events</code> tăng theo <strong>mỗi đơn hàng</strong> và không có gì làm chúng nhỏ lại. Trên một gói free 0,5 GB, thứ vỡ không phải hiệu năng mà là <strong>dung lượng</strong> — và nó lộ ra bằng <strong>hoá đơn hoặc hard cutoff</strong>, không bằng một dòng lỗi nào. Đây là loại sự cố im lặng nhất trong cả hệ thống: mọi test xanh, mọi metric bình thường, cho tới ngày DB từ chối ghi.</p>
+<h2 id="ngưỡng-giữ-dấu-idempotent-là-núm-vặn-về-tính-đúng-không-phải-về-dung-lượng">Ngưỡng giữ dấu idempotent là núm vặn về TÍNH ĐÚNG, không phải về dung lượng</h2>
+<p>Đây là điểm dễ sai nhất, và nó không giống mọi cấu hình retention khác.</p>
+<p><code>processed_events</code> là thứ <strong>duy nhất</strong> chặn một sự kiện bị xử lý hai lần. Xoá dấu của một sự kiện rồi mà sự kiện đó quay lại — cổng thanh toán gửi lại, ai đó chạy lại relay từ bản sao lưu, một job cũ còn nằm trong Redis — thì nó được xử lý <strong>lần nữa</strong>. Với <code>markPaid</code> thì hệ quả là <strong>tiền</strong>.</p>
+<p>Nên ngưỡng phải <strong>lớn hơn mọi cửa sổ gửi lại có thể xảy ra</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>Nguồn gửi lại</th><th>Cửa sổ</th></tr></thead><tbody><tr><td>Retry của BullMQ</td><td>vài phút</td></tr><tr><td>Cổng thanh toán gửi lại webhook</td><td>thường vài ngày</td></tr><tr><td>Khôi phục từ bản sao lưu</td><td>vài ngày tới vài tuần</td></tr></tbody></table></div>
+<p>30 ngày là mức rộng rãi cho cả ba. <strong>Hạ xuống thì tiết kiệm dung lượng và mua lấy rủi ro xử lý trùng</strong> — đó là đánh đổi phải nói ra, không phải một con số cấu hình vô hại.</p>
+<h2 id="ba-dòng-không-bao-giờ-được-xoá">Ba dòng KHÔNG bao giờ được xoá</h2>
+<div class="table-wrap"><table><thead><tr><th>Trạng thái</th><th>Vì sao giữ</th></tr></thead><tbody><tr><td><code>PENDING</code></td><td>Chưa đẩy vào queue. Xoá là <strong>mất sự kiện</strong> — email không bao giờ gửi, và không gì báo vì dòng đó biến mất luôn</td></tr><tr><td><code>FAILED</code></td><td>Cạn số lần thử ⇒ đang <strong>chờ người nhìn</strong>. Dọn đi là dọn mất chính thứ cần điều tra</td></tr><tr><td>Chưa đủ cũ</td><td>Còn trong cửa sổ gửi lại ở trên</td></tr></tbody></table></div>
+<p>Tiện thể: job dọn là <strong>chỗ duy nhất đi ngang qua cả bảng một cách đều đặn</strong>, nên cho nó đếm luôn số dòng <code>FAILED</code> và đẩy vào metric. Con số đó tăng đều nghĩa là có thứ hỏng mà chưa ai nhìn.</p>
+<h2 id="xoá-theo-lô-không-xoá-một-phát">Xoá theo lô, không xoá một phát</h2>
+<p><code>DELETE FROM ... WHERE created_at &lt; ...</code> trên vài triệu dòng là một transaction khổng lồ: giữ khoá lâu, phình WAL, và bị huỷ giữa chừng thì <strong>cuộn lại toàn bộ</strong> — mất hết công mà bảng vẫn nguyên.</p>
+<p>Xoá 5.000 dòng mỗi vòng thì mỗi vòng tự commit; dừng lúc nào cũng giữ được phần đã làm. Kèm một <strong>trần số vòng</strong>: tồn đọng một triệu dòng cũng chỉ dọn 100.000 mỗi lần chạy. <em>Thà dọn chậm còn hơn chiếm worker suốt đêm.</em></p>
+<p>Dừng đúng lúc cũng quan trọng ngang: <strong>lô không đầy nghĩa là đã hết dòng đủ cũ</strong>. Không dừng thì chạy thêm những câu <code>DELETE</code> không xoá được gì và chạm trần vòng lặp mỗi lần.</p>
+<h2 id="thao-tác-ngược-của-một-thao-tác-cắt">Thao tác ngược của một thao tác cắt</h2>
+<p>Phase 8 cắt hàng khỏi SKU lúc publish (<a href="adr-015-ton-kho-dot-cat-ra-tu-sku.html">ADR-015</a>). Hệ quả không hiển nhiên: <strong>đợt kết thúc còn 7 chiếc thì 7 chiếc đó kẹt lại</strong> — không ai mua được nữa, mà kho chung cũng không có. Hàng biến mất khỏi hệ thống, không lỗi nào báo.</p>
+<p><strong>Luật rút ra: mỗi thao tác "cắt/chuyển" phải có thao tác ngược, và phải viết cùng lúc.</strong> Viết sau thì khoảng giữa hai lần là một lỗ rò không ai thấy.</p>
+<p>Thao tác ngược đó phải <strong>idempotent</strong> vì nó chạy bằng job lặp: cờ <code>is_settled</code> nằm trong chính câu <code>UPDATE</code>, chạy chồng hai lần thì lần sau đổi 0 dòng và thoát êm. Không idempotent thì mỗi vòng <strong>nhân đôi hàng từ hư không</strong> — và cũng không lỗi nào báo, kho chỉ tự nhiên nhiều lên.</p>
+<hr>
 <h1 id="phase-8-đợt-sale">Phase 8 — Đợt sale</h1>
 <h2 id="trạng-thái-phải-tính-đừng-lưu">Trạng thái phải TÍNH, đừng lưu</h2>
 <p>Cám dỗ đầu tiên khi làm đợt sale là thêm cột <code>status: SCHEDULED | OPEN | ENDED</code> rồi có một job lật nó lúc 20:00. <strong>Đừng.</strong></p>

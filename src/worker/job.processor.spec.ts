@@ -15,6 +15,8 @@ describe('JobProcessor', () => {
   const relay = { relayOnce: jest.fn() };
   const expiry = { cancelExpired: jest.fn(), sweepExpired: jest.fn() };
   const payments = { process: jest.fn() };
+  const retention = { sweep: jest.fn() };
+  const saleEvents = { settleEndedEvents: jest.fn() };
   // Metric giả: chỉ cần đếm được `inc` để kiểm nhánh completed/failed.
   const queueJobs = { inc: jest.fn() };
   const metrics = { queueJobs };
@@ -25,6 +27,8 @@ describe('JobProcessor', () => {
     expiry as never,
     payments as never,
     metrics as never,
+    retention as never,
+    saleEvents as never,
   );
 
   const emailJob = { name: JOB.EMAIL_CONFIRM, data: { eventId: 'e1' } } as Job;
@@ -54,6 +58,18 @@ describe('JobProcessor', () => {
     await expect(processor.process(emailJob)).rejects.toThrow();
 
     expect(queueJobs.inc).toHaveBeenCalledWith({ job: JOB.EMAIL_CONFIRM, outcome: 'failed' });
+  });
+
+  it('job dọn dữ liệu được định tuyến tới RetentionService', async () => {
+    await processor.process({ name: JOB.DATA_RETENTION } as Job);
+
+    expect(retention.sweep).toHaveBeenCalled();
+  });
+
+  it('job đóng đợt sale được định tuyến tới SaleEventService', async () => {
+    await processor.process({ name: JOB.SALE_EVENT_SETTLE } as Job);
+
+    expect(saleEvents.settleEndedEvents).toHaveBeenCalled();
   });
 
   it('định tuyến đúng service cho từng tên job', async () => {
