@@ -72,3 +72,29 @@ export class OrderNotCancellableError extends DomainError {
     super('Đơn đã thanh toán, không huỷ được');
   }
 }
+
+/**
+ * Đợt sale chưa mở, đã đóng, hoặc chưa publish.
+ *
+ * Tách khỏi `OutOfStockError` có chủ ý — cùng lý do với `SkuNotFoundError` ở Phase 3. Gộp cả
+ * ba thành một `409` là mất luôn câu đáng hỏi nhất lúc có sự cố: *bán hết hàng, hay người ta
+ * vào sớm, hay ai đó quên publish?*
+ */
+export class SaleNotOpenError extends DomainError {
+  readonly httpStatus = HttpStatus.CONFLICT;
+  readonly code = 'SALE_NOT_OPEN';
+
+  constructor() {
+    super('Đợt sale chưa mở hoặc đã kết thúc');
+  }
+}
+
+/** Đã mua đủ số chiếc cho phép trong đợt này. */
+export class PerUserLimitReachedError extends DomainError {
+  readonly httpStatus = HttpStatus.CONFLICT;
+  readonly code = 'PER_USER_LIMIT_REACHED';
+
+  constructor() {
+    super('Bạn đã mua đủ số lượng cho phép của mẫu này trong đợt sale');
+  }
+}

@@ -521,6 +521,89 @@ khi ai đó phá luật.
 
 ---
 
+# Phase 8 — Đợt sale
+
+## Trạng thái phải TÍNH, đừng lưu
+
+Cám dỗ đầu tiên khi làm đợt sale là thêm cột `status: SCHEDULED | OPEN | ENDED` rồi có một job
+lật nó lúc 20:00. **Đừng.**
+
+Cột đó là **bản cache của một giá trị tính được** — và như mọi cache, nó sai được: job chạy
+trễ 3 giây thì DB nói *"chưa mở"* trong khi đồng hồ đã qua 20:00. Lúc đó có **hai nguồn sự
+thật** cho cùng một câu hỏi, và nguồn sai lại là nguồn được tin.
+
+Lưu `starts_at` / `ends_at` / `is_published`, còn "đang mở hay chưa" thì tính tại chỗ đọc.
+Không job, không lệch, không có gì để đồng bộ.
+
+`is_published` **phải** lưu, vì nó không tính được từ thời gian: một đợt soạn dở không được tự
+mở chỉ vì đồng hồ đi qua `starts_at`.
+
+**Luật chung:** dữ liệu suy ra được thì đừng lưu, trừ khi đã **đo** được rằng tính lại quá
+đắt. Lưu trước rồi tối ưu sau là cách mua một nguồn sự thật thứ hai bằng giá của một cột.
+
+## Ai quyết định "đã 20:00" — và vì sao không phải Node
+
+Điều kiện thời gian **nằm trong chính câu `UPDATE`**, dùng `now()` của Postgres:
+
+```sql
+UPDATE sale_event_skus s SET stock = s.stock - $qty
+FROM sale_events e
+WHERE s.id = $id AND e.id = s.sale_event_id
+  AND s.stock >= $qty
+  AND e.is_published = true
+  AND now() BETWEEN e.starts_at AND e.ends_at   -- đồng hồ của DB
+RETURNING s.sale_price_vnd
+```
+
+Kiểm `Date.now()` trong Node rồi mới gửi `UPDATE` là lặp lại đúng sai lầm `if (stock > 0)
+stock--` của Phase 3 — điều kiện đánh giá ở một thời điểm đã cũ, tại một nơi không phải nơi
+quyết định. Ở đây tệ hơn vì hai lẽ:
+
+1. **Nhiều instance là nhiều đồng hồ.** Máy nào nhanh 2 giây sẽ mở bán sớm 2 giây — và đúng 2
+   giây đó *chỉ nó* phục vụ, nên ai bấm trúng nó thì mua được trước cả nghìn người khác. Không
+   công bằng, và không ai lần ra được vì sao.
+2. `now()` của Postgres là **mốc duy nhất mọi instance cùng nhìn thấy**.
+
+## Quota khác tồn kho về HÌNH DẠNG, nên khác cả công cụ
+
+Đây là điểm học lớn nhất của phase, và nó không phải biến thể của Phase 3.
+
+| | Tồn kho | Quota mỗi người |
+|---|---|---|
+| Hình dạng | **Một dòng nóng** cho cả nghìn người | **Một dòng cho mỗi người** |
+| Ai tranh với ai | Những người **khác nhau** ⇒ buộc phải xếp hàng | Chỉ các lần bấm của **cùng một người** |
+| Công cụ | `UPDATE ... WHERE stock >= ?` (hoặc khoá / Lua) | `INSERT ... ON CONFLICT DO UPDATE ... WHERE` |
+| Cần khoá không | Có, dưới dạng này hay dạng khác | **Không** — hai người không bao giờ chạm cùng dòng |
+
+Câu upsert có điều kiện làm trọn việc trong một lần ghi: `RETURNING` không trả dòng nào nghĩa
+là vượt giới hạn.
+
+**Bài học gói trong một câu: hình dạng tranh chấp quyết định công cụ, không phải thói quen.**
+Cùng triết lý "đưa điều kiện vào chính câu ghi", nhưng bê nguyên cơ chế của tồn kho sang quota
+là dùng khoá cho một chỗ không có gì để tranh.
+
+## Thứ tự quota-trước-tồn-kho-sau
+
+Nhánh nào hỏng cũng phải bù trừ nhánh kia, nên thứ tự **không** quyết định tính đúng — nó
+quyết định **tải lên dòng nóng**.
+
+Một người đã mua đủ suất thì **luôn luôn** bị từ chối, biết trước mà không cần hỏi tồn kho.
+Kiểm quota trước nghĩa là những request chắc chắn hỏng **không bao giờ chạm vào dòng tồn kho
+đang có nghìn người tranh**.
+
+Đo được bằng test: một người bấm 20 lần song song với giới hạn 2, trên kho 100 → tồn kho còn
+**98**, không phải 80. 18 request kia bị chặn trước khi đụng dòng nóng.
+
+## Ba mã lỗi, không gộp thành một `409`
+
+`SALE_NOT_OPEN` · `PER_USER_LIMIT_REACHED` · `OUT_OF_STOCK`.
+
+Gộp lại là mất luôn câu đáng hỏi nhất lúc có sự cố: *bán hết hàng, hay đang có bot bấm, hay
+người ta vào sớm?* Cùng lý do đã tách `SKU_NOT_FOUND` khỏi `OUT_OF_STOCK` ở Phase 3, và cùng
+lý do metric `orders_placed_total` đếm theo nhãn `result` chứ không đếm theo status code.
+
+---
+
 # Phase 9 — Security baseline
 
 ## Ba thứ vấp phải khi bật, dù đọc tài liệu kỹ

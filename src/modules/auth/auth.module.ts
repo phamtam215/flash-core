@@ -5,6 +5,7 @@ import { AccessTokenGuard } from './access-token.guard';
 import { AuthController } from './auth.controller';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
+import { OptionalAccessTokenGuard } from './optional-access-token.guard';
 import { USER_DIRECTORY } from './user-directory';
 
 /**
@@ -35,7 +36,8 @@ import { USER_DIRECTORY } from './user-directory';
     // `useExisting` chứ không `useClass`: cùng một instance `AuthRepository`, chỉ nhìn qua
     // một cửa hẹp hơn. `useClass` sẽ dựng thêm một bản thứ hai.
     { provide: USER_DIRECTORY, useExisting: AuthRepository },
+    OptionalAccessTokenGuard,
   ],
-  exports: [AccessTokenGuard, JwtModule, USER_DIRECTORY],
+  exports: [AccessTokenGuard, JwtModule, USER_DIRECTORY, OptionalAccessTokenGuard],
 })
 export class AuthModule {}

@@ -47,7 +47,7 @@ export class OrderExpiryService {
     // tự (trả kho trước) sẽ trả hai lần khi hai đường cùng chạy — chính là bug
     // "tồn kho bị trả về kho hai lần" ở tech-playbook §Phase 4.
     for (const item of items) {
-      await this.reserver.release(item.skuId, item.quantity);
+      await releaseStock(this.repo, this.reserver, item);
     }
 
     this.metrics.ordersCancelled.inc({ by: 'expiry' });
@@ -68,4 +68,25 @@ export class OrderExpiryService {
     if (cancelled > 0) this.logger.warn({ cancelled }, 'Sweeper đã dọn đơn quá hạn mà delayed job bỏ sót');
     return cancelled;
   }
+}
+
+/**
+ * Trả tồn kho về **đúng nơi nó được lấy ra**.
+ *
+ * Đơn mua trong đợt sale thì hàng đã được **cắt khỏi `product_skus` từ lúc publish** (ADR-015),
+ * nên trả nó về SKU là làm hàng của đợt chui về kho chung — đợt sau bán hụt đúng số đó, và
+ * không có lỗi nào báo. Kèm theo phải trả cả **suất quota**, nếu không người mua huỷ đơn rồi
+ * không mua lại được nữa.
+ */
+export async function releaseStock(
+  repo: OrderRepository,
+  reserver: InventoryReserver,
+  item: { skuId: string; quantity: number; saleEventSkuId: string | null; userId: string },
+): Promise<void> {
+  if (item.saleEventSkuId) {
+    await repo.incrementSaleEventStock(item.saleEventSkuId, item.quantity);
+    await repo.releaseUserQuota(item.saleEventSkuId, item.userId, item.quantity);
+    return;
+  }
+  await reserver.release(item.skuId, item.quantity);
 }

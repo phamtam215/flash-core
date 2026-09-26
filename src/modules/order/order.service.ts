@@ -10,8 +10,11 @@ import {
   OrderNotCancellableError,
   OrderNotFoundError,
   OutOfStockError,
+  PerUserLimitReachedError,
+  SaleNotOpenError,
   SkuNotFoundError,
 } from './order.errors';
+import { releaseStock } from './order.expiry.service';
 import { OrderRepository } from './order.repository';
 
 @Injectable()
@@ -38,17 +41,24 @@ export class OrderService {
    * Trả kèm `created` để controller biết trả `201` (vừa tạo) hay `200` (đơn đã có sẵn).
    */
   async placeOrder(userId: string, idempotencyKey: string, dto: CreateOrderDto) {
-    // Đo riêng bước trừ kho, tách theo chiến lược: đây là đoạn nóng nhất của cả hệ thống và
-    // là thứ benchmark Phase 3 đã so sánh. Có metric thì so sánh đó tiếp tục được trên môi
-    // trường thật, không chỉ trong một lần chạy k6.
+    // Zod đã bảo đảm đúng một trong hai có giá trị (`order.dto.ts` §refine).
+    return dto.saleEventSkuId
+      ? this.placeSaleEventOrder(userId, idempotencyKey, dto.saleEventSkuId, dto.quantity)
+      : this.placeDirectOrder(userId, idempotencyKey, dto.skuId as string, dto.quantity);
+  }
+
+  /** Mua giá gốc thẳng trên SKU — đường của Phase 3, không đổi. */
+  private async placeDirectOrder(
+    userId: string,
+    idempotencyKey: string,
+    skuId: string,
+    quantity: number,
+  ) {
     const stopReserveTimer = this.metrics.reserveDuration.startTimer({ strategy: this.reserver.name });
-    const reserved = await this.reserver.reserve(dto.skuId, dto.quantity);
+    const reserved = await this.reserver.reserve(skuId, quantity);
     stopReserveTimer();
 
     if (!reserved.ok) {
-      // Đếm ở ĐÂY chứ không ở interceptor, vì chỉ chỗ này biết `409` là "hết hàng" hay
-      // "SKU không tồn tại". Một metric `http_requests_total{status="409"}` không trả lời
-      // được câu hỏi thật sự đáng hỏi: bán hết hàng, hay đang có ai bắn vào SKU không có thật?
       if (reserved.reason === 'SKU_NOT_FOUND') {
         this.metrics.ordersPlaced.inc({ result: 'sku_not_found' });
         throw new SkuNotFoundError();
@@ -57,54 +67,128 @@ export class OrderService {
       throw new OutOfStockError();
     }
 
-    const expiresAt = new Date(Date.now() + this.env.ORDER_HOLD_MINUTES * 60 * 1000);
-    const order = await this.repo.createOrder({
+    return this.finishOrder({
       userId,
       idempotencyKey,
-      skuId: dto.skuId,
-      quantity: dto.quantity,
-      // Snapshot price: giá vừa đọc từ DB lúc trừ kho, KHÔNG phải giá client gửi (client không
-      // được gửi giá) và cũng không đọc lại lúc xem đơn.
+      skuId,
+      quantity,
       unitPriceVnd: reserved.unitPriceVnd,
+      onDuplicate: () => this.reserver.release(skuId, quantity),
+      strategy: this.reserver.name,
+      attempts: reserved.attempts,
+    });
+  }
+
+  /**
+   * Mua trong một đợt sale (Phase 8).
+   *
+   * **Thứ tự quota-trước-tồn-kho-sau là có tính toán.** Nhánh nào hỏng cũng phải bù trừ nhánh
+   * kia, nên thứ tự không quyết định tính đúng — nó quyết định **tải lên dòng nóng**. Một
+   * người đã mua đủ suất thì **luôn luôn** bị từ chối, biết trước mà không cần hỏi tồn kho;
+   * kiểm quota trước nghĩa là những request chắc chắn hỏng **không bao giờ chạm vào dòng tồn
+   * kho đang có nghìn người tranh**. Dưới kịch bản thật (bot bấm 50 lần) đây là khác biệt
+   * đáng kể.
+   */
+  private async placeSaleEventOrder(
+    userId: string,
+    idempotencyKey: string,
+    saleEventSkuId: string,
+    quantity: number,
+  ) {
+    const claimed = await this.repo.claimUserQuota(saleEventSkuId, userId, quantity);
+    if (!claimed) {
+      this.metrics.ordersPlaced.inc({ result: 'per_user_limit' });
+      throw new PerUserLimitReachedError();
+    }
+
+    const stopReserveTimer = this.metrics.reserveDuration.startTimer({ strategy: 'sale-event' });
+    const reserved = await this.repo.decrementSaleEventStock(saleEventSkuId, quantity);
+    stopReserveTimer();
+
+    if (!reserved) {
+      // Trả suất vừa giữ TRƯỚC khi ném lỗi — quên bước này thì người mua bị trừ suất cho một
+      // đơn không bao giờ tồn tại, và họ không mua lại được nữa.
+      await this.repo.releaseUserQuota(saleEventSkuId, userId, quantity);
+
+      const reason = await this.repo.diagnoseSaleEventSku(saleEventSkuId);
+      if (reason === 'NOT_FOUND') {
+        this.metrics.ordersPlaced.inc({ result: 'sku_not_found' });
+        throw new SkuNotFoundError();
+      }
+      if (reason === 'NOT_OPEN') {
+        this.metrics.ordersPlaced.inc({ result: 'sale_not_open' });
+        throw new SaleNotOpenError();
+      }
+      this.metrics.ordersPlaced.inc({ result: 'out_of_stock' });
+      throw new OutOfStockError();
+    }
+
+    return this.finishOrder({
+      userId,
+      idempotencyKey,
+      skuId: reserved.skuId,
+      saleEventSkuId,
+      quantity,
+      unitPriceVnd: reserved.salePriceVnd,
+      onDuplicate: async () => {
+        await this.repo.incrementSaleEventStock(saleEventSkuId, quantity);
+        await this.repo.releaseUserQuota(saleEventSkuId, userId, quantity);
+      },
+      strategy: 'sale-event',
+      attempts: 1,
+    });
+  }
+
+  /**
+   * Phần chung của hai đường: tạo đơn, xử lý `Idempotency-Key` trùng, hẹn lịch tự huỷ.
+   *
+   * Gộp lại vì đây đúng là phần **không** khác nhau — tách ra thì một ngày nào đó chỉ một
+   * trong hai đường được sửa, và bug sẽ nằm ở đường ít ai chạy hơn.
+   */
+  private async finishOrder(input: {
+    userId: string;
+    idempotencyKey: string;
+    skuId: string;
+    saleEventSkuId?: string;
+    quantity: number;
+    unitPriceVnd: number;
+    onDuplicate: () => Promise<void>;
+    strategy: string;
+    attempts: number;
+  }) {
+    const expiresAt = new Date(Date.now() + this.env.ORDER_HOLD_MINUTES * 60 * 1000);
+    const order = await this.repo.createOrder({
+      userId: input.userId,
+      idempotencyKey: input.idempotencyKey,
+      skuId: input.skuId,
+      saleEventSkuId: input.saleEventSkuId,
+      quantity: input.quantity,
+      // Snapshot price: giá vừa đọc từ DB lúc trừ kho, KHÔNG phải giá client gửi.
+      unitPriceVnd: input.unitPriceVnd,
       expiresAt,
     });
 
     if (!order) {
-      // `Idempotency-Key` đã tồn tại ⇒ đây là lần bấm thứ hai. Hoàn lại tồn kho vừa trừ, rồi
-      // trả về đúng đơn cũ. Nếu không hoàn, bấm hai lần sẽ "ăn" hai suất hàng mà chỉ có một đơn.
-      await this.reserver.release(dto.skuId, dto.quantity);
+      // `Idempotency-Key` đã tồn tại ⇒ lần bấm thứ hai. Hoàn lại thứ vừa giữ, rồi trả đơn cũ.
+      await input.onDuplicate();
 
-      const existing = await this.repo.findOrderByIdempotencyKey(userId, idempotencyKey);
-      if (!existing) {
-        // Không tìm thấy đơn dù vừa vỡ UNIQUE: chỉ xảy ra nếu đơn bị xoá giữa hai bước. Không
-        // nuốt — để lỗi bay lên filter chung.
-        throw new Error('Idempotency-Key trùng nhưng không tìm thấy đơn cũ');
-      }
+      const existing = await this.repo.findOrderByIdempotencyKey(input.userId, input.idempotencyKey);
+      if (!existing) throw new Error('Idempotency-Key trùng nhưng không tìm thấy đơn cũ');
 
       this.metrics.ordersPlaced.inc({ result: 'duplicate' });
-      this.logger.log({ orderId: existing.id, userId }, 'Idempotency-Key trùng — trả lại đơn cũ');
+      this.logger.log({ orderId: existing.id, userId: input.userId }, 'Idempotency-Key trùng — trả lại đơn cũ');
       return { order: existing, created: false };
     }
 
-    // Hẹn giờ tự huỷ. **Sau** khi transaction đã commit, và cố tình KHÔNG nằm trong đó: gọi
-    // Redis bên trong transaction là vi phạm luật "transaction boundary hẹp nhất" (CLAUDE.md)
-    // và giữ khoá DB suốt thời gian chờ mạng.
-    //
-    // Redis hỏng ở đây thì đơn vẫn tạo xong — chỉ mất lịch hẹn, và sweeper 60 giây một lần sẽ
-    // dọn. Vì vậy chỉ log `warn` chứ không ném lỗi làm hỏng một request đã thành công.
     try {
       await this.queue.add<OrderExpirePayload>(
         JOB.ORDER_EXPIRE,
         { orderId: order.id, correlationId: getCorrelationId() },
         {
           delay: this.env.ORDER_HOLD_MINUTES * 60 * 1000,
-          // `jobId` theo đơn: đẩy lại cùng đơn không sinh ra hai lịch hẹn.
-          //
-          // Dấu gạch nối, KHÔNG phải dấu hai chấm: BullMQ dùng `:` làm ký tự phân cách khoá
-          // Redis nên nó từ chối thẳng `jobId` chứa `:` (`Custom Id cannot contain :`). Bản
-          // đầu viết `expire:${order.id}` và **mọi đơn đều không hẹn được lịch tự huỷ** —
-          // lỗi bị `catch` bên dưới nuốt thành một dòng `warn`, còn sweeper thì vẫn dọn đúng
-          // nên nhìn từ ngoài không ai thấy gì sai. Test #12 khoá lại tính chất này.
+          // Dấu gạch nối, KHÔNG phải dấu hai chấm: BullMQ từ chối `jobId` chứa `:`. Bản đầu
+          // viết `expire:${id}` và MỌI đơn đều không hẹn được lịch — lỗi bị `catch` bên dưới
+          // nuốt thành một dòng `warn`. Test #12 khoá lại.
           jobId: `expire-${order.id}`,
         },
       );
@@ -114,7 +198,14 @@ export class OrderService {
 
     this.metrics.ordersPlaced.inc({ result: 'created' });
     this.logger.log(
-      { orderId: order.id, userId, skuId: dto.skuId, strategy: this.reserver.name, attempts: reserved.attempts },
+      {
+        orderId: order.id,
+        userId: input.userId,
+        skuId: input.skuId,
+        saleEventSkuId: input.saleEventSkuId,
+        strategy: input.strategy,
+        attempts: input.attempts,
+      },
       'Đặt đơn thành công',
     );
     return { order, created: true };
@@ -150,8 +241,11 @@ export class OrderService {
 
     // Trả kho NGOÀI transaction, giống hệt `OrderExpiryService`: chiến lược `redis` ghi sang
     // Redis, mà gọi Redis trong transaction Postgres là giữ khoá DB suốt thời gian chờ mạng.
+    //
+    // `releaseStock` dùng chung với đường tự huỷ — nó quyết định trả về ĐỢT hay về SKU. Hai
+    // đường phải dùng chung đúng một hàm, nếu không một ngày chỉ một đường được sửa.
     for (const item of items) {
-      await this.reserver.release(item.skuId, item.quantity);
+      await releaseStock(this.repo, this.reserver, item);
     }
 
     // Delayed job `expire-<orderId>` vẫn nằm trong queue và vẫn sẽ nổ sau đó. Cố tình KHÔNG

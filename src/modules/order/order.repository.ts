@@ -20,6 +20,14 @@ import { PrismaService, type PrismaTx } from '../../infra/prisma';
  */
 export type CancelScope = { kind: 'EXPIRED' } | { kind: 'BY_USER'; userId: string };
 
+/** Dòng hàng của một đơn vừa huỷ, kèm đủ thông tin để trả kho về đúng chỗ. */
+export type CancelledOrderItems = {
+  skuId: string;
+  quantity: number;
+  saleEventSkuId: string | null;
+  userId: string;
+}[];
+
 @Injectable()
 export class OrderRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -143,6 +151,8 @@ export class OrderRepository {
     quantity: number;
     unitPriceVnd: number;
     expiresAt: Date;
+    /** Có giá trị = mua trong đợt sale; huỷ đơn sẽ trả kho về đợt, không về SKU. */
+    saleEventSkuId?: string;
   }) {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -159,6 +169,7 @@ export class OrderRepository {
           data: {
             orderId: order.id,
             skuId: input.skuId,
+            saleEventSkuId: input.saleEventSkuId ?? null,
             quantity: input.quantity,
             unitPriceVnd: input.unitPriceVnd,
           },
@@ -189,6 +200,111 @@ export class OrderRepository {
     }
   }
 
+  // ── Đặt hàng trong ĐỢT SALE (Phase 8) ──────────────────────────────────────────────────
+
+  /**
+   * Giữ một suất trong quota của người mua.
+   *
+   * **Không khoá gì cả — và đó là điểm học của Phase 8.** Tồn kho là MỘT dòng nóng mà cả
+   * nghìn người tranh, nên buộc phải xếp hàng. Quota là MỘT dòng cho MỖI người: hai người
+   * khác nhau không bao giờ chạm cùng dòng, nên tranh chấp duy nhất là giữa các lần bấm của
+   * **chính người đó**. Một câu upsert có điều kiện làm trọn việc:
+   *
+   * - Chưa có dòng ⇒ `INSERT` thành công (đã kiểm `quantity <= limit` ở `VALUES`).
+   * - Có rồi ⇒ `DO UPDATE` chỉ chạy khi tổng mới **không vượt** giới hạn.
+   * - Không dòng nào trả về ⇒ vượt giới hạn.
+   *
+   * Cùng triết lý "đưa điều kiện vào chính câu ghi" với Phase 3, nhưng **cơ chế khác** — hình
+   * dạng tranh chấp quyết định công cụ, không phải thói quen.
+   */
+  async claimUserQuota(
+    saleEventSkuId: string,
+    userId: string,
+    quantity: number,
+  ): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<{ quantity: number }[]>`
+      INSERT INTO sale_event_purchases (sale_event_sku_id, user_id, quantity)
+      SELECT ${saleEventSkuId}::uuid, ${userId}::uuid, ${quantity}
+      FROM sale_event_skus s
+      WHERE s.id = ${saleEventSkuId}::uuid AND ${quantity} <= s.per_user_limit
+      ON CONFLICT (sale_event_sku_id, user_id) DO UPDATE
+        SET quantity = sale_event_purchases.quantity + ${quantity}
+        WHERE sale_event_purchases.quantity + ${quantity}
+              <= (SELECT per_user_limit FROM sale_event_skus WHERE id = ${saleEventSkuId}::uuid)
+      RETURNING quantity`;
+
+    return rows.length > 0;
+  }
+
+  /** Trả lại suất quota đã giữ — dùng khi bước trừ tồn kho phía sau thất bại. */
+  async releaseUserQuota(saleEventSkuId: string, userId: string, quantity: number): Promise<void> {
+    await this.prisma.$executeRaw`
+      UPDATE sale_event_purchases SET quantity = quantity - ${quantity}
+      WHERE sale_event_sku_id = ${saleEventSkuId}::uuid AND user_id = ${userId}::uuid`;
+  }
+
+  /**
+   * Trừ tồn kho của đợt — **và kiểm khung giờ trong CÙNG câu lệnh**.
+   *
+   * `now()` ở đây là đồng hồ của **Postgres**, không phải của Node. Kiểm `Date.now()` trong
+   * app rồi mới gửi `UPDATE` là lặp lại đúng sai lầm `if (stock > 0) stock--` của Phase 3 —
+   * điều kiện được đánh giá ở một thời điểm đã cũ, tại một nơi không phải nơi quyết định. Ở
+   * đây còn tệ hơn vì **nhiều instance là nhiều đồng hồ**: máy nào nhanh 2 giây sẽ mở bán sớm
+   * 2 giây, và đúng 2 giây đó chỉ nó phục vụ — ai bấm trúng nó thì mua được trước cả nghìn
+   * người khác, mà không ai lần ra được vì sao.
+   *
+   * Trả `null` khi 0 dòng bị ghi. Lúc đó CHƯA biết vì sao (hết hàng? chưa tới giờ? chưa
+   * publish?) — người gọi phải hỏi thêm, giống `decrementStockConditional` của Phase 3.
+   */
+  async decrementSaleEventStock(
+    saleEventSkuId: string,
+    quantity: number,
+  ): Promise<{ salePriceVnd: number; skuId: string } | null> {
+    const rows = await this.prisma.$queryRaw<{ sale_price_vnd: number; sku_id: string }[]>`
+      UPDATE sale_event_skus s
+      SET stock = s.stock - ${quantity}, updated_at = now()
+      FROM sale_events e
+      WHERE s.id = ${saleEventSkuId}::uuid
+        AND e.id = s.sale_event_id
+        AND s.stock >= ${quantity}
+        AND e.is_published = true
+        AND now() >= e.starts_at
+        AND now() <= e.ends_at
+      RETURNING s.sale_price_vnd, s.sku_id`;
+
+    const row = rows[0];
+    return row ? { salePriceVnd: row.sale_price_vnd, skuId: row.sku_id } : null;
+  }
+
+  /** Hoàn tồn kho về ĐỢT (không phải về SKU — hàng đã cắt ra khỏi SKU từ lúc publish). */
+  async incrementSaleEventStock(saleEventSkuId: string, quantity: number): Promise<void> {
+    await this.prisma.$executeRaw`
+      UPDATE sale_event_skus SET stock = stock + ${quantity}, updated_at = now()
+      WHERE id = ${saleEventSkuId}::uuid`;
+  }
+
+  /**
+   * Vì sao `decrementSaleEventStock` trả `null` — dùng để tách ba lý do thành ba mã lỗi khác
+   * nhau. Gộp chúng thành một `409` là mất luôn câu đáng hỏi nhất lúc có sự cố: *bán hết
+   * hàng, hay đang có bot bấm, hay người ta vào sớm?*
+   */
+  async diagnoseSaleEventSku(
+    saleEventSkuId: string,
+  ): Promise<'NOT_FOUND' | 'NOT_OPEN' | 'OUT_OF_STOCK'> {
+    const rows = await this.prisma.$queryRaw<
+      { open: boolean; in_stock: boolean }[]
+    >`
+      SELECT (e.is_published AND now() >= e.starts_at AND now() <= e.ends_at) AS open,
+             (s.stock > 0) AS in_stock
+      FROM sale_event_skus s JOIN sale_events e ON e.id = s.sale_event_id
+      WHERE s.id = ${saleEventSkuId}::uuid`;
+
+    const row = rows[0];
+    if (!row) return 'NOT_FOUND';
+    if (!row.open) return 'NOT_OPEN';
+    return 'OUT_OF_STOCK';
+  }
+
   /**
    * Huỷ một đơn **đang `PENDING`** và trả về các dòng hàng cần hoàn kho, hoặc `null` nếu
    * không có gì để huỷ.
@@ -213,7 +329,7 @@ export class OrderRepository {
   async cancelPendingOrder(
     orderId: string,
     scope: CancelScope,
-  ): Promise<{ skuId: string; quantity: number }[] | null> {
+  ): Promise<CancelledOrderItems | null> {
     return this.prisma.$transaction(async (tx) => {
       // Hai câu tách riêng chứ không ghép điều kiện bằng biến: `$executeRaw` là tagged
       // template nên mọi tham số đều được tham số hoá, còn nối chuỗi để "dùng chung một câu"
@@ -231,8 +347,20 @@ export class OrderRepository {
 
       if (updated === 0) return null;
 
-      return tx.$queryRaw<{ skuId: string; quantity: number }[]>`
-        SELECT sku_id AS "skuId", quantity FROM order_items WHERE order_id = ${orderId}::uuid`;
+      // Kèm `saleEventSkuId` để người gọi biết trả kho về ĐÂU: về đợt hay về SKU. Trả nhầm
+      // chỗ nghĩa là hàng của đợt chui về kho chung, và đợt sau bán hụt.
+      //
+      // Kèm cả `userId` vì trả suất quota cần biết CHÍNH XÁC của ai — suy ra bằng cách đoán
+      // "đơn mới nhất của mẫu này" là sai ngay khi có hai người cùng huỷ.
+      const rows = await tx.$queryRaw<
+        { skuId: string; quantity: number; saleEventSkuId: string | null; userId: string }[]
+      >`
+        SELECT i.sku_id AS "skuId", i.quantity, i.sale_event_sku_id AS "saleEventSkuId",
+               o.user_id AS "userId"
+        FROM order_items i JOIN orders o ON o.id = i.order_id
+        WHERE i.order_id = ${orderId}::uuid`;
+
+      return rows;
     });
   }
 

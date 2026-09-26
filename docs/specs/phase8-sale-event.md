@@ -2,7 +2,7 @@
 
 - **Phase:** 8
 - **Ngày:** 2026-09-26
-- **Trạng thái:** Draft — chờ Tâm duyệt (3 câu hỏi mở ở cuối)
+- **Trạng thái:** **Đã implement** 2026-09-26 (Tâm duyệt cả 3 câu hỏi mở theo khuyến nghị)
 
 > Hợp đồng của phase. Kiến thức (*vì sao* điều kiện thời gian phải nằm trong câu ghi, vì sao
 > quota khác tồn kho) sẽ viết vào [`tech-playbook.md`](../tech-playbook.md) §Phase 8, không
@@ -214,12 +214,14 @@ Metric: `orders_placed_total{result}` thêm hai nhãn `sale_not_open`, `per_user
 
 ## Definition of Done
 
-- [ ] 12 test case trên xanh; `npm run check` sạch.
-- [ ] k6 chạy lại được trên **đợt sale** (script seed dựng một đợt đang mở), giữ nguyên kết
-      luận oversell = 0 và thêm "không ai mua quá limit".
-- [ ] Màn hình đếm ngược tới `startsAt`, nút bị khoá cho tới khi mở.
-- [ ] ADR-015: tồn kho đợt cắt ra từ SKU hay dùng chung (Câu hỏi mở #1).
-- [ ] `tech-playbook.md` §Phase 8: điều kiện thời gian trong câu ghi, quota vs tồn kho.
+- [x] **17 integration test xanh** (nhiều hơn 12 dự kiến — thêm test cho publish và cho đường
+      cũ), tổng integration **131 → 148**. `npm run check` sạch, unit 163/163. Chạy 2 lần liên
+      tiếp đều xanh.
+- [ ] k6 chạy lại được trên **đợt sale** — chưa làm, `k6/seed-target.js` vẫn dựng SKU thường.
+      Test #6 đã chứng minh tính chất đó ở quy mô 120 request; k6 là để có số p95/throughput.
+- [ ] Màn hình đếm ngược tới `startsAt` — thuộc Phase 9 khối 4 (web).
+- [x] [ADR-015](../adr/015-ton-kho-dot-cat-ra-tu-sku.md) chốt cắt ra khỏi SKU.
+- [x] `tech-playbook.md` §Phase 8.
 - [ ] Cập nhật `architecture.md` (sơ đồ tuần tự A thêm hai điều kiện) và §Trạng thái `CLAUDE.md`.
 
 ## Ngoài phạm vi (Non-goals)
@@ -230,7 +232,10 @@ Metric: `orders_placed_total{result}` thêm hai nhãn `sale_not_open`, `per_user
 - **Đợt sale lồng nhau / giá bậc thang / mã giảm giá.** Một đợt, một giá.
 - **Chiến lược chống oversell thứ tư.** Ba cái hiện có chạy nguyên trên tồn kho của đợt.
 
-## Câu hỏi mở cho Tâm quyết
+## Câu hỏi mở — ĐÃ CHỐT 2026-09-26
+
+> Cả ba duyệt theo khuyến nghị. Giữ phần lập luận vì *lý do* mới là thứ đáng đọc lại.
+> Câu #1 chốt thành [ADR-015](../adr/015-ton-kho-dot-cat-ra-tu-sku.md).
 
 ### 1. Tồn kho của đợt: cắt ra từ SKU, hay dùng chung `ProductSku.stock`?
 
@@ -257,3 +262,40 @@ tính chất làm nó rẻ. Nếu Tâm muốn cả đợt thì làm được, ch
 (mua theo đợt). Lý do: 120 integration test hiện có đều đi đường cũ, bỏ nó là phải viết lại
 gần hết — mà phần chúng đang khoá (oversell, idempotency, huỷ đơn) **không** liên quan tới đợt
 sale. Đổi lại DTO có hai trường loại trừ nhau, phải validate bằng Zod `refine`.
+
+---
+
+## Trạng thái thật (2026-09-26)
+
+**17/17 integration test xanh** (`test/sale-event.e2e-spec.ts`), tổng **148 integration + 163
+unit**, chạy 2 lần liên tiếp đều ổn định.
+
+| Việc | Ở đâu |
+|---|---|
+| 3 bảng + cột `order_items.sale_event_sku_id` | `migrations/20260926120000_add_sale_event` |
+| Module `sale-event` (soạn, publish, xem) | `src/modules/sale-event/` |
+| Quota + trừ kho đợt + chẩn đoán 3 lý do | `order.repository.ts` |
+| Hai đường đặt hàng tách bạch, phần chung gộp lại | `order.service.ts` |
+| Trả kho về **đúng chỗ** khi huỷ | `order.expiry.service.ts` §`releaseStock` |
+| `OptionalAccessTokenGuard` | `src/modules/auth/` |
+
+### Ba thứ phát sinh ngoài spec
+
+1. **`allocatedStock` tách khỏi `stock`.** Bản spec đầu chỉ có `stock`, và publish phải nhận
+   danh sách phân bổ từ người gọi — dẫn tới một hàm `publish()` không dùng được. Tách thành
+   *phân bổ* (cố định từ lúc soạn) và *còn lại* (giảm dần khi bán) thì publish tự đọc được, và
+   tiện thể trả lời được "đã bán bao nhiêu" bằng một phép trừ thay vì đếm đơn.
+2. **`OptionalAccessTokenGuard`.** `GET /sale-events/:slug` là trang công khai nhưng cần biết
+   người xem là ai để hiện "bạn còn mua được 1 chiếc". `AccessTokenGuard` thì ép đăng nhập,
+   không có guard thì `userId` luôn rỗng. Guard mới **luôn cho qua**, chỉ gắn `userId` khi có
+   phiên hợp lệ — token hỏng không phải lỗi.
+3. **Trả quota khi huỷ cần `userId` chính xác.** Bản đầu đoán "đơn mới nhất của mẫu này" bằng
+   một câu join — sai ngay khi có hai người cùng huỷ. Đã đổi: `cancelPendingOrder` trả kèm
+   `userId` của đơn.
+
+### Một điều spec nói quá điều đã làm
+
+§Phạm vi viết *"ba chiến lược chống oversell giữ nguyên, chỉ được gọi trên tồn kho của đợt"*.
+Thực tế **không** làm vậy: đường bán theo đợt dùng một câu `UPDATE` có điều kiện (cùng cơ chế
+`optimistic`). Lý do và đánh đổi ghi ở [ADR-015](../adr/015-ton-kho-dot-cat-ra-tu-sku.md)
+§Một điều KHÔNG làm.

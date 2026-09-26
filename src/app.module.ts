@@ -22,6 +22,7 @@ import { OrderModule } from './modules/order';
 import { OutboxModule } from './modules/outbox';
 import { PaymentModule } from './modules/payment';
 import { ProductModule } from './modules/product';
+import { SaleEventModule } from './modules/sale-event';
 
 /**
  * Module gốc.
@@ -41,6 +42,7 @@ import { ProductModule } from './modules/product';
     MetricsModule,
     AuthModule,
     ProductModule,
+    SaleEventModule,
     MailModule,
     OutboxModule,
     OrderModule,

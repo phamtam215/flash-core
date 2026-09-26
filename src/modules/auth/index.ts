@@ -11,6 +11,7 @@
  */
 export { AuthModule } from './auth.module';
 export { AccessTokenGuard, type AuthenticatedRequest } from './access-token.guard';
+export { OptionalAccessTokenGuard } from './optional-access-token.guard';
 export { USER_DIRECTORY, type UserDirectory } from './user-directory';
 export { RolesGuard } from './roles.guard';
 export { Roles, Role, ROLES_KEY } from './roles.decorator';

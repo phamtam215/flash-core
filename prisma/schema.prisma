@@ -73,6 +73,7 @@ model User {
 
   refreshTokens RefreshToken[]
   orders        Order[]
+  salePurchases SaleEventPurchase[]
 
   @@map("users")
 }
@@ -166,8 +167,9 @@ model ProductSku {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   orderItems OrderItem[]
+  saleItems  SaleEventSku[]
 
   // Một product không có 2 SKU trùng size+màu — lưới chặn double-submit ở tầng DB.
   @@unique([productId, size, color])
@@ -235,12 +237,18 @@ model OrderItem {
   id           String   @id @default(uuid()) @db.Uuid
   orderId      String   @map("order_id") @db.Uuid
   skuId        String   @map("sku_id") @db.Uuid
+
+  /// NULL = mua giá gốc thẳng trên SKU (đường của Phase 3, vẫn giữ).
+  /// Có giá trị = mua trong một đợt sale — và lúc huỷ đơn phải trả kho về ĐÚNG ĐÂY, không
+  /// phải về `product_skus`, vì tồn kho đợt đã được cắt ra khỏi SKU lúc publish (ADR-015).
+  saleEventSkuId String?  @map("sale_event_sku_id") @db.Uuid
   quantity     Int
   unitPriceVnd Int      @map("unit_price_vnd")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  order Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  sku   ProductSku @relation(fields: [skuId], references: [id])
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku         ProductSku    @relation(fields: [skuId], references: [id])
+  saleEventSku SaleEventSku? @relation(fields: [saleEventSkuId], references: [id])
 
   @@index([orderId])
   @@index([skuId])
@@ -325,4 +333,85 @@ model RefundRequest {
   @@unique([paymentIntentId])
   @@index([orderId])
   @@map("refund_requests")
+}
+
+// ── Phase 8: Đợt sale ───────────────────────────────────────────────────────────────────
+
+/// Một đợt flash sale: mở lúc mấy giờ, đóng lúc mấy giờ, gồm những mẫu nào với giá nào.
+///
+/// **Cố tình KHÔNG có cột `status`.** "Đang mở hay chưa" tính được từ `startsAt`/`endsAt` +
+/// `isPublished`, nên lưu nó là lưu một bản cache của giá trị tính được — và như mọi cache,
+/// nó sai được: job lật trạng thái chạy trễ 3 giây thì DB nói "chưa mở" trong khi đồng hồ đã
+/// qua 20:00. Lúc đó có hai nguồn sự thật cho cùng một câu hỏi, và nguồn sai lại là nguồn
+/// được tin. Chi tiết: docs/specs/phase8-sale-event.md §Trạng thái phải TÍNH, đừng lưu.
+///
+/// `isPublished` thì PHẢI lưu, vì nó không tính được từ thời gian: một đợt soạn dở không được
+/// tự mở chỉ vì đồng hồ đi qua `startsAt`.
+model SaleEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  isPublished Boolean  @default(false) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items SaleEventSku[]
+
+  // Danh sách đợt đang bán: lọc `is_published` rồi sắp theo giờ mở.
+  @@index([isPublished, startsAt])
+  @@map("sale_events")
+}
+
+/// Một mẫu trong một đợt: giá riêng, tồn kho riêng, giới hạn mua riêng.
+///
+/// `stock` ở đây được **cắt ra** từ `ProductSku.stock` lúc publish (ADR-015), không phải một
+/// bản sao. Nhờ vậy hai đợt cùng lúc có kho riêng, không ăn của nhau — và tổng tồn kho toàn
+/// hệ thống vẫn không đổi.
+model SaleEventSku {
+  id           String @id @default(uuid()) @db.Uuid
+  saleEventId  String @map("sale_event_id") @db.Uuid
+  skuId        String @map("sku_id") @db.Uuid
+  salePriceVnd Int    @map("sale_price_vnd")
+
+  /// Số hàng đợt này ĐƯỢC PHÂN BỔ. Cố định từ lúc soạn nháp, không đổi khi bán.
+  allocatedStock Int @map("allocated_stock")
+
+  /// Số hàng CÒN LẠI. `0` cho tới khi publish — hàng chưa rời khỏi SKU thì đợt chưa có gì.
+  /// Tách khỏi `allocatedStock` để trả lời được "đã bán bao nhiêu" mà không phải đếm đơn.
+  stock        Int    @default(0)
+
+  /// Mỗi người mua tối đa bao nhiêu chiếc CỦA MẪU NÀY trong đợt này.
+  perUserLimit Int @default(2) @map("per_user_limit")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  event     SaleEvent           @relation(fields: [saleEventId], references: [id], onDelete: Cascade)
+  sku       ProductSku          @relation(fields: [skuId], references: [id])
+  purchases SaleEventPurchase[]
+  orderItems OrderItem[]
+
+  @@unique([saleEventId, skuId])
+  @@index([skuId])
+  @@map("sale_event_skus")
+}
+
+/// Đã mua bao nhiêu, của ai, trong đợt-mẫu nào.
+///
+/// **Đây là bài toán concurrency KHÁC hẳn tồn kho, dù nhìn giống nhau.** Tồn kho là MỘT dòng
+/// nóng mà cả nghìn người tranh ⇒ buộc phải xếp hàng. Quota là MỘT dòng cho MỖI người ⇒ hai
+/// người khác nhau không bao giờ chạm cùng dòng ⇒ **không cần khoá gì cả**, chỉ cần một câu
+/// `INSERT ... ON CONFLICT DO UPDATE ... WHERE`. Hình dạng tranh chấp quyết định công cụ.
+model SaleEventPurchase {
+  saleEventSkuId String @map("sale_event_sku_id") @db.Uuid
+  userId         String @map("user_id") @db.Uuid
+  quantity       Int
+
+  item SaleEventSku @relation(fields: [saleEventSkuId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id])
+
+  @@id([saleEventSkuId, userId])
+  @@map("sale_event_purchases")
 }

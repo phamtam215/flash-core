@@ -56,7 +56,7 @@ export class MetricsService {
 
     this.ordersPlaced = new Counter({
       name: 'orders_placed_total',
-      help: 'Số lần đặt đơn, tách theo KẾT QUẢ (created / out_of_stock / duplicate / sku_not_found)',
+      help: 'Số lần đặt đơn, tách theo KẾT QUẢ (created / out_of_stock / duplicate / sku_not_found / sale_not_open / per_user_limit)',
       labelNames: ['result'] as const,
       registers: [this.registry],
     });

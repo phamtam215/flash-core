@@ -400,6 +400,34 @@ Muốn xem lại thì `git log -- .claude/`.
     giống `LOGIN_RATE_LIMIT_MAX` đã làm từ Phase 1; `infra-fixture` nới cho mọi spec, riêng
     `security.e2e-spec` hạ xuống 5 để vẫn kiểm được cơ chế. **Decorator không nhận được số** vì
     nó đánh giá lúc nạp class, sớm hơn lúc validate env — nên nó chỉ mang *tên biến*.
+- **Phase 8 — ĐỢT SALE THẬT, XONG** 2026-09-26, theo `docs/specs/phase8-sale-event.md` (Tâm
+  duyệt cả 3 câu hỏi mở theo khuyến nghị). **integration 131 → 148** (17 test mới), unit
+  163/163, chạy 2 lần liên tiếp ổn định.
+  Module `sale-event` (soạn nháp → publish → xem), 3 bảng mới + cột
+  `order_items.sale_event_sku_id`, migration `20260926120000_add_sale_event`.
+  **[ADR-015](docs/adr/015-ton-kho-dot-cat-ra-tu-sku.md): tồn kho đợt CẮT RA khỏi SKU lúc
+  publish**, không dùng chung — nhờ vậy hai đợt cùng lúc có kho riêng. Tổng tồn kho không đổi
+  khi publish (test #4 kiểm bằng một phép cộng).
+  **Ba điểm kiến thức, ghi ở `tech-playbook.md` §Phase 8:**
+  1. **Trạng thái phải TÍNH, đừng lưu.** Không thêm cột `status` + job lật lúc 20:00 — cột đó
+     là bản cache của giá trị tính được, job trễ 3 giây là DB nói "chưa mở" trong khi đồng hồ
+     đã qua. `is_published` thì phải lưu vì nó không suy ra được từ thời gian.
+  2. **`now()` của Postgres, không phải `Date.now()` của Node.** Nhiều instance là nhiều đồng
+     hồ; máy nhanh 2 giây mở bán sớm 2 giây và trong 2 giây đó chỉ nó phục vụ.
+  3. **Quota khác tồn kho về HÌNH DẠNG nên khác cả công cụ.** Tồn kho = một dòng nóng cho cả
+     nghìn người ⇒ phải xếp hàng. Quota = một dòng cho mỗi người ⇒ **không cần khoá**, chỉ cần
+     `INSERT ... ON CONFLICT DO UPDATE ... WHERE`. Thứ tự **quota trước, tồn kho sau** không
+     đổi tính đúng nhưng giữ request chắc chắn hỏng khỏi dòng nóng — đo được: một người bấm 20
+     lần với giới hạn 2 trên kho 100 thì kho còn **98**, không phải 80.
+  **Ba thứ phát sinh ngoài spec:** tách `allocatedStock` khỏi `stock` (bản spec đầu dẫn tới một
+  hàm `publish()` không dùng được); thêm `OptionalAccessTokenGuard` cho trang công khai cần
+  biết người xem là ai; và trả quota khi huỷ cần `userId` **chính xác** — bản đầu đoán "đơn mới
+  nhất của mẫu này", sai ngay khi hai người cùng huỷ.
+  **Một chỗ spec nói quá điều đã làm, đã ghi rõ:** §Phạm vi viết "ba chiến lược giữ nguyên, chỉ
+  gọi trên tồn kho của đợt" — thực tế đường bán theo đợt dùng một câu `UPDATE` có điều kiện
+  (cùng cơ chế optimistic). Lý do ở ADR-015 §Một điều KHÔNG làm.
+  **Nợ mới:** đóng đợt và trả hàng tồn về SKU (đợt hết còn 7 chiếc thì 7 chiếc đó kẹt lại);
+  k6 chạy trên đợt sale.
 - **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
   Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
 - **Một test FLAKY đã tìm ra và sửa 2026-09-22:** chạy `test:int:local` hai lần liên tiếp thì
@@ -414,7 +442,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
   `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
   không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
-- **Số test hiện tại: 163 unit + 120 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
+- **Số test hiện tại: 163 unit + 148 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
 - **CẦN CHẠY LẠI khi bật Docker** (Tâm): `npm run up`, rồi `npm run test:int:local`, rồi
   benchmark k6 đầu-cuối (`node k6/seed-target.js` → dán lệnh nó in ra, giờ có thêm `-e CSRF=`).
   Bản sửa k6 ngày 2026-09-22 **chưa được chạy thật lần nào** — lần chạy đó mới là bằng chứng,
