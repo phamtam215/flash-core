@@ -475,8 +475,12 @@ Muốn xem lại thì `git log -- .claude/`.
   còn sót được tìm thấy lúc truy. Sửa: fixture `FLUSHDB` đầu mỗi lần chạy, **hàng rào là
   `TEST_REDIS_URL` phải trỏ database index khác 0** (`redis://localhost:6379/1`) — DB 0 là
   Redis dev đang chạy thật. Sau khi sửa: 3/3 lần chạy liên tiếp xanh.
-  **Còn một cảnh báo chưa dứt:** `Jest did not exit one second after...` — test vẫn xanh, chỉ
-  chậm thoát ~1 giây. Chưa truy ra handle nào; `--detectOpenHandles` không quy được cho ai.
+  **Cảnh báo `Jest did not exit` — ĐÃ TRUY RA 2026-09-26:** đúng **một** test gây ra,
+  `async-payment.e2e-spec` #18 "rút dây mạng", chỗ `worker.close(true)`. Force close để lại
+  kết nối blocking nội bộ của BullMQ chưa dọn; đã thử `worker.disconnect()` và
+  `connection.disconnect()`, không hết. **Cố ý KHÔNG bật `forceExit`** — nó sẽ giấu luôn mọi
+  rò rỉ THẬT phát sinh sau này. Cách khoanh vùng và lập luận đầy đủ ở `tech-playbook.md`
+  §Một cảnh báo biết rõ nguồn gốc.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
   `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
   không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.

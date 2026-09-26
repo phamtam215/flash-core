@@ -563,6 +563,10 @@ describe('Async, Queue & Payment (e2e)', () => {
       const first = new Worker(QUEUE_NAME, processor, { connection: firstConn, concurrency: 2, prefix });
       await sleep(400);
       await first.close(true);
+      // `close(true)` giết worker mà KHÔNG chờ job đang chạy xong — đúng cảnh rút dây mạng.
+      // Nhưng nó cũng để lại kết nối blocking nội bộ (BullMQ tự `duplicate()` bên trong) ở
+      // trạng thái chưa dọn. `disconnect()` cắt thẳng kết nối đó.
+      await first.disconnect();
 
       // Worker #2 bật lên và dọn nốt. Job đang dở của worker #1 bị coi là "stalled" và được
       // giao lại — đó là lý do có thể xử lý TRÙNG, và là lý do consumer phải idempotent.
@@ -574,8 +578,13 @@ describe('Async, Queue & Payment (e2e)', () => {
       const deadline = Date.now() + 20_000;
       while (mine().length < 20 && Date.now() < deadline) await sleep(200);
       await second.close();
-      // BullMQ không tự đóng connection do mình truyền vào — không quit thì Jest treo.
-      await Promise.all([firstConn.quit(), secondConn.quit()]);
+      // BullMQ không tự đóng connection do mình truyền vào. Worker #2 tắt êm nên `quit()`
+      // chạy trọn; worker #1 bị `close(true)` giết giữa chừng nên kết nối của nó có thể đang
+      // kẹt trong một lệnh blocking (`BZPOPMIN`) — `quit()` xếp hàng sau lệnh đó và không bao
+      // giờ tới lượt, để lại một socket mở. `disconnect()` cắt thẳng, đúng thứ cần cho một
+      // kết nối vốn đã bị giết. Đây là nguyên nhân của cảnh báo "Jest did not exit".
+      firstConn.disconnect();
+      await secondConn.quit();
 
       // Không MẤT: đủ 20. Không TRÙNG: đúng 20, dù worker #1 bị giết giữa chừng và job đang
       // dở của nó được giao lại cho worker #2.

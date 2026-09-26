@@ -203,6 +203,7 @@ kèm đuôi `.js` nhưng file trên đĩa là `.ts`, và Jest chỉ thử thêm 
 | **Flaky** | `setTimeout` cố định, phụ thuộc giờ hệ thống, port cứng, thứ tự chạy | Chờ theo điều kiện; để container tự cấp port; giả lập thời gian bằng fake timer |
 | **Flaky chỉ khi chạy hai lần liên tiếp** | **State trong Redis sống sót giữa hai lần chạy.** Gặp thật 2026-09-22: bộ đếm rate limit là `ratelimit:login:<email>` với TTL 60 giây, mà email của `auth.e2e-spec` **cố định** (`user1@`, `user2@`…) ⇒ lần chạy thứ hai trong vòng một phút thừa hưởng bộ đếm cũ và test "sai mật khẩu quá số lần → 429" nhận `429` **sớm hơn** dự kiến. Cùng lý do, `stock:<skuId>` còn sót làm chiến lược `redis` đọc tồn kho cũ | Dọn Redis đầu mỗi lần chạy, **có hàng rào**: `TEST_REDIS_URL` phải trỏ vào **database index khác 0** (`redis://localhost:6379/1`) rồi mới `FLUSHDB` — DB 0 là nơi máy dev đang chạy thật. Xem `test/infra-fixture.ts` |
 | `Jest did not exit one second after...` | Quên đóng pool / server / container | `afterAll`: `app.close()`, `pool.end()`, `container.stop()` |
+| `Jest did not exit` **dù đã đóng hết** | **Đã truy tới tận nơi (2026-09-26):** chỉ **một** test gây ra — `async-payment.e2e-spec` #18 "rút dây mạng", chỗ gọi `worker.close(true)`. Force close giết worker mà không chờ job đang chạy, và để lại kết nối blocking **nội bộ** của BullMQ (nó tự `duplicate()` bên trong) ở trạng thái chưa dọn. Đã thử `worker.disconnect()` và `connection.disconnect()` — không hết | **Chấp nhận và ghi tên thủ phạm.** Xem mục dưới về vì sao không dùng `forceExit` |
 | `Could not find a working container runtime strategy` | Docker daemon chưa bật | Bật Docker. **Không phải lỗi code** — đã gặp thật ở Phase 0 |
 | `A dynamic import callback was invoked without --experimental-vm-modules` khi `test:int` | Prisma 7 tải query compiler qua WASM bằng `await import(...)` — luôn vậy, kể cả khi generator đặt `moduleFormat = "cjs"` (cờ đó chỉ đổi cách client tự export, không đổi cách nó tải WASM). Jest chạy test trong `vm.Context`; thiếu cờ này thì Node không có "dynamic import callback" để phục vụ `import()`. Không xảy ra ở unit test vì `PrismaService` ở đó luôn bị mock (`health.service.spec.ts`), chưa từng gọi `$connect()` thật — bug chỉ lộ khi engine khởi động thật, đúng phase đầu tiên có integration test | Gặp thật ở Phase 1. Đã thêm `node --experimental-vm-modules` vào script `test:int` trong `package.json` |
 | `Cannot find module './internal/class.js'` khi chạy script bằng `ts-node` (không qua Jest, không qua `nest build`) | Cùng gốc với dòng trên: Prisma 7 sinh import kèm đuôi `.js` nhưng file thật là `.ts`. Jest có `moduleNameMapper` xử lý; `nest build` compile hẳn `.ts`→`.js` nên file `.js` thật sự tồn tại. `ts-node` chạy trực tiếp thì không có tầng nào remap — `require('./internal/class.js')` vỡ ngay | Gặp thật ở Phase 2 (script `prisma/seed/seed-skus.ts`). Né bằng cách không import Prisma Client trong script chạy qua `ts-node`, dùng `pg` thẳng (bulk insert không cần API kiểu Prisma) |
@@ -213,6 +214,39 @@ kèm đuôi `.js` nhưng file trên đĩa là `.ts`, và Jest chỉ thử thêm 
 | Job lỗi chạy lại liên tục, không backoff, DLQ luôn rỗng | Tự `getJobs()` rồi gọi thẳng hàm xử lý, **bỏ qua vòng đời của BullMQ**. Job ném lỗi không vào trạng thái `failed`, `attemptsMade` không tăng, `backoff` không chạy; vòng lặp lấy lại đúng job đó ngay | Dùng `Worker` thật, và nếu cần "chạy một lượt rồi thoát" thì dừng bằng sự kiện `drained` + một trần thời gian. Gặp thật ở `src/worker-once.ts` (Phase 7) |
 | **Ngưỡng `coverageThreshold` không chặn gì cả, mà CI vẫn xanh** | Khoá theo đường dẫn của `coverageThreshold` tính từ **`cwd`**, KHÔNG phải từ `rootDir`. Repo này có `rootDir: 'src'`, nên `'./modules/order/...'` không khớp file nào. Jest chỉ in một dòng `Jest: Coverage data for ... was not found` rồi **đi tiếp, không đỏ** — nên hàng rào trông như đang có mà thực ra không có | Viết đủ `'./src/modules/...'`, rồi **thử nâng ngưỡng lên vô lý** (99%) một lần để xem nó có đỏ không. Gặp thật ở Phase 6 |
 | Thêm ngưỡng theo đường dẫn xong, con số `global` **tụt** | Đúng thiết kế của Jest: file nào trúng một ngưỡng theo-đường-dẫn thì bị **loại** khỏi phép tính `global`. `global` còn lại là "phần chưa ai canh", không phải coverage toàn dự án | Đọc `global` như một con số riêng. Muốn số toàn dự án thì xem dòng `All files` của `npm run test:cov` |
+
+### Một cảnh báo biết rõ nguồn gốc khác hẳn một cảnh báo chưa truy
+
+Bộ integration test luôn in `Jest did not exit one second after the test run has completed`.
+Test vẫn xanh, chỉ chậm thoát ~1 giây.
+
+Cách khoanh vùng — chạy **từng spec riêng** rồi đếm dòng cảnh báo, sau đó dùng `-t` để lọc
+tới đúng một test:
+
+```bash
+# 13 spec, chỉ async-payment in cảnh báo
+for spec in health ui product auth csrf ...; do
+  jest --testPathPatterns "$spec" 2>&1 | grep -c 'did not exit'
+done
+# rồi thu hẹp trong spec đó
+jest --testPathPatterns async-payment -t "rút dây mạng"     # ← có cảnh báo
+jest --testPathPatterns async-payment -t "^(?!.*rút dây mạng)"  # ← sạch
+```
+
+Kết quả: **đúng một test**, và nó là test **cố tình** giết worker bằng `close(true)`.
+
+**Vì sao KHÔNG bật `forceExit: true`** dù đó là cách sửa phổ biến nhất trên mạng: nó làm
+cảnh báo biến mất *cho mọi nguyên nhân*, gồm cả những rò rỉ **thật sự** phát sinh sau này.
+Đổi một cảnh báo đã biết rõ nguồn gốc lấy sự im lặng cho mọi rò rỉ tương lai là một giao dịch
+tồi.
+
+`--detectOpenHandles` **không** quy được cho ai — bật nó lên là cảnh báo biến mất, dấu hiệu
+kinh điển của handle ở tầng socket mà `async_hooks` không theo dõi được.
+
+**Bài học chung:** một cảnh báo lặp lại chỉ an toàn khi biết **chính xác cái gì sinh ra nó**.
+Lúc đó, cảnh báo **thứ hai** xuất hiện sẽ được nhận ra là mới — còn nếu chưa từng truy, thì
+mọi cảnh báo đều lẫn vào nhau và không cái nào được đọc. Đây cũng chính là lập luận của
+*"một cổng luôn đỏ là một cổng bị bỏ qua"* ở §Phase 9, nhìn từ phía ngược lại.
 
 ### Ngưỡng coverage đặt ở đâu — và vì sao KHÔNG đặt cho repository
 
