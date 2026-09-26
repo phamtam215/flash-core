@@ -386,7 +386,9 @@ tag rồi ngồi đợi một build không bao giờ chạy*. Với Flash-Core m
 ghi rõ mẫu tag ở đầu `deploy.yml` để không phải đi đoán.
 
 **Không có bước phê duyệt tay trong pipeline.** Nghĩa là toàn bộ chốt chặn nằm ở CI xanh
-trước khi merge — đây là lý do việc bật integration test trong `ci.yml` không phải "làm cho
+trước khi deploy — và chốt đó chỉ thật khi `deploy.yml` **chờ** CI (`workflow_run`). Bản đầu
+dùng trigger `push` nên hai workflow chạy song song: ngày 2026-09-26 CI đỏ (coverage tụt) mà
+Deploy vẫn khởi động, chỉ dừng vì hạ tầng GCP chưa có. Đây cũng là lý do việc bật integration test trong `ci.yml` không phải "làm cho
 đẹp" mà là *cái phanh duy nhất* của cả dây chuyền.
 
 ## Bảy chốt chặn chi phí

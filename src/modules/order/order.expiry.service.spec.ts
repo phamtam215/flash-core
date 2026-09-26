@@ -9,13 +9,23 @@ import { OrderExpiryService } from './order.expiry.service';
  * `UPDATE`: lúc đó DB vẫn đúng một đơn `CANCELLED`, nhưng tồn kho cộng hai lần.
  */
 describe('OrderExpiryService', () => {
-  let repo: { cancelPendingOrder: jest.Mock; findExpiredPendingOrderIds: jest.Mock };
+  let repo: {
+    cancelPendingOrder: jest.Mock;
+    findExpiredPendingOrderIds: jest.Mock;
+    incrementSaleEventStock: jest.Mock;
+    releaseUserQuota: jest.Mock;
+  };
   let reserver: { release: jest.Mock };
   let ordersCancelled: { inc: jest.Mock };
   let service: OrderExpiryService;
 
   beforeEach(() => {
-    repo = { cancelPendingOrder: jest.fn(), findExpiredPendingOrderIds: jest.fn() };
+    repo = {
+      cancelPendingOrder: jest.fn(),
+      findExpiredPendingOrderIds: jest.fn(),
+      incrementSaleEventStock: jest.fn(),
+      releaseUserQuota: jest.fn(),
+    };
     reserver = { release: jest.fn() };
     ordersCancelled = { inc: jest.fn() };
     service = new OrderExpiryService(repo as never, { ordersCancelled } as never, reserver as never);
@@ -74,6 +84,19 @@ describe('OrderExpiryService', () => {
       repo.cancelPendingOrder.mockResolvedValue([]);
 
       await expect(service.cancelExpired('o1')).resolves.toBe(true);
+      expect(reserver.release).not.toHaveBeenCalled();
+    });
+
+    it('⭐ đơn mua trong đợt sale → trả về tồn kho ĐỢT + trả suất, KHÔNG trả vào SKU gốc', async () => {
+      repo.cancelPendingOrder.mockResolvedValue([
+        { skuId: 'sku-1', quantity: 1, saleEventSkuId: 'ses-1', userId: 'u1' },
+      ]);
+
+      await service.cancelExpired('o1');
+
+      expect(repo.incrementSaleEventStock).toHaveBeenCalledWith('ses-1', 1);
+      expect(repo.releaseUserQuota).toHaveBeenCalledWith('ses-1', 'u1', 1);
+      // Trả vào SKU gốc là hàng của đợt chui về kho chung — đợt sau bán hụt, không lỗi nào báo.
       expect(reserver.release).not.toHaveBeenCalled();
     });
   });

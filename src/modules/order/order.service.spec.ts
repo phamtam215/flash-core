@@ -3,6 +3,8 @@ import {
   OrderNotCancellableError,
   OrderNotFoundError,
   OutOfStockError,
+  PerUserLimitReachedError,
+  SaleNotOpenError,
   SkuNotFoundError,
 } from './order.errors';
 import { OrderService } from './order.service';
@@ -28,6 +30,11 @@ describe('OrderService', () => {
     findOrderOfUser: jest.Mock;
     cancelPendingOrder: jest.Mock;
     findOrderStatusOfUser: jest.Mock;
+    claimUserQuota: jest.Mock;
+    releaseUserQuota: jest.Mock;
+    decrementSaleEventStock: jest.Mock;
+    incrementSaleEventStock: jest.Mock;
+    diagnoseSaleEventSku: jest.Mock;
   };
   let queue: { add: jest.Mock };
   let reserver: { name: string; reserve: jest.Mock; release: jest.Mock };
@@ -46,6 +53,11 @@ describe('OrderService', () => {
       findOrderOfUser: jest.fn(),
       cancelPendingOrder: jest.fn(),
       findOrderStatusOfUser: jest.fn(),
+      claimUserQuota: jest.fn(),
+      releaseUserQuota: jest.fn(),
+      decrementSaleEventStock: jest.fn(),
+      incrementSaleEventStock: jest.fn(),
+      diagnoseSaleEventSku: jest.fn(),
     };
     queue = { add: jest.fn().mockResolvedValue(undefined) };
     reserver = { name: 'optimistic', reserve: jest.fn(), release: jest.fn() };
@@ -178,6 +190,71 @@ describe('OrderService', () => {
       repo.findOrderByIdempotencyKey.mockResolvedValue(null);
 
       await expect(service.placeOrder('u1', 'key-1', dto)).rejects.toThrow(/không tìm thấy đơn cũ/);
+    });
+  });
+
+  describe('placeOrder — mua trong đợt sale (Phase 8)', () => {
+    const saleDto = { saleEventSkuId: 'ses-1', quantity: 1 };
+
+    function saleStockOk(salePriceVnd = 99_000) {
+      repo.claimUserQuota.mockResolvedValue(true);
+      repo.decrementSaleEventStock.mockResolvedValue({ salePriceVnd, skuId: 'sku-1' });
+    }
+
+    it('⭐ hết suất mua → PerUserLimitReachedError, KHÔNG chạm vào dòng tồn kho nóng', async () => {
+      repo.claimUserQuota.mockResolvedValue(false);
+
+      await expect(service.placeOrder('u1', 'key-1', saleDto)).rejects.toBeInstanceOf(
+        PerUserLimitReachedError,
+      );
+      // Kiểm quota trước là để request chắc chắn hỏng không bao giờ xếp hàng ở dòng tồn kho.
+      expect(repo.decrementSaleEventStock).not.toHaveBeenCalled();
+      expect(ordersPlaced.inc).toHaveBeenCalledWith({ result: 'per_user_limit' });
+    });
+
+    it.each([
+      ['OUT_OF_STOCK', OutOfStockError, 'out_of_stock'],
+      ['NOT_OPEN', SaleNotOpenError, 'sale_not_open'],
+      ['NOT_FOUND', SkuNotFoundError, 'sku_not_found'],
+    ] as const)(
+      '⭐ trừ kho đợt thất bại (%s) → TRẢ SUẤT vừa giữ rồi mới ném lỗi',
+      async (reason, ErrorClass, label) => {
+        repo.claimUserQuota.mockResolvedValue(true);
+        repo.decrementSaleEventStock.mockResolvedValue(null);
+        repo.diagnoseSaleEventSku.mockResolvedValue(reason);
+
+        await expect(service.placeOrder('u1', 'key-1', saleDto)).rejects.toBeInstanceOf(ErrorClass);
+        // Quên trả suất thì người mua bị trừ suất cho một đơn không tồn tại — mua lại không được.
+        expect(repo.releaseUserQuota).toHaveBeenCalledWith('ses-1', 'u1', 1);
+        expect(ordersPlaced.inc).toHaveBeenCalledWith({ result: label });
+        expect(repo.createOrder).not.toHaveBeenCalled();
+      },
+    );
+
+    it('⭐ giá ghi vào đơn là GIÁ SALE, kèm saleEventSkuId để huỷ đơn trả đúng chỗ', async () => {
+      saleStockOk(99_000);
+      repo.createOrder.mockResolvedValue({ id: 'o1' });
+
+      await service.placeOrder('u1', 'key-1', saleDto);
+
+      expect(repo.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ unitPriceVnd: 99_000, skuId: 'sku-1', saleEventSkuId: 'ses-1' }),
+      );
+      expect(stopTimer).toHaveBeenCalled();
+    });
+
+    it('⭐ Idempotency-Key trùng → trả cả tồn kho ĐỢT lẫn suất, KHÔNG trả vào SKU gốc', async () => {
+      saleStockOk();
+      repo.createOrder.mockResolvedValue(null);
+      repo.findOrderByIdempotencyKey.mockResolvedValue({ id: 'o-cu' });
+
+      const result = await service.placeOrder('u1', 'key-1', saleDto);
+
+      expect(repo.incrementSaleEventStock).toHaveBeenCalledWith('ses-1', 1);
+      expect(repo.releaseUserQuota).toHaveBeenCalledWith('ses-1', 'u1', 1);
+      // Trả vào SKU gốc là hàng của đợt chui về kho chung (ADR-015).
+      expect(reserver.release).not.toHaveBeenCalled();
+      expect(result).toEqual({ order: { id: 'o-cu' }, created: false });
     });
   });
 

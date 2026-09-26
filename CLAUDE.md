@@ -484,7 +484,7 @@ Muốn xem lại thì `git log -- .claude/`.
 - **Chạy integration test trên máy dev: `npm run test:int:local`** — sandbox chặn Jest nối
   `docker.sock`, script này dùng lối thoát `TEST_DATABASE_URL`/`TEST_REDIS_URL`. **Cổng 5433**,
   không phải 5432: compose ánh xạ ra 5433 để né Postgres cài thẳng trên máy.
-- **Số test hiện tại: 171 unit + 160 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
+- **Số test hiện tại: 178 unit + 160 integration.** Chạy đủ: `npm run check` + `npm run test:int:local`.
 - **CẦN CHẠY LẠI khi bật Docker** (Tâm): `npm run up`, rồi `npm run test:int:local`, rồi
   benchmark k6 đầu-cuối (`node k6/seed-target.js` → dán lệnh nó in ra, giờ có thêm `-e CSRF=`).
   Bản sửa k6 ngày 2026-09-22 **chưa được chạy thật lần nào** — lần chạy đó mới là bằng chứng,

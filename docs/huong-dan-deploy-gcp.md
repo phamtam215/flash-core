@@ -284,7 +284,9 @@ Vào **Settings → Secrets and variables → Actions**:
 git push origin main
 ```
 
-Workflow [`deploy.yml`](../.github/workflows/deploy.yml) chạy 5 bước theo thứ tự:
+Push xong thì **CI chạy trước**; [`deploy.yml`](../.github/workflows/deploy.yml) chỉ khởi động
+khi CI **xanh** (trigger `workflow_run`), và deploy đúng commit CI vừa kiểm. Muốn deploy lại mà
+không push: tab **Actions → Deploy → Run workflow**. Nó chạy 5 bước theo thứ tự:
 
 | # | Bước | Hỏng thì sao |
 |---|---|---|
@@ -406,6 +408,7 @@ cả hai hiện đang dùng **số đo local**, chưa phải số thật.
 
 | Triệu chứng | Nguyên nhân thường gặp nhất | Cách chữa |
 |---|---|---|
+| Job Deploy hiện **skipped** (xám) | CI đỏ, hoặc chưa đặt biến `GCP_WIF_PROVIDER` ở §8 — job cố ý bỏ qua thay vì đỏ | Sửa CI cho xanh / đặt đủ 4 biến `vars` |
 | CI dừng ở bước `auth`, báo *"unable to get credentials"* | `--attribute-condition` không khớp tên repo, hoặc dán nhầm `GCP_WIF_PROVIDER` | Chạy lại 7.2–7.4, đối chiếu `$REPO` |
 | `migrate deploy` treo rồi timeout | Dùng nhầm chuỗi **pooled** cho migrate | Đổi `DATABASE_URL_DIRECT` sang chuỗi **direct** |
 | App lên nhưng mọi API trả `500`, log có `42P01` | Chưa chạy migration | Kiểm bước 3 của workflow có xanh không |
