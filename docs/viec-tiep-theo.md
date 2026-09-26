@@ -13,7 +13,7 @@
 > **Luật giữ cho nó không trôi lệch:** xong một việc thì **xoá dòng đó trong chính commit làm
 > việc đó**. Không để dành "dọn sau" — một hàng đợi cũ là một hàng đợi không ai tin.
 >
-> Cập nhật lần cuối: **2026-09-26**.
+> Cập nhật lần cuối: **2026-09-26** — vừa xong khối security baseline của Phase 9.
 
 ---
 
@@ -35,14 +35,21 @@
 
 ---
 
+## ✅ Vừa xong
+
+**Phase 9 khối 1–3 — security baseline** (2026-09-26). 5 security header, rate limit
+`register`/`refresh` theo IP, `trust proxy 1`, body limit tường minh 32kb, cổng `npm audit`
+trong CI. Bảng rà 19 mục baseline giờ **19/19**. Chi tiết: [spec Phase 9](specs/phase9-web-hoan-thien.md).
+
+---
+
 ## 🟢 Xếp hàng — duyệt xong là code được
 
 | # | Việc | Ước lượng | Vì sao đứng ở đây |
 |---|---|---|---|
-| 5 | **Phase 9 khối 1–3** — security baseline: 5 header, rate limit `register`, `npm audit`, body limit tường minh | ~1 ngày | **Chặn #6.** `register` không giới hạn thì `perUserLimit` của Phase 8 vô nghĩa ngay từ ngày đầu |
-| 6 | **Phase 8** — đợt sale thật: giờ mở/đóng, giá riêng, giới hạn mua mỗi người | ~3 ngày | Vá lỗ nghiệp vụ lộ nhất của dự án |
-| 7 | **Job dọn `outbox_events` + `processed_events`** | ~0,5 ngày | Nên xong **trước khi deploy**: hai bảng chỉ ghi thêm, trên Neon free 0,5 GB nó lộ ra bằng **hoá đơn**, không bằng lỗi |
-| 8 | **Phase 9 khối 4** — web dùng được: 6 màn, tách `app.js` thành module ESM | ~4 ngày | Không chặn gì, nhưng là thứ người phỏng vấn nhìn thấy đầu tiên |
+| 5 | **Phase 8** — đợt sale thật: giờ mở/đóng, giá riêng, giới hạn mua mỗi người | ~3 ngày | Vá lỗ nghiệp vụ lộ nhất của dự án |
+| 6 | **Job dọn `outbox_events` + `processed_events`** | ~0,5 ngày | Nên xong **trước khi deploy**: hai bảng chỉ ghi thêm, trên Neon free 0,5 GB nó lộ ra bằng **hoá đơn**, không bằng lỗi |
+| 7 | **Phase 9 khối 4** — web dùng được: 6 màn, tách `app.js` thành module ESM | ~4 ngày | Không chặn gì, nhưng là thứ người phỏng vấn nhìn thấy đầu tiên |
 
 ---
 
@@ -50,10 +57,10 @@
 
 | # | Việc | Mất bao lâu |
 |---|---|---|
-| 9 | Trả lời câu hỏi bản chất Phase 3, 5, 6 | ~1 giờ |
-| 10 | Quay video demo 2 phút — dòng Definition of Done cuối cùng chưa tick. Cách dựng cảnh ở [demo-phong-van.md](demo-phong-van.md) Bước 7 | ~30 phút |
-| 11 | Dựng hạ tầng GCP: project, WIF, Neon, Upstash, 6 secret, Cloud Scheduler **5 phút**, và **budget alert $1 làm trước tiên**. 11 bước ở [spec Phase 7](specs/phase7-deploy-gcp.md) | ~nửa ngày |
-| 12 | Sau khi deploy: đo thật rồi cập nhật số vào [ADR-012](adr/012-worker-tren-cloud-run.md) và [ADR-013](adr/013-pool-nho-tren-serverless.md) — cả hai đang dùng số đo **local** | ~1 giờ |
+| 8 | Trả lời câu hỏi bản chất Phase 3, 5, 6 | ~1 giờ |
+| 9 | Quay video demo 2 phút — dòng Definition of Done cuối cùng chưa tick. Cách dựng cảnh ở [demo-phong-van.md](demo-phong-van.md) Bước 7 | ~30 phút |
+| 10 | Dựng hạ tầng GCP: project, WIF, Neon, Upstash, 6 secret, Cloud Scheduler **5 phút**, và **budget alert $1 làm trước tiên**. 11 bước ở [spec Phase 7](specs/phase7-deploy-gcp.md) | ~nửa ngày |
+| 11 | Sau khi deploy: đo thật rồi cập nhật số vào [ADR-012](adr/012-worker-tren-cloud-run.md) và [ADR-013](adr/013-pool-nho-tren-serverless.md) — cả hai đang dùng số đo **local** | ~1 giờ |
 
 ---
 

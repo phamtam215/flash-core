@@ -43,6 +43,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import { json } from 'express';
 import { Logger } from 'nestjs-pino';
 import { join } from 'node:path';
 
@@ -128,6 +129,27 @@ async function bootstrap(): Promise<void> {
   // KHÔNG truyền secret: dự án không dùng cookie ký (signed cookie). Không cần, vì bản thân
   // token đã là JWT có chữ ký — ký thêm lớp nữa chỉ tốn CPU mà không thêm bảo đảm nào.
   app.use(cookieParser());
+
+  // -------------------------------------------------------------------------------------
+  // BƯỚC 3b-2 — Tin proxy ĐÚNG MỘT LỚP, và giới hạn kích thước body (Phase 9)
+  // -------------------------------------------------------------------------------------
+  //
+  // `trust proxy = 1`: tin header `X-Forwarded-For` do **đúng một** proxy đứng trước thêm vào.
+  // Cloud Run là một lớp, nên số này là 1.
+  //
+  // VÌ SAO KHÔNG `true` (tin mọi lớp): lúc đó Express lấy địa chỉ ĐẦU TIÊN trong chuỗi
+  // `X-Forwarded-For` — mà chuỗi đó do client gửi lên, nên ai cũng bịa được. Rate limit theo
+  // IP sẽ bị vượt qua bằng một dòng header. Tin quá nhiều còn tệ hơn không tin gì.
+  //
+  // VÌ SAO KHÔNG BỎ HẲN: không bật thì `req.ip` luôn là IP của proxy ⇒ mọi người dùng trông
+  // như cùng một IP ⇒ rate limit khoá nhầm toàn bộ. Hai kiểu sai ngược nhau, và cả hai đều
+  // im lặng — chỉ lộ ra khi đã lên production.
+  app.set('trust proxy', 1);
+
+  // Giới hạn body TƯỜNG MINH. Mặc định của Express vốn đã là 100kb nên không đổi hành vi,
+  // nhưng một giá trị ngầm là thứ đổi theo phiên bản thư viện mà không ai đọc changelog.
+  // 32kb thừa sức cho mọi request của dự án (đơn hàng lớn nhất là vài trăm byte JSON).
+  app.use(json({ limit: '32kb' }));
 
   // -------------------------------------------------------------------------------------
   // BƯỚC 4 — Đăng ký dọn dẹp khi bị tắt

@@ -31,7 +31,7 @@
   <section id="screen-auth" class="hidden">
     <h2>Đăng nhập</h2>
     <p class="sub">Chưa có tài khoản thì bấm Đăng ký — mật khẩu tối thiểu 8 ký tự.</p>
-    <div class="card" style="max-width: 380px">
+    <div class="card-narrow card">
       <div class="field">
         <label for="email">Email</label>
         <input id="email" type="email" autocomplete="username" placeholder="ban@example.com">
@@ -44,7 +44,7 @@
         <button class="primary" id="btn-login">Đăng nhập</button>
         <button class="ghost" id="btn-register">Đăng ký</button>
       </div>
-      <p class="muted" id="auth-msg" style="margin: 12px 0 0; font-size: 13px"></p>
+      <p class="note-sm muted" id="auth-msg"></p>
     </div>
   </section>
 
@@ -62,9 +62,9 @@
       <span class="mono">npm run seed</span>.
     </p>
 
-    <div class="card hidden" id="sku-panel" style="margin-top: 22px">
-      <div class="row" style="justify-content: space-between; margin-bottom: 12px">
-        <h3 style="margin: 0" id="sku-title"></h3>
+    <div class="gap-lg card hidden" id="sku-panel">
+      <div class="row-between row">
+        <h3 class="flush" id="sku-title"></h3>
         <span class="muted mono" id="poll-tick"></span>
       </div>
       <table>
@@ -75,8 +75,8 @@
       </table>
     </div>
 
-    <div class="card hidden" id="order-panel" style="margin-top: 18px">
-      <h3 style="margin: 0 0 10px">Đơn vừa đặt</h3>
+    <div class="gap-md card hidden" id="order-panel">
+      <h3 class="gap-under">Đơn vừa đặt</h3>
       <div id="order-detail"></div>
     </div>
   </section>
@@ -92,7 +92,7 @@
         </thead>
         <tbody id="order-rows"></tbody>
       </table>
-      <p class="muted hidden" id="no-orders" style="margin: 12px 0 0">Chưa có đơn nào.</p>
+      <p class="gap-sm muted hidden" id="no-orders">Chưa có đơn nào.</p>
     </div>
   </section>
 

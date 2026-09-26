@@ -521,6 +521,78 @@ khi ai đó phá luật.
 
 ---
 
+# Phase 9 — Security baseline
+
+## Ba thứ vấp phải khi bật, dù đọc tài liệu kỹ
+
+### 1. CSP `style-src` chặn cả thuộc tính `style=`, không chỉ thẻ `<style>`
+
+Ai cũng biết `script-src 'self'` giết `<script>` inline và `onclick=`. Ít người để ý rằng
+`style-src 'self'` **cũng giết `<div style="...">`** — thuộc tính style inline thuộc về
+`style-src-attr`, mà chỉ thị đó mặc định rơi về `style-src`.
+
+Trang của dự án có **12 chỗ** như vậy lúc bật CSP. Triệu chứng nếu không biết: script chạy
+bình thường, API trả đúng, mà **bố cục vỡ** — và console báo vi phạm CSP chứ không báo lỗi CSS,
+nên rất dễ đi tìm nhầm chỗ.
+
+Hai cách chữa, và lựa chọn nói lên khá nhiều:
+
+| | Nới `style-src 'unsafe-inline'` | Chuyển ra lớp CSS |
+|---|---|---|
+| Công sức | Một từ | ~30 phút cho 12 chỗ |
+| Đổi lại | Bỏ đúng thứ vừa dựng lên | Markup sạch hơn thật |
+
+Dự án chọn cách thứ hai, và đó chính là **lợi ích thật của CSP**: nó *ép* tách trình bày khỏi
+markup, thay vì tin vào lời hứa sẽ tách. Khoá lại bằng test quét file
+(`security.e2e-spec.ts` #3), **không** dựa vào mắt người — vì kiểu hỏng này chỉ lộ ra trên
+trình duyệt thật.
+
+### 2. `trust proxy` sai kiểu nào cũng im lặng, và hai kiểu sai ngược nhau
+
+Rate limit theo IP cần `req.ip` đúng. Sau một proxy (Cloud Run), IP thật nằm trong header
+`X-Forwarded-For`, và Express chỉ đọc nó khi `trust proxy` được bật.
+
+| Cấu hình | Chuyện gì xảy ra |
+|---|---|
+| **Không bật** | `req.ip` luôn là IP của proxy ⇒ **mọi người dùng trông như một IP** ⇒ rate limit khoá nhầm toàn bộ |
+| **`true`** (tin mọi lớp) | Express lấy địa chỉ **đầu tiên** trong chuỗi `X-Forwarded-For` — mà chuỗi đó do client gửi lên ⇒ **ai cũng bịa được** ⇒ vượt rate limit bằng một dòng header |
+| **`1`** ⭐ | Tin đúng một lớp proxy đứng trước. Đúng với Cloud Run |
+
+**Tin quá nhiều còn tệ hơn không tin gì** — nó biến một lớp phòng thủ thành lớp trang trí, mà
+nhìn từ ngoài thì vẫn "có rate limit". Cả hai kiểu sai đều không có thông báo nào; chỉ lộ ra
+khi đã lên production.
+
+### 3. Ngưỡng của cổng quét lỗ hổng phải chọn bằng cách CHẠY THỬ
+
+Dự định ban đầu: `npm audit --audit-level=high` chặn merge. Chạy thử trước khi chốt:
+
+| Mức | Số lượng (2026-09-22) |
+|---|---|
+| `critical` | **0** |
+| `high` | **42** — toàn bộ là phụ thuộc gián tiếp của Prisma, đều ghi *"No fix available"* |
+
+Chặn ở `high` nghĩa là CI đỏ ngay và đỏ mãi, vì **người sửa không có cách nào làm nó xanh**.
+Mà một cổng luôn đỏ thì chỉ sau vài lần là bị tắt — và lúc đó mất luôn cả cổng thật.
+
+Chốt: **chặn `critical`, báo cáo `high` mà không chặn**. Bài học chung:
+**một cổng chất lượng chỉ có giá trị khi nó XANH ĐƯỢC** — và cách duy nhất biết điều đó là
+chạy nó trước khi đưa vào CI.
+
+## Rate limit theo email hay theo IP — hai bài toán, không thay nhau được
+
+| | Theo email (login) | Theo IP (register) |
+|---|---|---|
+| Vì sao chọn vậy | Đã biết đang nói về tài khoản nào | **Chưa có tài khoản nào để khoá** |
+| Chặn được | Dò mật khẩu một tài khoản từ nghìn IP | Tạo hàng loạt tài khoản từ một máy |
+| Né được bằng | — | Đổi IP (botnet, proxy rẻ) |
+| Đánh đổi | Kẻ xấu khoá tài khoản người khác 60 giây | Văn phòng dùng chung NAT ⇒ chung IP ⇒ ngưỡng phải rộng |
+
+Vì sao cả hai đếm ở **Redis** chứ không phải `Map` trong RAM: Cloud Run chạy nhiều instance,
+mỗi instance đếm riêng thì ngưỡng "20 lần/giờ" thành 40 với 2 instance. Đây đúng là lý do
+`infra/redis` ra đời từ Phase 1.
+
+---
+
 # Phase 1 — Auth & Security
 
 ## Cookie, HttpOnly và Redis — giải thích từ đầu

@@ -49,6 +49,23 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
 
+      # Hai bước, có chủ ý — và ngưỡng được chọn bằng cách CHẠY THỬ, không theo cảm giác.
+      #
+      # Đo ngày 2026-09-22: 42 lỗ hổng `high`, 0 `critical`. Toàn bộ 42 cái là phụ thuộc
+      # gián tiếp của Prisma (deepmerge-ts, fast-uri...) và đều ghi **"No fix available"**.
+      #
+      # Chặn ở `high` nghĩa là CI đỏ ngay hôm nay và đỏ mãi, vì **người sửa không có cách nào
+      # làm nó xanh** — chờ Prisma phát hành bản mới là việc nằm ngoài tầm tay. Mà một cổng
+      # luôn đỏ thì chỉ sau vài lần là người ta tắt nó đi, và lúc đó mất luôn cả cổng thật.
+      #
+      # Nên: CHẶN ở `critical` (chỗ gần như luôn có hành động làm được), và BÁO CÁO `high`
+      # mà không chặn — vẫn nhìn thấy trong log, vẫn biết con số tăng hay giảm.
+      - name: Chặn lỗ hổng critical
+        run: npm audit --audit-level=critical
+
+      - name: Báo cáo lỗ hổng high (không chặn)
+        run: npm audit --audit-level=high || true
+
       - name: Lint
         run: npm run lint
 

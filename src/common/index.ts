@@ -29,3 +29,11 @@ export {
   verifyToken,
   type CsrfFailure,
 } from './csrf';
+export {
+  SecurityHeadersMiddleware,
+  IpRateLimitGuard,
+  IpRateLimit,
+  TooManyRequestsError,
+  IP_RATE_LIMIT_KEY,
+  type IpRateLimitOptions,
+} from './security';

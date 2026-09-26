@@ -366,6 +366,29 @@ Muốn xem lại thì `git log -- .claude/`.
   **Bài học chung:** ADR-012 được viết TRƯỚC khi ai chạy thử; cả hai lỗi của nó lộ ra ở bước
   review chứ không phải bước code. Phần "Hệ quả" của một ADR chưa triển khai phải đọc như
   **giả thuyết**, không phải kết luận.
+- **Phase 9 khối 1–3 — SECURITY BASELINE XONG** 2026-09-26, theo `docs/specs/phase9-web-hoan-thien.md`.
+  Bảng rà 19 mục phải-có giờ **19/19** (trước là 15/19). Ba chỗ thiếu đã vá:
+  `common/security/security-headers.middleware.ts` (5 header, tự viết ~70 dòng, **không dùng
+  `helmet`**), `common/security/ip-rate-limit.{guard,decorator}.ts` (`@IpRateLimit` trên
+  `register` 20 lần/giờ và `refresh` 120 lần/giờ, đếm ở Redis), và cổng `npm audit` trong CI.
+  `main.ts` thêm `trust proxy = 1` và `json({ limit: '32kb' })`.
+  **Ba thứ vấp phải khi bật, đã ghi vào `tech-playbook.md` §Phase 9:**
+  1. **CSP `style-src 'self'` chặn cả thuộc tính `style=`**, không chỉ thẻ `<style>`. Trang có
+     12 chỗ như vậy ⇒ bật CSP lên là vỡ bố cục, mà console báo vi phạm CSP chứ không báo lỗi
+     CSS. Đã chuyển hết ra lớp tiện ích trong `styles.css` thay vì nới `'unsafe-inline'` —
+     nới là bỏ đúng thứ vừa dựng lên.
+  2. **`trust proxy` sai kiểu nào cũng im lặng, và hai kiểu sai ngược nhau:** không bật thì
+     mọi người dùng trông như một IP (khoá nhầm toàn bộ); đặt `true` thì client bịa được
+     `X-Forwarded-For` (vượt rate limit bằng một dòng header). Phải là `1` — đúng một lớp proxy.
+  3. **Ngưỡng cổng `npm audit` phải chọn bằng cách CHẠY THỬ.** Đo được 42 `high` / 0 `critical`,
+     và mọi `high` đều là phụ thuộc gián tiếp của Prisma ghi *"No fix available"* ⇒ chặn ở
+     `high` là CI đỏ mãi mà không ai sửa được. Chốt: **chặn `critical`, báo cáo `high`**.
+     Luật: *một cổng chất lượng chỉ có giá trị khi nó xanh được.*
+  **`test/security.e2e-spec.ts` (8 test)** — đáng tiền nhất là #3/#3b: **quét file** `public/`
+  tìm `<script>` inline, `on*=` và `style=`. Không cần trình duyệt, chạy mili giây, và bắt
+  đúng kiểu hỏng mà mọi test khác vẫn xanh.
+  **CÒN LẠI:** chạy `npm run test:int:local` — lúc code xong thì Docker đã tắt nên 8 test này
+  **chưa chạy lần nào**; unit 163/163 + lint + typecheck sạch.
 - **CI giờ chạy cả integration test** (service container Postgres + Redis, không dùng
   Testcontainers trên runner). Ghi chú "sẽ bật ở Phase 3" trong `ci.yml` đã lỗi thời từ lâu.
 - **Một test FLAKY đã tìm ra và sửa 2026-09-22:** chạy `test:int:local` hai lần liên tiếp thì

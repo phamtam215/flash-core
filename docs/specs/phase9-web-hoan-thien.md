@@ -2,7 +2,7 @@
 
 - **Phase:** 9
 - **Ngày:** 2026-09-26 (viết lại sau khi rà baseline thật)
-- **Trạng thái:** Draft — chờ Tâm duyệt (3 câu hỏi mở ở cuối)
+- **Trạng thái:** Khối 1–3 **đã implement** 2026-09-26 · Khối 4 (web) chưa làm
 
 > Hợp đồng của phase. Kiến thức (*CSP chặn gì*, *vì sao rate limit phải ở Redis*) viết vào
 > [`tech-playbook.md`](../tech-playbook.md) §Phase 9.
@@ -38,12 +38,12 @@ cảm giác ban đầu.
 | 13 | Lỗi không lộ nội bộ ra client | ✅ 5xx trả message chung + `correlationId`; stack chỉ vào log | `all-exceptions.filter.ts` |
 | 14 | Secret không hardcode, validate lúc khởi động | ✅ Zod, thiếu là app chết ngay | `env.schema.ts` |
 | 15 | Webhook xác thực chữ ký | ✅ HMAC-SHA256 trên raw body + chống replay | `payment.signature.ts` |
-| **16** | **Security header** | ❌ **KHÔNG CÓ CÁI NÀO** (0 dòng trong `src/`) | — |
-| **17** | **Rate limit `POST /auth/register`** | ❌ **không giới hạn gì** | — |
-| **18** | **Quét lỗ hổng phụ thuộc trong CI** | ❌ chưa có `npm audit` | — |
-| **19** | **Giới hạn kích thước body** | ⚠️ đang dựa vào mặc định 100kb của Express — đúng, nhưng **ngầm** | — |
+| 16 | Security header | ✅ 5 header, tự viết, HSTS có điều kiện | `common/security/security-headers.middleware.ts` |
+| 17 | Rate limit `POST /auth/register` | ✅ 20 lần/giờ theo IP, đếm ở Redis | `common/security/ip-rate-limit.guard.ts` |
+| 18 | Quét lỗ hổng phụ thuộc trong CI | ✅ chặn `critical`, báo cáo `high` | `ci.yml` |
+| 19 | Giới hạn kích thước body | ✅ `json({ limit: '32kb' })` tường minh | `main.ts` |
 
-**Ba dòng ❌ và một dòng ⚠️ là toàn bộ phạm vi security của phase này.**
+**19/19 ✅ tính tới 2026-09-26.** Ba dòng ❌ và một dòng ⚠️ ở trên đã vá xong — giữ lại hình dạng bảng vì *bảng này* mới là deliverable, không phải bốn dòng đó.
 
 Dòng 17 đáng lo nhất, và lý do không nằm ở bản thân nó: **Phase 8 gắn giới hạn "2 chiếc/người"
 vào *tài khoản*.** Đăng ký không giới hạn nghĩa là một script tạo 5.000 tài khoản = 5.000 suất
@@ -89,9 +89,25 @@ Body limit: đặt **tường minh** `json({ limit: '32kb' })`. Mặc định 10
 
 ## Khối 3 — `npm audit` trong CI
 
-Thêm một bước vào `ci.yml`: `npm audit --audit-level=high`. Chặn ở mức `high` trở lên, không
-chặn `moderate` — chặn quá chặt thì một lỗ hổng trong devDependency không ai khai thác được
-cũng làm đỏ CI, và người ta sẽ tắt nó đi. **Một cổng luôn đỏ là một cổng bị bỏ qua.**
+Thêm vào `ci.yml`. **Ngưỡng chọn bằng cách chạy thử, không theo cảm giác** — và lần chạy thử
+đó đã đổi luôn quyết định:
+
+| Đo ngày 2026-09-22 | Số lượng |
+|---|---|
+| `critical` | **0** |
+| `high` | **42** — toàn bộ là phụ thuộc gián tiếp của Prisma, và đều ghi *"No fix available"* |
+| `moderate` | 6 |
+
+Dự định ban đầu là chặn ở `high`. Chạy thử xong thì thấy nó sẽ làm **CI đỏ ngay hôm nay và đỏ
+mãi**, vì người sửa *không có cách nào làm nó xanh* — chờ Prisma phát hành bản mới là việc nằm
+ngoài tầm tay. Mà một cổng luôn đỏ thì chỉ sau vài lần là người ta tắt nó đi, và lúc đó mất
+luôn cả cổng thật.
+
+Chốt lại: **chặn ở `critical`** (chỗ gần như luôn có hành động làm được), và **báo cáo `high`
+mà không chặn** — vẫn thấy trong log, vẫn biết con số tăng hay giảm.
+
+**Một cổng luôn đỏ là một cổng bị bỏ qua** — và cách duy nhất biết ngưỡng nào rơi vào trường
+hợp đó là chạy nó trước khi chốt.
 
 ## Khối 4 — Web dùng được
 
@@ -150,9 +166,10 @@ refresh token; đổi mật khẩu = thu hồi cả family (chính là reuse-det
 
 ## Definition of Done
 
-- [ ] 11 test case xanh; `npm run check` sạch.
-- [ ] **Bảng rà baseline ở đầu spec này cập nhật lại: 19/19 ✅** — đây là deliverable chính,
-      và là thứ mở ra được khi người phỏng vấn hỏi "em xử lý security thế nào".
+- [x] `npm run check` sạch (lint + typecheck + **163 unit**). ⚠️ 8 integration test ở
+      `test/security.e2e-spec.ts` **chưa chạy** — Docker tắt lúc code xong.
+- [x] **Bảng rà baseline: 19/19 ✅** — deliverable chính, và là thứ mở ra được khi người
+      phỏng vấn hỏi "em xử lý security thế nào".
 - [ ] Chạy đầu-cuối trên Chrome thật, **Console sạch** khi CSP bật — không một vi phạm nào.
 - [ ] ADR-016: vì sao vẫn không framework dù đã 6 màn.
 - [ ] `tech-playbook.md` §Phase 9 + cập nhật `architecture.md`, §Trạng thái `CLAUDE.md`.

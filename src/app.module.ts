@@ -2,7 +2,14 @@ import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
-import { AllExceptionsFilter, CsrfGuard, CsrfIssueMiddleware, LoggerModule } from './common';
+import {
+  AllExceptionsFilter,
+  CsrfGuard,
+  CsrfIssueMiddleware,
+  IpRateLimitGuard,
+  LoggerModule,
+  SecurityHeadersMiddleware,
+} from './common';
 import { ConfigModule } from './config';
 import { MetricsModule } from './infra/metrics';
 import { PrismaModule } from './infra/prisma';
@@ -50,12 +57,22 @@ import { ProductModule } from './modules/product';
     // được bảo vệ sẵn kể cả khi người thêm nó không nghĩ tới CSRF. Cách ngược lại thì quên =
     // lộ, và không test nào bắt được vì mọi test vẫn xanh. Chi tiết: ADR-009.
     { provide: APP_GUARD, useClass: CsrfGuard },
+    // Guard toàn cục nhưng **chỉ chạy ở route có `@IpRateLimit(...)`** — không khai thì nó
+    // cho qua ngay. Đăng ký ở đây để thêm route mới chỉ cần một decorator, không phải nhớ
+    // gắn guard.
+    { provide: APP_GUARD, useClass: IpRateLimitGuard },
     CsrfIssueMiddleware,
+    SecurityHeadersMiddleware,
   ],
 })
 export class AppModule implements NestModule {
-  /** Phát cookie CSRF cho mọi response chưa có — kể cả `GET /` (trang tĩnh). */
+  /**
+   * Hai middleware chạy cho **mọi** request, kể cả `GET /` (trang tĩnh).
+   *
+   * Thứ tự: header bảo vệ trước, rồi mới phát cookie CSRF. Không quan trọng về chức năng,
+   * nhưng đặt header trước nghĩa là ngay cả response lỗi sớm cũng mang đủ header.
+   */
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(CsrfIssueMiddleware).forRoutes('*');
+    consumer.apply(SecurityHeadersMiddleware, CsrfIssueMiddleware).forRoutes('*');
   }
 }

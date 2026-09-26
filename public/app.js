@@ -229,7 +229,7 @@ function renderSkus() {
           <td>${escapeHtml(s.color)}</td>
           <td>${vnd(s.priceVnd)}</td>
           <td><span class="stock" data-stock="${s.id}"></span></td>
-          <td style="text-align:right"><button class="primary" data-sku="${s.id}"></button></td>
+          <td class="cell-right"><button class="primary" data-sku="${s.id}"></button></td>
         </tr>`,
       )
       .join('');
@@ -302,7 +302,7 @@ function renderOrder() {
   if (!o) return;
   $('order-panel').classList.remove('hidden');
   $('order-detail').innerHTML = `
-    <div class="row" style="gap: 18px; margin-bottom: 14px">
+    <div class="row-wide row">
       <span class="mono">${o.id}</span>
       <span class="badge ${o.status}">${o.status}</span>
       <b>${vnd(o.totalVnd)}</b>
@@ -326,7 +326,7 @@ async function payOrder() {
   try {
     const intent = await api(`/payments/checkout/${state.order.id}`, { method: 'POST' });
     $('pay-hint').innerHTML = `
-      <div class="note" style="margin-top: 14px">
+      <div class="gap-sm note">
         <b>Phiên thanh toán đã tạo.</b> Trình duyệt không ký được webhook (không có khoá bí mật),
         nên bước cuối do "cổng thanh toán" làm — chạy lệnh này ở terminal:
       </div>
@@ -334,7 +334,7 @@ async function payOrder() {
   --order ${state.order.id} \\
   --amount ${intent.amountVnd} \\
   --intent ${intent.paymentIntentId}</pre>
-      <p class="muted" style="font-size: 13px">
+      <p class="text-sm muted">
         Chạy xong, mở tab <b>Đơn của tôi</b> — trạng thái sẽ chuyển sang PAID trong vài giây.
       </p>`;
   } catch (err) {

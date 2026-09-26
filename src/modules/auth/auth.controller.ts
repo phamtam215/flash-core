@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
-import { ZodValidationPipe } from '../../common';
+import { IpRateLimit, ZodValidationPipe } from '../../common';
 import { ENV, type Env } from '../../config';
 import { AccessTokenGuard, type AuthenticatedRequest } from './access-token.guard';
 import { clearAuthCookies, REFRESH_TOKEN_COOKIE, setAuthCookies } from './auth.cookies';
@@ -34,6 +34,10 @@ export class AuthController {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
+  // 20 lần/giờ mỗi IP. Rộng rãi có chủ ý: một văn phòng hay quán net dùng chung NAT sẽ chung
+  // IP, nên ngưỡng phải chặn được script mà không chặn người thật. Không có dòng này thì
+  // `perUserLimit` của Phase 8 vô nghĩa — tạo 5.000 tài khoản là 5.000 suất mua.
+  @IpRateLimit({ name: 'register', max: 20, windowSeconds: 3600 })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body(new ZodValidationPipe(registerSchema)) dto: RegisterDto): Promise<PublicUser> {
@@ -56,6 +60,9 @@ export class AuthController {
     return { user };
   }
 
+  // Refresh không tạo tài khoản, nhưng mỗi lần gọi là một lần ghi DB (xoay token). Ngưỡng
+  // rộng hơn nhiều vì client hợp lệ gọi nó đều đặn mỗi 15 phút.
+  @IpRateLimit({ name: 'refresh', max: 120, windowSeconds: 3600 })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
