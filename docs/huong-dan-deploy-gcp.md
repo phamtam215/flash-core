@@ -358,12 +358,30 @@ Vì sao **Enterprise** chứ không Enterprise Plus: bản Plus không có máy 
 3. **Instance info**: *Database version* mặc định là **PostgreSQL 18** → đổi sang **PostgreSQL
    16** (khớp `docker-compose.yml` và bộ test — test trên phiên bản khác rồi deploy là để dành lỗi
    cho môi trường thật) · *Instance ID* `flash-core-db` · *Password* của user `postgres`: bấm
-   **Generate** rồi cất vào trình quản lý mật khẩu (app không dùng user này)
+   **Generate** rồi cất vào trình quản lý mật khẩu — **app không đăng nhập bằng user này**
 4. **Choose region and zonal availability**: *Region* **us-central1 (Iowa)** · *Zonal availability*
    **Single zone** (*Multiple zones* nhân đôi tiền)
 
 ![Phiên bản, Instance ID, region, zone](html/assets/img/deploy/sql-2-info-region.jpg)
 *① PostgreSQL 16. ② Instance ID. ③ Generate password. ④ us-central1. ⑤ Single zone. Nhìn bảng giá góc phải dưới: máy mặc định của preset Sandbox là $0,14/giờ ≈ $100/tháng — vì thế bước 5 bắt buộc.*
+
+> **"App không dùng user này" nghĩa là gì.** Một instance Postgres chứa **nhiều tài khoản đăng
+> nhập**, giống MySQL. Dự án này có hai:
+>
+> | User | Ai đăng nhập bằng nó | Quyền |
+> |---|---|---|
+> | `postgres` | Anh, khi vào sửa tay bằng `psql` | **Superuser** — tạo/xoá database, tạo user, đọc mọi thứ |
+> | `flashcore` (tạo ở bước 7) | App và bước migrate | Chỉ đọc/ghi trong database `flashcore` |
+>
+> Cloud SQL **bắt buộc** đặt mật khẩu cho `postgres` lúc tạo instance, không bỏ qua được — nên
+> bước 3 đặt nó. Nhưng `DATABASE_URL` ở §6 bắt đầu bằng `postgresql://flashcore:…`, nên mật khẩu
+> `postgres` **không xuất hiện** trong Secret Manager, trong `deploy.yml`, hay bất cứ đâu trong
+> code. Vì thế nó vào trình quản lý mật khẩu, không vào §6.
+>
+> **Vì sao không cho app dùng luôn `postgres` cho gọn:** chuỗi kết nối của app nằm trong biến môi
+> trường của container và sẽ lọt vào log nếu ai đó lỡ in nó ra. Chuỗi mang quyền superuser mà lộ
+> thì mất cả instance — xoá được database, tạo được user mới để quay lại sau. Chuỗi của
+> `flashcore` lộ thì mất đúng dữ liệu của một database, và chữa bằng cách đổi một mật khẩu.
 
 Vì sao ép về **Postgres 16**: bộ test và `docker-compose.yml` chạy trên 16, mà test ở một phiên bản rồi deploy sang phiên bản khác là để dành lỗi cho môi trường thật.
 
