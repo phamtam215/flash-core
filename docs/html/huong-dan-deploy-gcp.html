@@ -225,6 +225,35 @@ cloud-sql-proxy --port 6543 "$SQL_INSTANCE"     # để cửa sổ này chạy
 psql "postgresql://flashcore:$DB_PASS@127.0.0.1:6543/flashcore"</code></pre>
 <blockquote class="note"><p><strong>Cổng 6543, không phải 5432:</strong> máy này đã có Postgres cài thẳng ở 5432 và Docker Compose ở cổng 5433. Proxy chiếm 5432 thì lệnh nào tưởng đang nói với DB local sẽ nói với <strong>cloud</strong>.</p></blockquote>
 <hr>
+<h3 id="4b-máy-local-nối-vào-cloud-sql-bằng-cách-nào">4b. Máy local nối vào Cloud SQL bằng cách nào</h3>
+<p>Instance có IP công khai, nhưng danh sách IP được phép <strong>để trống</strong> — nên không gõ thẳng IP đó mà vào được. Đường vào là <strong>Cloud SQL Auth Proxy</strong>: một chương trình nhỏ chạy trên máy anh, mở một cổng ở <code>127.0.0.1</code>, và mọi thứ gửi vào cổng đó nó chuyển tiếp lên Cloud SQL qua kênh mã hoá.</p>
+<pre class="diagram"><code>   máy anh                                               Google Cloud
+   ┌─────────────────┐      ┌─────────────────┐          ┌───────────────┐
+   │ psql / DBeaver  │─────►│ cloud-sql-proxy │═══TLS══► │ flash-core-db │
+   │ script của repo │ 6543 │ (đang chạy)     │  + IAM   │ (IP để trống) │
+   └─────────────────┘      └─────────────────┘          └───────────────┘
+                                   ▲
+                             danh tính Google của anh
+                             (role cloudsql.client)</code></pre>
+<p>Nhìn sơ đồ thì thấy điều quan trọng nhất: <strong>công cụ của anh tưởng nó đang nói với một Postgres ở <code>localhost</code></strong>. Không đổi gì trong công cụ, chỉ đổi cổng.</p>
+<p class="why">Vì sao dùng proxy chứ không mở IP nhà mình cho nhanh: IP nhà <strong>đổi</strong> mỗi lần modem khởi động lại, và mở nó ra là mở cho mọi người dùng chung đường mạng đó. Proxy thì hàng rào là <strong>danh tính Google</strong> của anh — thu hồi bằng một dòng IAM, không phải đi sửa danh sách IP.</p>
+<p><strong>Ba việc chuẩn bị, làm một lần:</strong></p>
+<ol><li><strong>Quyền.</strong> Tài khoản Google của anh cần role <code>cloudsql.client</code>. Anh là Owner của project nên đã có sẵn — người khác trong nhóm thì phải cấp riêng (§18.2).</li><li><strong>Cài proxy.</strong> macOS: <code>brew install cloud-sql-proxy</code>, hoặc tải nhị phân ở <a href="https://cloud.google.com/sql/docs/postgres/sql-proxy#install">trang cài đặt</a> rồi <code>chmod +x</code>.</li><li><strong>Đăng nhập cho <em>chương trình</em>, không phải cho <em>anh</em>:</strong></li></ol>
+<pre><code class="language-bash">   gcloud auth application-default login</code></pre>
+<p class="why">Vì sao phải có lệnh đăng nhập <strong>thứ hai</strong> này: <code>gcloud auth login</code> chỉ cấp danh tính cho <strong>lệnh <code>gcloud</code></strong>, còn proxy là một chương trình khác nên nó đi tìm <em>Application Default Credentials</em> — một bộ thông tin đăng nhập nằm ở chỗ khác. Thiếu bước này proxy báo <code>could not find default credentials</code> dù <code>gcloud</code> vẫn chạy ngon lành.</p>
+<p><strong>Mỗi lần muốn nối</strong> — mở proxy ở một cửa sổ terminal và <strong>để nó chạy</strong>:</p>
+<pre><code class="language-bash">cloud-sql-proxy --port 6543 flash-core-prv:us-central1:flash-core-db</code></pre>
+<p>Nó in <code>Ready for new connections</code> rồi đứng yên. Đóng cửa sổ hoặc <code>Ctrl+C</code> là mất đường nối.</p>
+<p>Cửa sổ khác, nối như nối vào một Postgres bình thường:</p>
+<pre><code class="language-bash">psql "postgresql://flashcore:&lt;DB_PASS&gt;@127.0.0.1:6543/flashcore"</code></pre>
+<p>Với công cụ có giao diện (TablePlus, DBeaver, DataGrip, pgAdmin) thì điền: <strong>Host</strong> <code>127.0.0.1</code> · <strong>Port</strong> <code>6543</code> · <strong>User</strong> <code>flashcore</code> · <strong>Password</strong> <code>&lt;DB_PASS&gt;</code> · <strong>Database</strong> <code>flashcore</code> · <strong>SSL</strong> <em>off</em> (proxy đã mã hoá rồi, bật thêm một lớp nữa là lỗi).</p>
+<p><strong>Chạy script của repo lên DB cloud</strong> — ví dụ nâng quyền admin, việc mà ảnh runtime không làm được vì <code>ts-node</code> đã bị prune:</p>
+<pre><code class="language-bash">DATABASE_URL="postgresql://flashcore:&lt;DB_PASS&gt;@127.0.0.1:6543/flashcore" \
+  npm run make-admin -- pham.van.tam@azoom.jp</code></pre>
+<blockquote class="note"><p><strong>Hai chuỗi <code>DATABASE_URL</code>, đừng lẫn.</strong> Cái ở Secret Manager (§6) đi qua <strong>Unix socket</strong> (<code>?host=/cloudsql/...</code>) vì Cloud Run gắn socket đó vào container. Cái dùng ở máy anh đi qua <strong>TCP</strong> <code>127.0.0.1:6543</code> vì proxy mở cổng đó. Cùng một database, hai đường vào khác nhau — dán nhầm chuỗi socket vào máy dev thì <code>pg</code> đi tìm một file không tồn tại.</p></blockquote>
+<blockquote class="note"><p><strong>⚠ Đang nối vào cloud thì ba lệnh này là cấm:</strong> <code>npm run seed</code> (100.000 dòng), <code>k6 run</code>, và <code>prisma migrate reset</code> (xoá sạch). Hook <code>guard_cloud_cost.py</code> chặn sẵn khi biến kết nối trỏ ra cloud — nếu nó chặn thì đừng tìm cách lách, đó đúng là việc của nó.</p></blockquote>
+<p><strong>Không muốn cài gì:</strong> instance → <strong>Cloud SQL Studio</strong> ở menu trái → đăng nhập user <code>flashcore</code>, database <code>flashcore</code>, gõ SQL thẳng trên trình duyệt. Đủ để xem bảng và sửa vài dòng; không chạy được script của repo. §11 bước 5 dùng cách này.</p>
+<hr>
 </section>
 <section class="muc" style="--c: var(--c1)">
 <h2 id="5-upstash-redis">5. Upstash (Redis)</h2>

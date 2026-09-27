@@ -520,6 +520,88 @@ psql "postgresql://flashcore:$DB_PASS@127.0.0.1:6543/flashcore"
 
 ---
 
+### 4b. Máy local nối vào Cloud SQL bằng cách nào
+
+Instance có IP công khai, nhưng danh sách IP được phép **để trống** — nên không gõ thẳng IP đó
+mà vào được. Đường vào là **Cloud SQL Auth Proxy**: một chương trình nhỏ chạy trên máy anh, mở
+một cổng ở `127.0.0.1`, và mọi thứ gửi vào cổng đó nó chuyển tiếp lên Cloud SQL qua kênh mã hoá.
+
+```diagram
+   máy anh                                               Google Cloud
+   ┌─────────────────┐      ┌─────────────────┐          ┌───────────────┐
+   │ psql / DBeaver  │─────►│ cloud-sql-proxy │═══TLS══► │ flash-core-db │
+   │ script của repo │ 6543 │ (đang chạy)     │  + IAM   │ (IP để trống) │
+   └─────────────────┘      └─────────────────┘          └───────────────┘
+                                   ▲
+                             danh tính Google của anh
+                             (role cloudsql.client)
+```
+
+Nhìn sơ đồ thì thấy điều quan trọng nhất: **công cụ của anh tưởng nó đang nói với một Postgres
+ở `localhost`**. Không đổi gì trong công cụ, chỉ đổi cổng.
+
+Vì sao dùng proxy chứ không mở IP nhà mình cho nhanh: IP nhà **đổi** mỗi lần modem khởi động lại,
+và mở nó ra là mở cho mọi người dùng chung đường mạng đó. Proxy thì hàng rào là **danh tính
+Google** của anh — thu hồi bằng một dòng IAM, không phải đi sửa danh sách IP.
+
+**Ba việc chuẩn bị, làm một lần:**
+
+1. **Quyền.** Tài khoản Google của anh cần role `cloudsql.client`. Anh là Owner của project nên
+   đã có sẵn — người khác trong nhóm thì phải cấp riêng (§18.2).
+2. **Cài proxy.** macOS: `brew install cloud-sql-proxy`, hoặc tải nhị phân ở
+   [trang cài đặt](https://cloud.google.com/sql/docs/postgres/sql-proxy#install) rồi `chmod +x`.
+3. **Đăng nhập cho *chương trình*, không phải cho *anh*:**
+
+   ```bash
+   gcloud auth application-default login
+   ```
+
+Vì sao phải có lệnh đăng nhập **thứ hai** này: `gcloud auth login` chỉ cấp danh tính cho **lệnh
+`gcloud`**, còn proxy là một chương trình khác nên nó đi tìm *Application Default Credentials* —
+một bộ thông tin đăng nhập nằm ở chỗ khác. Thiếu bước này proxy báo `could not find default
+credentials` dù `gcloud` vẫn chạy ngon lành.
+
+**Mỗi lần muốn nối** — mở proxy ở một cửa sổ terminal và **để nó chạy**:
+
+```bash
+cloud-sql-proxy --port 6543 flash-core-prv:us-central1:flash-core-db
+```
+
+Nó in `Ready for new connections` rồi đứng yên. Đóng cửa sổ hoặc `Ctrl+C` là mất đường nối.
+
+Cửa sổ khác, nối như nối vào một Postgres bình thường:
+
+```bash
+psql "postgresql://flashcore:<DB_PASS>@127.0.0.1:6543/flashcore"
+```
+
+Với công cụ có giao diện (TablePlus, DBeaver, DataGrip, pgAdmin) thì điền:
+**Host** `127.0.0.1` · **Port** `6543` · **User** `flashcore` · **Password** `<DB_PASS>` ·
+**Database** `flashcore` · **SSL** *off* (proxy đã mã hoá rồi, bật thêm một lớp nữa là lỗi).
+
+**Chạy script của repo lên DB cloud** — ví dụ nâng quyền admin, việc mà ảnh runtime không làm được
+vì `ts-node` đã bị prune:
+
+```bash
+DATABASE_URL="postgresql://flashcore:<DB_PASS>@127.0.0.1:6543/flashcore" \
+  npm run make-admin -- pham.van.tam@azoom.jp
+```
+
+> **Hai chuỗi `DATABASE_URL`, đừng lẫn.** Cái ở Secret Manager (§6) đi qua **Unix socket**
+> (`?host=/cloudsql/...`) vì Cloud Run gắn socket đó vào container. Cái dùng ở máy anh đi qua
+> **TCP** `127.0.0.1:6543` vì proxy mở cổng đó. Cùng một database, hai đường vào khác nhau —
+> dán nhầm chuỗi socket vào máy dev thì `pg` đi tìm một file không tồn tại.
+
+> **⚠ Đang nối vào cloud thì ba lệnh này là cấm:** `npm run seed` (100.000 dòng), `k6 run`, và
+> `prisma migrate reset` (xoá sạch). Hook `guard_cloud_cost.py` chặn sẵn khi biến kết nối trỏ ra
+> cloud — nếu nó chặn thì đừng tìm cách lách, đó đúng là việc của nó.
+
+**Không muốn cài gì:** instance → **Cloud SQL Studio** ở menu trái → đăng nhập user `flashcore`,
+database `flashcore`, gõ SQL thẳng trên trình duyệt. Đủ để xem bảng và sửa vài dòng; không chạy
+được script của repo. §11 bước 5 dùng cách này.
+
+---
+
 ## 5. Upstash (Redis)
 
 1. Đăng ký tại **upstash.com**
