@@ -561,6 +561,21 @@ Vì sao phải có lệnh đăng nhập **thứ hai** này: `gcloud auth login` 
 một bộ thông tin đăng nhập nằm ở chỗ khác. Thiếu bước này proxy báo `could not find default
 credentials` dù `gcloud` vẫn chạy ngon lành.
 
+> **Trang đồng ý có checkbox KHÔNG tick sẵn — bỏ qua là hỏng.** Lệnh này xin quyền dưới tên ứng
+> dụng **"Google Auth Library"** (không phải "gcloud", nên nhìn lạ và dễ bấm *Continue* cho
+> xong). Bỏ trống ô thì Google trả về "đã đăng nhập, không cấp quyền nào" và gcloud báo:
+>
+> ```text
+> ERROR: There was a problem with web authentication. Try running again with --no-browser.
+> ERROR: (gcloud.auth.application-default.login) https://www.googleapis.com/auth/cloud-platform
+> scope is required but not consented.
+> ```
+>
+> **Dòng đầu chỉ sai hướng** — web authentication đã thành công, dòng thứ hai mới là nguyên
+> nhân. Chạy lại, tick **Select all** (hoặc dòng *"See, edit, configure, and delete your Google
+> Cloud data…"*) rồi mới Continue. Trình duyệt nhớ lần trước nên không hỏi lại thì thêm
+> `--force`; máy không mở được trình duyệt thì `--no-browser`.
+
 **Mỗi lần muốn nối** — mở proxy ở một cửa sổ terminal và **để nó chạy**:
 
 ```bash
@@ -1266,6 +1281,7 @@ cả hai hiện đang dùng **số đo local**, chưa phải số thật.
 | `/ready` trả `503` mãi | Cloud SQL đang tắt, hoặc Redis không nối được | `npm run gcp:status`; kiểm `REDIS_URL` có `rediss://` (hai chữ s) |
 | Đổi secret rồi mà app vẫn dùng giá trị cũ | **Secret Manager không tự áp dụng** | Phải **deploy lại** service |
 | Mọi người dùng bị `429` cùng lúc | `trust proxy` sai ⇒ mọi request trông như một IP | Đã đặt `trust proxy = 1` trong `main.ts`; thêm một lớp proxy nữa thì phải đổi thành 2 |
+| `cloud-platform scope is required but not consented` | Trang đồng ý của `application-default login` có checkbox, bấm Continue mà chưa tick | Chạy lại, tick **Select all** rồi Continue (§4b) |
 | Console chặn tạo khoá: *"Service account key creation is disabled"* | **Không phải lỗi** — Organization Policy chặn sẵn, và dự án vốn không cần khoá | Bỏ qua, đi tiếp §7.2 (WIF). **Đừng** nhờ admin tắt policy |
 | Lỡ tạo API key / OAuth client ở **Credentials** | Vào nhầm màn (xem §2b) — dự án không dùng cái nào | Xoá nó đi. Nếu đã tải file khoá JSON về máy thì **xoá cả file lẫn khoá trên Console** |
 | Deploy chậm bất thường | Artifact Registry khác region với Cloud Run | Tạo lại repo đúng `$REGION` |
