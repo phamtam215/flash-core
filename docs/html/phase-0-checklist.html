@@ -41,7 +41,7 @@
 <p><strong>3. Ranh giới module được enforce bằng cái gì?</strong></p>
 <p>Bằng <strong>hai tầng, cả hai đều là máy chứ không phải người</strong>:</p>
 <div class="table-wrap"><table><thead><tr><th>Tầng</th><th>Chặn cái gì</th><th>Lúc nào</th></tr></thead><tbody><tr><td><strong>NestJS DI container</strong></td><td>Service không nằm trong <code>exports</code> của module thì module khác <strong>không inject được</strong> → <code>Nest can't resolve dependencies</code></td><td>Lúc app khởi động</td></tr><tr><td><strong>ESLint <code>no-restricted-imports</code></strong></td><td><code>import</code> thẳng vào file bên trong module khác → lint đỏ → CI đỏ</td><td>Lúc chạy <code>npm run lint</code></td></tr></tbody></table></div>
-<p>Vì sao cần cả hai: DI container chỉ chặn việc <strong>inject</strong>. Nó không ngăn anh import class rồi tự <code>new</code>, hay import kiểu dữ liệu nội bộ. Không có tầng ESLint thì ranh giới chỉ là quy ước, và quy ước xói mòn <strong>im lặng</strong> — không test nào đỏ khi ai đó import sai.</p>
+<p class="why">Vì sao cần cả hai: DI container chỉ chặn việc <strong>inject</strong>. Nó không ngăn anh import class rồi tự <code>new</code>, hay import kiểu dữ liệu nội bộ. Không có tầng ESLint thì ranh giới chỉ là quy ước, và quy ước xói mòn <strong>im lặng</strong> — không test nào đỏ khi ai đó import sai.</p>
 <p>Xem: <code><code>health.module.ts</code></code> (không export <code>HealthService</code> vì chưa ai cần) và <code><code>eslint.config.mjs</code></code>.</p>
 <hr>
 <p>Bốn câu về CI &amp; test — cũng đã có đáp án đầy đủ ở <a href="tech-playbook.html#bốn-câu-hay-bị-hỏi--và-câu-trả-lời"><code>tech-playbook.md</code> §Xuyên suốt</a>.</p>

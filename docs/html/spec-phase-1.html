@@ -25,7 +25,7 @@ login:    { email: string().email(), password: string() }
 // refresh và logout không có body — token nằm trong cookie</code></pre>
 <p><strong>Hai token, hai vai trò khác nhau:</strong></p>
 <div class="table-wrap"><table><thead><tr><th></th><th>Access Token</th><th>Refresh Token</th></tr></thead><tbody><tr><td>Dùng để</td><td>Gọi API hằng ngày</td><td><strong>Chỉ</strong> để xin cặp token mới</td></tr><tr><td>Sống</td><td>15 phút</td><td>7 ngày</td></tr><tr><td>Lưu ở</td><td>HttpOnly Cookie, <code>path=/</code></td><td>HttpOnly Cookie, <code>path=/auth</code></td></tr><tr><td>Server có lưu không</td><td><strong>Không</strong> (stateless, verify bằng chữ ký)</td><td><strong>Có</strong> — lưu hash trong DB để thu hồi được</td></tr></tbody></table></div>
-<p>Vì sao access token ngắn: nó không thu hồi được, nên rủi ro bị đánh cắp được giới hạn bằng thời gian sống. Vì sao refresh token phải lưu DB: để thu hồi được khi logout hoặc khi phát hiện bị đánh cắp.</p>
+<p class="why">Vì sao access token ngắn: nó không thu hồi được, nên rủi ro bị đánh cắp được giới hạn bằng thời gian sống. Vì sao refresh token phải lưu DB: để thu hồi được khi logout hoặc khi phát hiện bị đánh cắp.</p>
 <h2 id="schema-db">Schema DB</h2>
 <pre><code class="language-prisma">model User {
   id           String   @id @default(uuid()) @db.Uuid
