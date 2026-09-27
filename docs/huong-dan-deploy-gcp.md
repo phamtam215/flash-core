@@ -675,6 +675,35 @@ role ở mức project:
 → **Continue** → bỏ qua bước *Principals with access* → **Done** (⚠ nhãn hai nút này theo tài
 liệu). Chép email của nó (`github-deployer@<PROJECT_ID>.iam.gserviceaccount.com`).
 
+> **Bước 3 *Principals with access* hỏi gì — và vì sao ở đây bỏ qua**
+>
+> Hai bước cuối của form hỏi hai câu **ngược chiều nhau**, rất dễ lẫn:
+>
+> | Bước | Câu hỏi | Chiều |
+> |---|---|---|
+> | **2. Permissions** | Service account này **được làm gì** trong project? | SA → project |
+> | **3. Principals with access** | **Ai được điều khiển** service account này? | người/SA khác → SA |
+>
+> Hai ô trong bước 3:
+>
+> | Ô | Cấp quyền gì | Hệ quả |
+> |---|---|---|
+> | **Service account users role** | *"Dùng ké"* — lấy SA này để deploy app hoặc gắn vào VM | Không sở hữu, chỉ **mượn danh tính** (`iam.serviceAccountUser`) |
+> | **Service account admins role** | **Toàn quyền quản lý**: đổi tên, sửa quyền, xoá — và **tạo được file khoá JSON** | Xem cảnh báo dưới |
+>
+> **Vì sao hướng dẫn này bỏ qua bước 3 lúc tạo:** thứ tự. Khi tạo `flash-core-runtime` thì
+> `github-deployer` **chưa tồn tại**, nên chưa có gì để điền. Vì vậy cấp quyền mượn ở một bước
+> riêng phía dưới, qua tab *Principals with access* của chính `flash-core-runtime`. Kết quả
+> giống hệt — chỉ khác lúc làm.
+>
+> **⚠ Đừng cấp *Service account admins role* cho ai, kể cả chính mình.** Nó mở lại đúng cánh
+> cửa mà [ADR-014](adr/014-workload-identity-federation.md) đóng: người có quyền đó **tạo được
+> file khoá JSON** — bí mật dài hạn, không hết hạn, không biết đã rò, dùng được từ bất cứ đâu.
+> Anh là Owner nên vẫn sửa được service account khi cần; không cần cấp thêm cho ai.
+>
+> Nhớ gọn: ***users* = được mượn. *admins* = được phát chìa khoá.** Dự án này cần cái đầu,
+> và cố tình không dùng cái sau.
+
 Rồi cho CI được "khoác" **đúng một** SA là `flash-core-runtime` — không phải mọi SA trong
 project: vào **Service Accounts** → bấm `flash-core-runtime` → tab **Principals with access** →
 **Grant access** → *New principals* `github-deployer@…` · role **Service Account User** → **Save**.
