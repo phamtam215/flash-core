@@ -1326,6 +1326,7 @@ cả hai hiện đang dùng **số đo local**, chưa phải số thật.
 | Đổi secret rồi mà app vẫn dùng giá trị cũ | **Secret Manager không tự áp dụng** | Phải **deploy lại** service |
 | Mọi người dùng bị `429` cùng lúc | `trust proxy` sai ⇒ mọi request trông như một IP | Đã đặt `trust proxy = 1` trong `main.ts`; thêm một lớp proxy nữa thì phải đổi thành 2 |
 | `Cannot add the project "…" to ADC as the quota project` | Project đang active trong `gcloud config` là của nơi khác | Không phải lỗi; chạy `gcloud auth application-default set-quota-project` rồi tách cấu hình (§4b) |
+| `FATAL: password authentication failed for user "…"` khi nối qua proxy | Sai mật khẩu — **hoặc user không tồn tại**; Postgres cố tình trả cùng một câu cho cả hai để người ngoài không dò được tên user | Mở **Users** đối chiếu **từng ký tự** tên user (`flashcore` chứ không phải `flash-core`) trước khi nghi mật khẩu |
 | `cloud-platform scope is required but not consented` | Trang đồng ý của `application-default login` có checkbox, bấm Continue mà chưa tick | Chạy lại, tick **Select all** rồi Continue (§4b) |
 | Console chặn tạo khoá: *"Service account key creation is disabled"* | **Không phải lỗi** — Organization Policy chặn sẵn, và dự án vốn không cần khoá | Bỏ qua, đi tiếp §7.2 (WIF). **Đừng** nhờ admin tắt policy |
 | Lỡ tạo API key / OAuth client ở **Credentials** | Vào nhầm màn (xem §2b) — dự án không dùng cái nào | Xoá nó đi. Nếu đã tải file khoá JSON về máy thì **xoá cả file lẫn khoá trên Console** |
