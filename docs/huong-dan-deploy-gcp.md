@@ -718,6 +718,37 @@ principal** → `flash-core-runtime@…` · role **Secret Manager Secret Accesso
 trí nút theo tài liệu). Quyền gắn **lên từng secret**, nên thêm một secret thứ 7 cho việc khác
 thì container không tự đọc được nó.
 
+> ### Nếu có ai (hoặc AI) bảo "tạo file khoá JSON mới deploy được"
+>
+> **Đó là cách cũ, và Google giờ chặn nó ngay từ mặc định.**
+>
+> ![Hộp thoại Service account key creation is disabled](html/assets/img/deploy/sa-2-key-bi-chan.png)
+> *`iam.disableServiceAccountKeyCreation` — Organization Policy chặn tạo khoá, bật sẵn theo
+> "Secure by Default enforcements".*
+>
+> Gặp hộp thoại này thì **không phải anh làm sai** — nó đang xác nhận đúng lựa chọn của dự án.
+> Chính Google khuyên trong hộp thoại: *"You should choose a more secure alternative whenever
+> possible"*, và **cái "alternative" đó chính là Workload Identity Federation** — thứ §7.2–7.4
+> ngay dưới đây đang dựng.
+>
+> **Tuyệt đối đừng làm theo dòng cuối của hộp thoại** ("nhờ Organization Policy Administrator
+> tắt constraint đi"). Đó là gỡ hàng rào để đi vào đúng con đường mà
+> [ADR-014](adr/014-workload-identity-federation.md) đã chọn tránh. Hàng rào này đứng về phía
+> anh.
+>
+> Vì sao khoá JSON tệ, gói trong ba gạch đầu dòng: **không hết hạn** · **không biết đã rò** ·
+> **dùng được từ bất cứ đâu**. WIF đổi cả ba: token sống vài phút, gắn với đúng repo, và
+> không có file nào để lộ.
+>
+> **⚠ Kiểm một thứ trước khi đi tiếp.** Hộp thoại ghi *"enforced on your organization"* — nghĩa
+> là project này **nằm trong một Organization**. Tài khoản cá nhân thuần thì thường không có
+> Organization nào. Mở ☰ → **IAM & Admin → Settings** (hoặc ô chọn project ở thanh trên) xem
+> project đang thuộc tổ chức nào:
+>
+> - **Thuộc tổ chức của công ty** → dừng lại. Dự án cá nhân không nên nằm trong đó: dữ liệu
+>   lẫn vào hạ tầng công ty, và nghỉ việc là mất sạch. Tạo lại project dưới tài khoản cá nhân.
+> - **Không có tổ chức, hoặc tổ chức riêng của anh** → đi tiếp bình thường.
+
 **7.2 — pool và provider.** ☰ → **IAM & Admin → Workload Identity Federation** → **Get started**
 (trang *New workload provider and pool*, 3 bước, **chỉ lưu khi bấm Save ở cuối**):
 
@@ -1050,6 +1081,7 @@ cả hai hiện đang dùng **số đo local**, chưa phải số thật.
 | `/ready` trả `503` mãi | Cloud SQL đang tắt, hoặc Redis không nối được | `npm run gcp:status`; kiểm `REDIS_URL` có `rediss://` (hai chữ s) |
 | Đổi secret rồi mà app vẫn dùng giá trị cũ | **Secret Manager không tự áp dụng** | Phải **deploy lại** service |
 | Mọi người dùng bị `429` cùng lúc | `trust proxy` sai ⇒ mọi request trông như một IP | Đã đặt `trust proxy = 1` trong `main.ts`; thêm một lớp proxy nữa thì phải đổi thành 2 |
+| Console chặn tạo khoá: *"Service account key creation is disabled"* | **Không phải lỗi** — Organization Policy chặn sẵn, và dự án vốn không cần khoá | Bỏ qua, đi tiếp §7.2 (WIF). **Đừng** nhờ admin tắt policy |
 | Lỡ tạo API key / OAuth client ở **Credentials** | Vào nhầm màn (xem §2b) — dự án không dùng cái nào | Xoá nó đi. Nếu đã tải file khoá JSON về máy thì **xoá cả file lẫn khoá trên Console** |
 | Deploy chậm bất thường | Artifact Registry khác region với Cloud Run | Tạo lại repo đúng `$REGION` |
 | Hoá đơn cao hơn ~$9/tháng dù không ai dùng | Cloud SQL tạo sai máy / bật HA / bật PITR, hoặc ảnh Docker dồn | *Overview* của instance: *Machine type* phải là `db-f1-micro`, *Availability* Single zone; kiểm §3 cleanup policy |
