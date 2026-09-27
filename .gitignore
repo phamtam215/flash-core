@@ -149,3 +149,11 @@ src/generated/
 
 # Snapshot/log của Playwright MCP khi Claude xem trình duyệt — không phải mã nguồn
 .playwright-mcp/
+
+# Hộp thư đến cho ảnh chụp Console — ảnh dùng thật được chuyển sang
+# docs/html/assets/img/deploy/. Xem setup-cloud/README.md.
+setup-cloud/*
+!setup-cloud/README.md
+
+# Thư mục thả ảnh cũ (giữ lại trong .gitignore để không lỡ commit)
+Ảnh Cloud/

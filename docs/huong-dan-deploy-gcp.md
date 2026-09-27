@@ -191,6 +191,41 @@ gcloud services enable \
 
 ---
 
+### 2b. Màn "Create credentials" — vào nhầm thì ĐỪNG tạo gì
+
+Ở **APIs & Services** có mục **Credentials** nằm ngay cạnh **Library**. Bật API xong rất dễ
+bấm nhầm sang đó và gặp màn này:
+
+![Màn Create credentials — với dự án này thì KHÔNG tạo gì ở đây](html/assets/img/deploy/cred-1-khong-can-tao.png)
+
+**Với Flash-Core: bấm Cancel, không tạo gì.** Bật API và tạo thông tin xác thực là **hai việc
+khác nhau** — §2 chỉ cần việc thứ nhất. Thông tin xác thực mà dự án dùng được tạo ở chỗ khác:
+service account ở §7 (bằng IAM hoặc `gcloud`), và CI thì không có thông tin xác thực nào cả
+vì nó dùng Workload Identity Federation.
+
+Nhưng vì đã vào tới đây, ba field này đáng hiểu — chúng xuất hiện lại ở nhiều dịch vụ khác:
+
+| Field | Nghĩa là gì |
+|---|---|
+| **Select an API** | Thông tin xác thực sắp tạo sẽ bị **giới hạn trong đúng API này**. Đây là cách thu hẹp thiệt hại: một khoá lộ ra chỉ mở được đúng một cửa, không phải cả project |
+| **User data** | Ứng dụng hành động **thay mặt một con người** — cần màn hình xin phép, và người đó bấm "Đồng ý". Tạo ra một **OAuth client**. Dùng khi app cần đọc Gmail/Drive *của người dùng* |
+| **Application data** | **Ứng dụng tự nó** hành động, không có con người nào ở giữa. Tạo ra một **service account**. Đây là đường server-to-server |
+
+Chính hộp thông tin màu xám trên màn hình đã nói ra câu trả lời: *"This Google Cloud API is
+usually accessed from a server using a service account."* Artifact Registry là API của máy nói
+chuyện với máy, nên nếu buộc phải chọn thì là **Application data**.
+
+**Vậy vì sao vẫn không tạo ở đây?** Vì đường đó dẫn thẳng tới chỗ dự án cố tình tránh: sau khi
+tạo service account, Console sẽ mời tải về một **file khoá JSON**. Khoá JSON là bí mật **dài
+hạn** — không hết hạn, không biết đã rò, dùng được từ bất cứ đâu. [ADR-014](adr/014-workload-identity-federation.md)
+chọn Workload Identity Federation đúng để **không bao giờ phải tạo file đó**: GitHub đổi token
+OIDC của chính nó lấy một access token sống vài phút, gắn với đúng repo này.
+
+> **Cách phân biệt về sau, gói trong một câu:** *Library* là bật một dịch vụ, *Credentials* là
+> phát chìa khoá. Dự án này bật nhiều dịch vụ nhưng **không phát chìa khoá nào**.
+
+---
+
 ## 3. Artifact Registry + chính sách dọn ảnh
 
 **Bằng Console:**
@@ -839,6 +874,7 @@ cả hai hiện đang dùng **số đo local**, chưa phải số thật.
 | `/ready` trả `503` mãi | Cloud SQL đang tắt, hoặc Redis không nối được | `npm run gcp:status`; kiểm `REDIS_URL` có `rediss://` (hai chữ s) |
 | Đổi secret rồi mà app vẫn dùng giá trị cũ | **Secret Manager không tự áp dụng** | Phải **deploy lại** service |
 | Mọi người dùng bị `429` cùng lúc | `trust proxy` sai ⇒ mọi request trông như một IP | Đã đặt `trust proxy = 1` trong `main.ts`; thêm một lớp proxy nữa thì phải đổi thành 2 |
+| Lỡ tạo API key / OAuth client ở **Credentials** | Vào nhầm màn (xem §2b) — dự án không dùng cái nào | Xoá nó đi. Nếu đã tải file khoá JSON về máy thì **xoá cả file lẫn khoá trên Console** |
 | Deploy chậm bất thường | Artifact Registry khác region với Cloud Run | Tạo lại repo đúng `$REGION` |
 | Hoá đơn cao hơn ~$9/tháng dù không ai dùng | Cloud SQL tạo sai máy / bật HA / bật PITR, hoặc ảnh Docker dồn | *Overview* của instance: *Machine type* phải là `db-f1-micro`, *Availability* Single zone; kiểm §3 cleanup policy |
 
