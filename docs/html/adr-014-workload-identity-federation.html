@@ -15,7 +15,7 @@
 <h1 id="adr-014-ci-xác-thực-với-gcp-bằng-workload-identity-federation-không-dùng-key-json">ADR-014: CI xác thực với GCP bằng Workload Identity Federation, không dùng key JSON</h1>
 <ul><li><strong>Ngày:</strong> 2026-09-22</li><li><strong>Trạng thái:</strong> Đã chốt (workflow xong, <strong>chưa dựng WIF thật</strong> — cần console GCP). <strong>Bộ role đã đổi bởi <a href="adr-016-cloud-sql-thay-neon.html">ADR-016</a> và <a href="adr-017-moi-truong-va-phan-quyen.html">ADR-017</a></strong>: mỗi project một <code>github-deployer</code>, 3 role mức project (<code>run.admin</code>, <code>artifactregistry.writer</code>, <code>cloudsql.client</code>) + <code>serviceAccountUser</code> chỉ trên <code>flash-core-runtime</code>; <strong>bỏ</strong> <code>secretAccessor</code>.</li></ul>
 <h2 id="bối-cảnh">Bối cảnh</h2>
-<p><code>deploy.yml</code> phải đẩy ảnh vào Artifact Registry, chạy Cloud Run Job, và deploy service. Tức là GitHub Actions cần một danh tính GCP có quyền thật.</p>
+<p><code>deploy.yml</code> phải đẩy image vào Artifact Registry, chạy Cloud Run Job, và deploy service. Tức là GitHub Actions cần một danh tính GCP có quyền thật.</p>
 <p>Cách phổ biến nhất trên mạng: tạo <strong>service account key JSON</strong>, dán vào GitHub Secrets.</p>
 <h2 id="quyết-định">Quyết định</h2>
 <p><strong>Workload Identity Federation.</strong> GitHub Actions đổi <strong>OIDC token của chính nó</strong> lấy access token ngắn hạn của GCP. Không tạo key JSON nào.</p>

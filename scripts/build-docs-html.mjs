@@ -278,10 +278,43 @@ function toHtml(markdown) {
     /^\s*---+\s*$/.test(line) ||
     isTableRow(line);
 
+  // Quét trước một lượt để dựng MỤC LỤC: `<!--@@chuong Tên-->` mở một chương, mỗi `## ` sau
+  // đó thuộc chương ấy. Phải quét trước vì mục lục in ở ĐẦU trang mà dữ liệu nằm rải khắp file.
+  const chapters = [];
+  for (const raw of lines) {
+    const mark = /^<!--@@chuong\s+(.+?)-->$/.exec(raw.trim());
+    if (mark) chapters.push({ name: mark[1], items: [] });
+    const h2 = /^##\s+(.*)$/.exec(raw);
+    if (h2 && chapters.length > 0) {
+      chapters[chapters.length - 1].items.push({ text: h2[1].trim(), id: slugify(h2[1].trim()) });
+    }
+  }
+
+  // Màu chạy theo CHƯƠNG, không theo từng mục: mục lục và thân bài dùng chung một chỉ số nên
+  // §7 trên mục lục và §7 trong bài luôn cùng màu.
+  let chapterIndex = -1;
+  let openSection = false;
+  const closeSection = () => {
+    if (openSection) out.push('</section>');
+    openSection = false;
+  };
+
   while (i < lines.length) {
     const line = lines[i];
 
     if (/^\s*$/.test(line)) {
+      i++;
+      continue;
+    }
+
+    if (/^<!--@@chuong\s/.test(line.trim())) {
+      chapterIndex += 1;
+      i++;
+      continue;
+    }
+
+    if (line.trim() === '<!--@@muc-luc-->') {
+      out.push(tableOfContents(chapters));
       i++;
       continue;
     }
@@ -324,6 +357,13 @@ function toHtml(markdown) {
     if (heading) {
       const level = heading[1].length;
       const text = heading[2].trim();
+      // Mỗi `## ` mở một <section> mang `--c` của chương. Nhờ bọc trong section mà h3, ô ghi
+      // chú, bảng… bên trong đều thừa hưởng cùng màu — không phải tô từng thẻ một.
+      if (level === 2 && chapterIndex >= 0) {
+        closeSection();
+        out.push(`<section class="muc" style="--c: var(--c${chapterIndex % 6})">`);
+        openSection = true;
+      }
       out.push(`<h${level} id="${slugify(text)}">${inline(text)}</h${level}>`);
       i++;
       continue;
@@ -390,7 +430,26 @@ function toHtml(markdown) {
     if (para.length > 0) out.push(`<p>${inline(para.join(' '))}</p>`);
   }
 
+  closeSection();
   return out.join('\n');
+}
+
+/**
+ * Mục lục theo chương, mỗi chương một màu. Chỉ sinh ra khi file Markdown có mốc
+ * `<!--@@muc-luc-->` — các trang khác không đổi gì.
+ */
+function tableOfContents(chapters) {
+  if (chapters.length === 0) return '';
+  const groups = chapters.map((chapter, index) => {
+    const items = chapter.items
+      .map((item) => `<a href="#${item.id}">${inline(item.text)}</a>`)
+      .join('');
+    return (
+      `<div class="toc-group" style="--c: var(--c${index % 6})">` +
+      `<h3>${inline(chapter.name)}</h3>${items}</div>`
+    );
+  });
+  return `<nav class="toc"><p class="toc-title">Mục lục</p>${groups.join('')}</nav>`;
 }
 
 function sidebar(current) {

@@ -104,9 +104,9 @@ những cú bấm trong console. Ghi rõ ranh giới để không ai tưởng ph
 
 ## Definition of Done
 
-- [x] `Dockerfile` hai stage; ảnh runtime không có devDependencies; chạy user `node`;
+- [x] `Dockerfile` hai stage; image runtime không có devDependencies; chạy user `node`;
       `CMD ["node", "dist/main.js"]` chứ không `npm start`.
-- [x] `deploy.yml`: build → migrate (Cloud Run Job, ảnh vừa build) → API → worker job →
+- [x] `deploy.yml`: build → migrate (Cloud Run Job, image vừa build) → API → worker job →
       **kiểm `/ready`** → **rollback traffic về revision trước nếu hỏng**.
 - [x] `worker-once.ts` + `npm run worker:once`; ngân sách một lượt khớp phép tính Bài toán #4.
 - [x] CI chạy integration test trên Postgres + Redis thật.
@@ -243,15 +243,15 @@ Ghi ra để Flash-Core không phải học lại bằng trải nghiệm.
 1. **Đổi secret KHÔNG tự áp dụng.** Secret Manager có giá trị mới, nhưng container đang chạy
    vẫn giữ giá trị cũ cho tới khi **deploy lại**. Triệu chứng kinh điển: "tôi đổi rồi mà sao
    vẫn sai". Cho vào runbook như một bước, không phải một ghi chú.
-2. **Artifact Registry phải cùng region với Cloud Run.** OfficeCube build ảnh ở Osaka trong
-   khi chạy ở Tokyo ⇒ mỗi lần deploy kéo ảnh xuyên vùng, chậm hơn mà không ai để ý. Flash-Core:
+2. **Artifact Registry phải cùng region với Cloud Run.** OfficeCube build image ở Osaka trong
+   khi chạy ở Tokyo ⇒ mỗi lần deploy kéo image xuyên vùng, chậm hơn mà không ai để ý. Flash-Core:
    repo đặt **us-central1**, đúng region service.
 3. **Bật immutable tags.** Mặc định một tag có thể bị ghi đè bởi lần push sau — nghĩa là
-   `v1.2.3` hôm nay và `v1.2.3` tuần sau có thể là hai ảnh khác nhau, và không còn cách nào
+   `v1.2.3` hôm nay và `v1.2.3` tuần sau có thể là hai image khác nhau, và không còn cách nào
    biết bản đang chạy là bản nào.
 4. **Cache layer cũng chiếm dung lượng.** OfficeCube: 12,5 GB và tăng mãi vì **không có
    cleanup policy** sau hơn 150 lần deploy. Với free tier 0,5 GB thì đây không phải "sau này
-   tính" mà là thứ phải bật ngay từ ngày đầu — và policy phải tính cả ảnh cache, không chỉ ảnh
+   tính" mà là thứ phải bật ngay từ ngày đầu — và policy phải tính cả image cache, không chỉ image
    runtime.
 5. **"IP allowlist trống" ≠ đóng cửa.** Cloud SQL của OfficeCube bật Public IP với
    Authorized networks trống, và tài liệu cũ ghi là "an toàn". Chính xác hơn: an toàn trước
@@ -318,7 +318,7 @@ version thứ 7 bắt đầu tính tiền.
 Ba luật đi kèm, cái nào cũng từng làm người ta mất buổi chiều:
 
 1. **Đổi secret xong phải deploy lại** thì container mới đọc giá trị mới (Bài toán #6, ý 1).
-2. **Secret không nằm trong ảnh.** Ảnh bị lộ vẫn không kéo theo secret — đây là khác biệt
+2. **Secret không nằm trong image.** Image bị lộ vẫn không kéo theo secret — đây là khác biệt
    thật giữa "mount lúc chạy" và "`ENV` trong Dockerfile", không phải chuyện hình thức.
 3. **Mã hoá mặc định của Google là đủ** cho dự án này; CMEK (khoá tự quản) là thứ của hệ
    thống có yêu cầu tuân thủ, thêm vào đây chỉ tốn thao tác.

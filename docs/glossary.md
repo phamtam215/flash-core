@@ -121,6 +121,9 @@
 |---|---|---|
 | **Service account** | Danh tính cho **code**, không phải cho người: không mật khẩu, không đăng nhập Console được. Code "mượn" nó để chạy | Xem [hướng dẫn deploy §7](huong-dan-deploy-gcp.md) |
 | **Impersonate** (mượn danh tính) | Được phép hành động **dưới tư cách** một service account. Quyền `iam.serviceAccountUser` | Vì sao CI cần HAI lớp quyền, không phải một |
+| **Docker image** (ảnh Docker) | Bản đóng gói **bất biến** của ứng dụng: code đã build + Node + thư viện hệ thống. `docker build` tạo ra nó, `docker push` đẩy lên registry, Cloud Run kéo về chạy. Gọi là *image* cho khỏi lẫn với ảnh chụp màn hình | Mỗi lần deploy đẩy một image mới ~150–200 MB |
+| **Container** | Một **lần chạy** của image | Image là bản in, container là lần đem ra dùng |
+| **Artifact Registry** | Kho chứa image của GCP, thay cho Docker Hub | Phải **cùng region** với Cloud Run, nếu không kéo image xuyên vùng |
 | **Cold start** | Container ngủ, request đầu phải chờ khởi động | Cloud Run scale-to-zero |
 | **Autoscaling / min-instances / max-instances** | Số bản chạy tối thiểu và tối đa | Trade-off tiền vs độ trễ |
 | **Stateless service** | Không lưu state trong RAM của instance, vì instance bị tạo/hủy tùy ý | Vì sao session/cache phải ở Redis |

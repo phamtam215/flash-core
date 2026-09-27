@@ -8,7 +8,7 @@
 
 ## Bối cảnh
 
-`deploy.yml` phải đẩy ảnh vào Artifact Registry, chạy Cloud Run Job, và deploy service. Tức
+`deploy.yml` phải đẩy image vào Artifact Registry, chạy Cloud Run Job, và deploy service. Tức
 là GitHub Actions cần một danh tính GCP có quyền thật.
 
 Cách phổ biến nhất trên mạng: tạo **service account key JSON**, dán vào GitHub Secrets.

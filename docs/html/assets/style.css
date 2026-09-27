@@ -10,6 +10,15 @@
   --code-bg: #ede6d6;
   --note-border: #c98a2c;
   --note-bg: #fbf1de;
+
+  /* Màu CHƯƠNG — mỗi chương của hướng dẫn deploy một màu, dùng chung cho mục lục và thân bài.
+     Chọn sáu màu đủ tối để đọc được trên nền kem, và đủ khác nhau khi nhìn lướt. */
+  --c0: #b03a2e;  /* chuẩn bị      */
+  --c1: #1f6f8b;  /* dựng hạ tầng  */
+  --c2: #6b4c9a;  /* danh tính     */
+  --c3: #1e7a4f;  /* đưa lên chạy  */
+  --c4: #b5761a;  /* kiểm & sự cố  */
+  --c5: #8a2f6b;  /* lâu dài       */
 }
 
 * { box-sizing: border-box; }
@@ -111,6 +120,73 @@ h1 { font-size: 1.9em; margin: 0 0 0.6em; }
 h2 { font-size: 1.4em; margin: 1.6em 0 0.6em; padding-top: 0.2em; border-top: 1px solid var(--border); }
 h1 + h2, .content > h2:first-of-type { border-top: none; padding-top: 0; }
 h3 { font-size: 1.15em; margin: 1.4em 0 0.5em; }
+
+/* --- Chương có màu -------------------------------------------------------
+   `--c` do generator gắn lên từng <section class="muc">; mọi thứ bên trong thừa
+   hưởng, nên không phải tô riêng h3, bảng hay ô ghi chú. Trang nào không có mốc
+   `<!--@@chuong-->` thì không có <section> nào — giao diện giữ nguyên như cũ. */
+.muc > h2 {
+  color: var(--c);
+  border-top: 2px solid var(--c);
+  padding-top: 0.5em;
+}
+.muc > h3 { color: var(--c); }
+.muc > h3::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 0.85em;
+  margin-right: 8px;
+  vertical-align: -1px;
+  background: var(--c);
+  border-radius: 2px;
+}
+.muc blockquote.note { border-left-color: var(--c); }
+.muc table th { border-bottom-color: var(--c); }
+
+/* --- Mục lục ------------------------------------------------------------- */
+.toc {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px 20px;
+  margin: 1.6em 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 6px 26px;
+}
+.toc-title {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  font-weight: 700;
+  font-size: 0.8em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.toc-group {
+  border-top: 3px solid var(--c);
+  padding-top: 10px;
+}
+.toc-group h3 {
+  margin: 0 0 6px;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--c);
+}
+.toc-group a {
+  display: block;
+  padding: 2px 0;
+  font-size: 0.94em;
+  color: var(--text);
+  text-decoration: none;
+}
+.toc-group a:hover {
+  color: var(--c);
+  text-decoration: underline;
+}
 
 p { margin: 0.9em 0; }
 

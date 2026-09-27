@@ -29,24 +29,29 @@
 
 ---
 
+<!--@@muc-luc-->
+
+---
+
+<!--@@chuong Chuẩn bị — hiểu bức tranh, chặn tiền trước-->
 ## 0. Bức tranh toàn cảnh — cái gì chạy ở đâu
 
 ```diagram
         GitHub                          Google Cloud Platform
-   ┌──────────────┐              ┌────────────────────────────────┐
-   │ repo + CI/CD │──── WIF ────►│ Artifact Registry (ảnh Docker) │
-   │ deploy.yml   │   (không     │                                 │
-   └──────────────┘   có key)    │ Cloud Run SERVICE  flash-core-api│◄── người dùng
-                                 │   scale 0 → 2                   │
-                                 │                                 │
-                                 │ Cloud Run JOB  flash-core-worker│
-                                 │   Scheduler gọi mỗi 5 phút      │
-                                 │                                 │
-                                 │ Secret Manager (6 bí mật)       │
-                                 │                                 │
-                                 │ Cloud SQL  flash-core-db        │
-                                 │   Postgres 16, db-f1-micro      │
-                                 └──────────────────┬──────────────┘
+   ┌──────────────┐              ┌───────────────────────────────────┐
+   │ repo + CI/CD │──── WIF ────►│ Artifact Registry (Docker image)  │
+   │ deploy.yml   │   (không     │                                   │
+   └──────────────┘   có key)    │ Cloud Run SERVICE  flash-core-api │◄── người dùng
+                                 │   scale 0 → 2                     │
+                                 │                                   │
+                                 │ Cloud Run JOB  flash-core-worker  │
+                                 │   Scheduler gọi mỗi 5 phút        │
+                                 │                                   │
+                                 │ Secret Manager (6 bí mật)         │
+                                 │                                   │
+                                 │ Cloud SQL  flash-core-db          │
+                                 │   Postgres 16, db-f1-micro        │
+                                 └──────────────────┬────────────────┘
                                                     │
                                               ┌─────▼────┐
                                               │ Upstash  │
@@ -59,7 +64,7 @@
 | Dịch vụ | Dùng làm gì | Có tính vào $300 credit không | Gói dùng |
 |---|---|---|---|
 | **GCP Cloud Run** | Chạy API và worker | ✅ Có | Free tier + credit |
-| **GCP Artifact Registry** | Lưu ảnh Docker | ✅ Có | 0,5 GB free |
+| **GCP Artifact Registry** | Lưu Docker image | ✅ Có | 0,5 GB free |
 | **GCP Secret Manager** | 6 bí mật runtime | ✅ Có | 6 version active free |
 | **GCP Cloud Scheduler** | Gọi worker mỗi 5 phút | ✅ Có | 3 job free (dùng 1) |
 | **GCP Cloud Logging** | Log của app | ✅ Có | 50 GB/tháng free |
@@ -187,7 +192,7 @@ gcloud services enable \
 
 > **`us-central1` không phải tuỳ tiện:** free tier của Cloud Run chỉ áp ở một số region, và
 > đây là region dự án đã chốt. Đổi region thì phải đổi cả nơi đặt Artifact Registry (§3) —
-> ảnh ở region khác nghĩa là mỗi lần deploy kéo ảnh xuyên vùng, chậm mà không ai để ý.
+> image ở region khác nghĩa là mỗi lần deploy kéo image xuyên vùng, chậm mà không ai để ý.
 
 ---
 
@@ -200,7 +205,7 @@ Bật cho đủ thì dễ, nhưng biết cái nào đỡ việc gì thì lúc h�
 |---|---|---|---|
 | 1 | **Security Token Service** (`sts`) | GitHub Actions, ngay đầu workflow: đưa token OIDC của chính nó, STS kiểm issuer + điều kiện `repository=='phamtam215/flash-core'` (§7.2) rồi đổi lấy **token liên kết** | CI đỏ ở step `auth` |
 | 2 | **IAM Service Account Credentials** | Ngay sau đó: đổi token liên kết lấy **access token ngắn hạn của `github-deployer`** (`generateAccessToken`) | CI đỏ ở step `auth`, báo mơ hồ kiểu *unable to acquire impersonated credentials* |
-| 3 | **Artifact Registry** | Runner `docker push` ảnh lên `us-central1-docker.pkg.dev/…`; sau đó Cloud Run **kéo ảnh về** để chạy. Cũng là nơi chính sách dọn ảnh (§3) sống | Push đỏ; hoặc deploy xong container không khởi động được vì không kéo nổi ảnh |
+| 3 | **Artifact Registry** | Runner `docker push` image lên `us-central1-docker.pkg.dev/…`; sau đó Cloud Run **kéo image về** để chạy. Cũng là nơi chính sách dọn image (§3) sống | Push đỏ; hoặc deploy xong container không khởi động được vì không kéo nổi image |
 | 4 | **Cloud SQL Admin** | **Cloud SQL Auth Proxy** hỏi nó thông tin kết nối + chứng chỉ — proxy chạy **hai chỗ**: trên runner lúc `migrate deploy`, và trong Cloud Run qua `--set-cloudsql-instances` ([ADR-016](adr/016-cloud-sql-thay-neon.md)) | Bước migrate treo rồi timeout; app chạy nhưng không nối được DB |
 | 5 | **Cloud Run Admin** | `gcloud run deploy` tạo/cập nhật service `flash-core-api` + hai Cloud Run Job (migrate, worker); và `update-traffic` lúc **rollback** khi `/ready` không xanh | Toàn bộ bước deploy đỏ |
 | 6 | **Secret Manager** | **Không phải CI** — mà `flash-core-runtime` lúc container khởi động, đọc 6 secret rồi bơm thành biến môi trường. CI chỉ *khai báo* "service này dùng secret X" | Container khởi động rồi **chết ngay**: config validate bằng Zod thấy thiếu biến là thoát |
@@ -254,7 +259,8 @@ OIDC của chính nó lấy một access token sống vài phút, gắn với đ
 
 ---
 
-## 3. Artifact Registry + chính sách dọn ảnh
+<!--@@chuong Dựng hạ tầng trên GCP-->
+## 3. Artifact Registry + chính sách dọn image
 
 **Bằng Console:**
 
@@ -274,14 +280,14 @@ OIDC của chính nó lấy một access token sống vài phút, gắn với đ
 *① Delete artifacts (không phải Dry run). ② Tên chính sách. ③ Conditional delete. ④ Tag state Untagged. ⑤ Tick Older than, điền 7d. Xong bấm Done ở cuối khung.*
 
 4. Mục **Vulnerability scanning** (cuối form): đổi sang **Disabled** — mặc định là *Enabled*, và
-   quét lỗ hổng tính tiền theo từng ảnh được đẩy lên (⚠ kiểm bảng giá Artifact Analysis)
+   quét lỗ hổng tính tiền theo từng image được đẩy lên (⚠ kiểm bảng giá Artifact Analysis)
 5. **Create**
 
 ![Vulnerability scanning và nút Create](html/assets/img/deploy/ar-3-scanning.jpg)
 *① Vulnerability scanning → Disabled. ② Create.*
 
 > *Dry run* chỉ ghi log "lẽ ra sẽ xoá cái này" chứ không xoá gì. Chọn nhầm thì nhìn vào vẫn
-> thấy chính sách đầy đủ mà ảnh vẫn dồn lên.
+> thấy chính sách đầy đủ mà image vẫn dồn lên.
 
 **Hoặc bằng lệnh:**
 
@@ -313,7 +319,7 @@ gcloud artifacts repositories set-cleanup-policies flash-core \
   --location="$REGION" --policy=/tmp/cleanup.json
 ```
 
-> **Vì sao ngay bây giờ:** mỗi lần deploy đẩy một ảnh mới ~150–200 MB. Free tier là **0,5 GB**
+> **Vì sao ngay bây giờ:** mỗi lần deploy đẩy một image mới ~150–200 MB. Free tier là **0,5 GB**
 > — tức là chạm trần sau khoảng ba lần deploy. Không có chính sách dọn thì đây là thứ đầu tiên
 > phát sinh tiền, và nó phát sinh một cách âm thầm.
 
@@ -521,6 +527,7 @@ printf '%s' "<chuỗi rediss:// của Upstash>" \
 
 ---
 
+<!--@@chuong Danh tính và quyền-->
 ## 7. Service account + Workload Identity Federation
 
 ### Service account là gì — và khác tài khoản của anh ở chỗ nào
@@ -622,7 +629,7 @@ Cách thấy rõ danh tính và quyền là hai thứ tách rời: bỏ role đi
 
 ```text
 GitHub Actions ──WIF──► github-deployer@...  ──role──► artifactregistry.writer
-                        (danh tính của code)            (quyền đẩy ảnh)
+                        (danh tính của code)            (quyền đẩy image)
 ```
 
 **Hai đường này ĐỘC LẬP.** Tài khoản của anh **không** cần "gắn với" `github-deployer` —
@@ -654,7 +661,7 @@ GCP không "đoán" ai đang chạy — nó **ghi lại**. ☰ → **Logging →
 
 Đây chính là lý do thứ ba ở phần trên về việc không cho CI chạy bằng tài khoản Owner: **dùng
 chung một danh tính thì hai dòng log này giống hệt nhau**, và lúc có sự cố thì không trả lời
-được câu đầu tiên — *ai vừa đẩy cái ảnh này lên?*
+được câu đầu tiên — *ai vừa đẩy cái image này lên?*
 
 ### Còn nhân viên của anh thì sao
 
@@ -920,6 +927,7 @@ deploy được cả hai nơi, và secret của prod không lộ cho job chạy 
 
 ---
 
+<!--@@chuong Đưa lên chạy-->
 ## 9. Deploy lần đầu
 
 Deploy **bằng git tag** — cùng cách với hệ thống công ty. Commit phải đã nằm trên `main`:
@@ -939,7 +947,7 @@ tag, rồi mới tới các bước deploy:
 | 0 | CI (lint, typecheck, unit, integration) | Dừng, chưa đụng gì |
 | — | *(chỉ prod)* **Chờ duyệt** — tab Actions hiện *Waiting for review* | Chưa ai bấm thì không có gì xảy ra |
 | 1 | Kiểm commit đã nằm trên `main`, xác thực bằng WIF | Dừng, chưa đụng gì |
-| 2 | Build và đẩy ảnh | Dừng, chưa đụng DB |
+| 2 | Build và đẩy image | Dừng, chưa đụng DB |
 | 3 | Mở Cloud SQL Auth Proxy, `prisma migrate deploy` | **Dừng — không deploy code mới lên schema cũ.** Cloud SQL đang tắt thì đỏ ở đây: `npm run gcp:on` rồi chạy lại |
 | 4 | Deploy service + worker job | Revision cũ vẫn giữ 100% traffic |
 | 5 | Kiểm `/ready` | **Tự lùi traffic về revision trước** |
@@ -999,6 +1007,7 @@ gcloud scheduler jobs create http flash-core-worker-tick \
 
 ---
 
+<!--@@chuong Kiểm, và khi hỏng thì tra ở đâu-->
 ## 11. Kiểm tra — 7 việc, làm đủ
 
 URL của app nằm ở **Cloud Run → flash-core-api**, dòng trên cùng. Bước 1, 2, 4 mở thẳng trên
@@ -1035,7 +1044,7 @@ open "$URL"
    DATABASE_URL="postgresql://flashcore:$DB_PASS@127.0.0.1:6543/flashcore" \
      npm run make-admin -- ban@example.com
    ```
-   > Không chạy trong ảnh Docker được: `make-admin` cần `ts-node`, mà ảnh runtime đã bỏ mọi
+   > Không chạy trong Docker image được: `make-admin` cần `ts-node`, mà image runtime đã bỏ mọi
    > devDependency (cùng lý do bước migrate phải chạy ở runner).
 6. **Tạo dữ liệu demo qua giao diện** — một product, vài SKU, một đợt sale. **Không chạy
    `npm run seed`** (100.000 dòng) lên cloud — lệnh đó chỉ dành cho DB local.
@@ -1112,10 +1121,11 @@ cả hai hiện đang dùng **số đo local**, chưa phải số thật.
 | Console chặn tạo khoá: *"Service account key creation is disabled"* | **Không phải lỗi** — Organization Policy chặn sẵn, và dự án vốn không cần khoá | Bỏ qua, đi tiếp §7.2 (WIF). **Đừng** nhờ admin tắt policy |
 | Lỡ tạo API key / OAuth client ở **Credentials** | Vào nhầm màn (xem §2b) — dự án không dùng cái nào | Xoá nó đi. Nếu đã tải file khoá JSON về máy thì **xoá cả file lẫn khoá trên Console** |
 | Deploy chậm bất thường | Artifact Registry khác region với Cloud Run | Tạo lại repo đúng `$REGION` |
-| Hoá đơn cao hơn ~$9/tháng dù không ai dùng | Cloud SQL tạo sai máy / bật HA / bật PITR, hoặc ảnh Docker dồn | *Overview* của instance: *Machine type* phải là `db-f1-micro`, *Availability* Single zone; kiểm §3 cleanup policy |
+| Hoá đơn cao hơn ~$9/tháng dù không ai dùng | Cloud SQL tạo sai máy / bật HA / bật PITR, hoặc Docker image dồn | *Overview* của instance: *Machine type* phải là `db-f1-micro`, *Availability* Single zone; kiểm §3 cleanup policy |
 
 ---
 
+<!--@@chuong Sống lâu dài với nó-->
 ## 15. Chốt chặn chi phí — và vì sao KHÔNG tắt Cloud SQL lúc nghỉ
 
 **Trong 90 ngày credit, để Cloud SQL chạy liên tục.** Nghe ngược với trực giác "không dùng thì

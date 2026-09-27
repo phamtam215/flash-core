@@ -373,7 +373,7 @@ Muốn xem lại thì `git log -- .claude/`.
   của Cloud SQL vẫn là máy 2 vCPU ≈ $100/tháng, và *Create and continue* của service account
   tạo luôn account. **Chưa chạy thật** — các lệnh `gcloud` và `deploy.yml` mới mới qua kiểm cú
   pháp.
-  **Nhân tiện sửa một lỗi có từ trước:** hướng dẫn chạy `make-admin` trong ảnh runtime, mà
+  **Nhân tiện sửa một lỗi có từ trước:** hướng dẫn chạy `make-admin` trong image runtime, mà
   `make-admin` cần `ts-node` (devDependency, đã bị prune) — giờ chạy từ máy dev qua proxy.
 - **Hai môi trường + phân quyền theo mô hình công ty** 2026-09-26 ([ADR-017](docs/adr/017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md)),
   khảo sát chỉ-đọc từ repo `officecube` (Terragrunt + Cloud Build). Bê nguyên: mỗi môi trường
@@ -402,7 +402,7 @@ Muốn xem lại thì `git log -- .claude/`.
   - **`worker-once.ts` quit Redis hai lần**: `QueueService.onModuleDestroy` cũng quit client
     đó ⇒ lần hai reject, thoát ra ngoài nên `process.exit()` không chạy ⇒ Cloud Run đánh dấu
     **mọi** lần chạy là thất bại. Bỏ lệnh quit thủ công.
-  - **Migrate không chạy được trong ảnh runtime**: `npm prune --omit=dev` xoá `prisma` và
+  - **Migrate không chạy được trong image runtime**: `npm prune --omit=dev` xoá `prisma` và
     `typescript` (đều là devDependency), mà `prisma.config.ts` là file `.ts`. Chuyển bước
     migrate về **runner**, dùng `secrets.DATABASE_URL_DIRECT` — đúng ADR-013 (advisory lock
     của Prisma ở mức session, pooler không giữ được).
