@@ -427,7 +427,13 @@ function toHtml(markdown) {
 
     const para = [];
     while (i < lines.length && !startsBlock(lines[i])) para.push(lines[i++].trim());
-    if (para.length > 0) out.push(`<p>${inline(para.join(' '))}</p>`);
+    if (para.length > 0) {
+      const text = para.join(' ');
+      // Một đoạn mở đầu bằng `Vì sao` là câu GIẢI THÍCH cho bước ngay trên nó — CSS tô xanh
+      // để phân biệt với phần hướng dẫn thao tác. Không thêm cú pháp mới: mở file .md trên
+      // GitHub vẫn đọc được bình thường.
+      out.push(`<p${/^Vì sao\b/.test(text) ? ' class="why"' : ''}>${inline(text)}</p>`);
+    }
   }
 
   closeSection();

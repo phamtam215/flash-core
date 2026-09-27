@@ -97,11 +97,15 @@ nhất biết mình đang tiêu tiền là được báo** — bảng điều kh
 ![Trang Budgets & caps](html/assets/img/deploy/budget-1-danh-sach.jpg)
 *① Menu trái: Cost control → Budgets & caps. ② Nút Create new.*
 
+Vì sao budget chứ không phải tự xem bảng chi phí: cảnh báo tự tìm đến anh, còn bảng điều khiển thì phải nhớ mà mở — và thứ phải nhớ thì sẽ quên đúng vào tháng có chuyện.
+
 2. **Define** (bước 1/4): chọn **Alerts only (available to all services)** → **Name**
    `flash-core` → **Next**
 
 ![Bước Define](html/assets/img/deploy/budget-2-define.jpg)
 *① Alerts only. ② Tên budget. ③ Next.*
+
+Vì sao *Alerts only*: dự án này cần **biết** khi tiêu quá, chứ chưa cần Google **tắt** dịch vụ giữa chừng — chặn cứng để dành cho lúc đã biết chắc dịch vụ nào chịu được.
 
 3. **Scope** (bước 2/4): *Time range* **Monthly** · *Projects* và *Services* giữ **All**. Kéo
    xuống mục **Savings**: có hai ô **Savings programs** và **Other savings**, **cả hai đang được
@@ -110,6 +114,8 @@ nhất biết mình đang tiêu tiền là được báo** — bảng điều kh
 ![Bước Scope, hai ô Savings đã bỏ tick](html/assets/img/deploy/budget-3-scope.jpg)
 *① Monthly. ② ③ Hai ô Savings — ảnh chụp lúc ĐÃ bỏ tick, đây là trạng thái đúng. ④ Next.*
 
+Vì sao bỏ tick Savings: để tick thì budget đo chi phí **sau khi trừ credit**, tức là 0đ suốt 90 ngày — một cảnh báo không bao giờ kêu thì bằng không có.
+
 4. **Amount** (bước 3/4): *Budget type* **Specified amount** · *Target amount* là số tiền **theo
    đơn vị tiền tệ của tài khoản billing** — nhìn ký hiệu trước ô nhập. Tài khoản tính bằng **₫**
    thì nhập **`300000`** (≈ $12); tính bằng $ thì nhập `12` → **Next**
@@ -117,12 +123,16 @@ nhất biết mình đang tiêu tiền là được báo** — bảng điều kh
 ![Bước Amount với 130.000₫](html/assets/img/deploy/budget-4-amount.jpg)
 *① Specified amount. ② Target amount — để ý ký hiệu ₫: gõ "5" ở đây nghĩa là 5 đồng. (Ảnh chụp lúc thử 130.000₫; con số đúng giờ là 300.000₫ — lý do ở cuối mục này.) ③ Next.*
 
+Vì sao ≈$12 chứ không phải $1: ngưỡng đặt **ngay trên mức bình thường** thì mỗi lần kêu đều có nghĩa, còn ngưỡng quá thấp thì tháng nào cũng kêu và sẽ bị bỏ qua.
+
 5. **Actions** (bước 4/4): *Set alert threshold rules* giữ ba mốc **50% / 90% / 100%**,
    *Trigger on* **Actual**. Mục *Manage notifications*: giữ tick **Email alerts to billing admins
    and users** → **Finish**
 
 ![Bước Actions](html/assets/img/deploy/budget-5-actions.jpg)
 *① Ba mốc 50/90/100%, Trigger on Actual (Console tự tính ra số tiền). ② Email alerts to billing admins and users. ③ Finish.*
+
+Vì sao ba mốc chứ không một: 50% là lúc còn kịp sửa, 100% là lúc đã muộn — cảnh báo chỉ có giá trị khi tới sớm hơn hậu quả.
 
 > **Đơn vị tiền là chỗ dễ sai nhất bước 4** — lúc đối chiếu, chính tài khoản mẫu tính bằng ₫. Gõ
 > `5` thì budget là **5 đồng** và cảnh báo kêu ngay từ đồng đầu tiên, rồi bị bỏ qua mãi mãi.
@@ -270,14 +280,18 @@ OIDC của chính nó lấy một access token sống vài phút, gắn với đ
 ![Form tạo repository](html/assets/img/deploy/ar-1-repo.jpg)
 *① Name. ② Format Docker. ③ Mode Standard. ④ Location type Region + us-central1. Nếu hiện hộp "Artifact Registry API has not been used…" là API chưa bật — làm bước 3 của §2 rồi tải lại trang.*
 
+Vì sao phải là `us-central1`: image ở region khác thì mỗi lần deploy Cloud Run phải kéo nó xuyên vùng — chậm hơn và tính tiền egress, mà không có dấu hiệu nào báo.
+
 3. Mục **Cleanup policies**: **Dry run đang được chọn sẵn** → đổi sang **Delete artifacts**, rồi
    **Add a cleanup policy** hai lần (mỗi cái xong bấm **Done**):
    - *Name* `giu-3-tag-moi-nhat` — *Policy type* **Keep most recent versions**, *Keep count* `3`
-   - *Name* `xoa-anh-khong-tag-qua-7-ngay` — *Policy type* **Conditional delete**, *Tag state*
+   - *Name* `xoa-image-khong-tag-qua-7-ngay` — *Policy type* **Conditional delete**, *Tag state*
      **Untagged**, tick **Older than** rồi điền `7d`
 
-![Cleanup policy xoá ảnh không tag](html/assets/img/deploy/ar-2-cleanup.jpg)
+![Cleanup policy xoá image không tag](html/assets/img/deploy/ar-2-cleanup.jpg)
 *① Delete artifacts (không phải Dry run). ② Tên chính sách. ③ Conditional delete. ④ Tag state Untagged. ⑤ Tick Older than, điền 7d. Xong bấm Done ở cuối khung.*
+
+Vì sao dựng chính sách dọn ngay từ lúc tạo kho: free tier 0,5 GB chỉ chứa nổi khoảng ba lần deploy, và kho đầy thì hỏng ở lần deploy tiếp theo chứ không hỏng lúc này.
 
 4. Mục **Vulnerability scanning** (cuối form): đổi sang **Disabled** — mặc định là *Enabled*, và
    quét lỗ hổng tính tiền theo từng image được đẩy lên (⚠ kiểm bảng giá Artifact Analysis)
@@ -285,6 +299,8 @@ OIDC của chính nó lấy một access token sống vài phút, gắn với đ
 
 ![Vulnerability scanning và nút Create](html/assets/img/deploy/ar-3-scanning.jpg)
 *① Vulnerability scanning → Disabled. ② Create.*
+
+Vì sao tắt quét lỗ hổng: nó tính tiền theo **từng image đẩy lên**, nên một dự án học mà deploy nhiều lần sẽ trả tiền đều đặn cho một báo cáo không ai đọc.
 
 > *Dry run* chỉ ghi log "lẽ ra sẽ xoá cái này" chứ không xoá gì. Chọn nhầm thì nhìn vào vẫn
 > thấy chính sách đầy đủ mà image vẫn dồn lên.
@@ -294,7 +310,7 @@ OIDC của chính nó lấy một access token sống vài phút, gắn với đ
 ```bash
 gcloud artifacts repositories create flash-core \
   --repository-format=docker --location="$REGION" \
-  --description="Ảnh Docker của Flash-Core"
+  --description="Docker image của Flash-Core"
 ```
 
 **Bật chính sách dọn ngay bây giờ**, đừng để sau:
@@ -308,7 +324,7 @@ cat > /tmp/cleanup.json <<'JSON'
     "mostRecentVersions": {"keepCount": 3}
   },
   {
-    "name": "xoa-anh-khong-tag-qua-7-ngay",
+    "name": "xoa-image-khong-tag-qua-7-ngay",
     "action": {"type": "Delete"},
     "condition": {"tagState": "untagged", "olderThan": "7d"}
   }
@@ -337,6 +353,8 @@ gcloud artifacts repositories set-cleanup-policies flash-core \
 ![Chọn edition và preset](html/assets/img/deploy/sql-1-edition.jpg)
 *① Enterprise. ② Edition preset → Sandbox. Khung Summary bên phải cập nhật theo từng lựa chọn — dùng nó để kiểm lại.*
 
+Vì sao **Enterprise** chứ không Enterprise Plus: bản Plus không có máy nhỏ nào cả, chọn nhầm là không còn đường xuống `db-f1-micro` ở bước 5.
+
 3. **Instance info**: *Database version* mặc định là **PostgreSQL 18** → đổi sang **PostgreSQL
    16** (khớp `docker-compose.yml` và bộ test — test trên phiên bản khác rồi deploy là để dành lỗi
    cho môi trường thật) · *Instance ID* `flash-core-db` · *Password* của user `postgres`: bấm
@@ -347,6 +365,8 @@ gcloud artifacts repositories set-cleanup-policies flash-core \
 ![Phiên bản, Instance ID, region, zone](html/assets/img/deploy/sql-2-info-region.jpg)
 *① PostgreSQL 16. ② Instance ID. ③ Generate password. ④ us-central1. ⑤ Single zone. Nhìn bảng giá góc phải dưới: máy mặc định của preset Sandbox là $0,14/giờ ≈ $100/tháng — vì thế bước 5 bắt buộc.*
 
+Vì sao ép về **Postgres 16**: bộ test và `docker-compose.yml` chạy trên 16, mà test ở một phiên bản rồi deploy sang phiên bản khác là để dành lỗi cho môi trường thật.
+
 5. **Customize your instance → Show configuration options**, sửa bốn mục:
    - **Machine configuration** — **quan trọng nhất**: preset Sandbox dùng máy `db-custom-2-8192`
      (2 vCPU, 8 GB). Ở *Machine family dropdown* chọn **General purpose - Shared core** → Console
@@ -355,16 +375,22 @@ gcloud artifacts repositories set-cleanup-policies flash-core \
 ![Chọn máy Shared core 0.614 GB](html/assets/img/deploy/sql-3-machine.jpg)
 *① General purpose - Shared core. ② 1 vCPU, 0.614 GB. ③ Summary phải ghi Machine type db-f1-micro.*
 
+Vì sao đây là bước quan trọng nhất cả mục: máy mặc định của preset Sandbox vẫn là 2 vCPU ≈ $100/tháng — bỏ sót đúng một mục này là hoá đơn gấp mười.
+
    - **Storage**: *Storage type* **SSD** · *Storage capacity* **10 GB** · **bỏ tick** *Enable
      automatic storage increases* (đang tick sẵn)
 
 ![Storage](html/assets/img/deploy/sql-4-storage.jpg)
 *① SSD. ② 10 GB. ③ Enable automatic storage increases — ảnh chụp lúc ĐÃ bỏ tick.*
 
+Vì sao bỏ tick tự nới ổ: ổ Cloud SQL **nới được nhưng không thu lại được**, nên một lần đầy đĩa vì log là trả tiền cho phần dư đó mãi mãi.
+
    - **Connections**: *Instance IP assignment* giữ **Public IP**, **không** bấm *Add a network*
 
 ![Connections](html/assets/img/deploy/sql-5-connections.jpg)
 *① Public IP giữ tick. ② Không bấm Add a network — danh sách để trống. ③ Private IP: để trống, trừ khi sau này chọn hướng Private IP ở §16.*
+
+Vì sao để trống danh sách mạng: Cloud Run và bước migrate đều nối qua **Cloud SQL Auth Proxy**, vốn không đi qua IP nguồn — mở thêm dải IP chỉ là mở cửa thừa.
 
    - **Data Protection**: giữ tick *Automated daily backups*; *Backup window* hiển thị theo **giờ
      máy anh (GMT+7)** — chọn khung buổi tối, lúc hay bật máy học nhất. **Bỏ tick** *Enable
@@ -375,11 +401,15 @@ gcloud artifacts repositories set-cleanup-policies flash-core \
 ![Data Protection](html/assets/img/deploy/sql-6-data-protection.jpg)
 *① Automated daily backups. ② Backup window (giờ GMT+7). ③ Point-in-time recovery — đã bỏ tick. ④ Prevent instance deletion giữ tick. ⑤ Hai ô giữ backup sau khi xoá — đã bỏ tick.*
 
+Vì sao giữ backup ngày nhưng bỏ PITR: bản sao lưu hằng ngày là mạng an toàn gần như miễn phí, còn PITR ghi thêm log liên tục vào ổ — trả tiền cho mức chính xác mà dự án học không dùng tới.
+
 6. Kéo xuống cuối, **kiểm bảng giá** rồi mới bấm **Create instance** — mất 5–10 phút. Mục
    *Security* để nguyên (*Allow only SSL connections*): connector và proxy đều mã hoá sẵn.
 
 ![Bảng giá và nút Create instance](html/assets/img/deploy/sql-7-gia-va-create.jpg)
 *① Bảng giá phải ra khoảng $0,01/giờ (máy) + $0,002/giờ (ổ 10 GB). Bảng này KHÔNG tính tiền IP lúc máy tắt — xem §15. ② Create instance.*
+
+Vì sao dừng lại đọc bảng giá trước khi bấm Create: đây là **lần cuối** còn sửa được miễn phí — đổi máy sau khi tạo thì phải khởi động lại instance.
 
 7. Khi instance có dấu xanh:
    - Tab **Databases → Create database** → `flashcore`
@@ -466,6 +496,8 @@ psql "postgresql://flashcore:$DB_PASS@127.0.0.1:6543/flashcore"
 2. Tạo database, chọn **GCP us-central1** (cùng region Cloud Run — Upstash có sẵn vùng này)
 3. Lấy chuỗi `rediss://...` (chú ý **hai chữ s** — TLS)
 
+Vì sao Upstash chứ không phải Redis của GCP: Memorystore tính tiền theo giờ kể cả lúc không ai dùng, còn dự án này cần Redis chỉ vài giây mỗi 5 phút — Upstash tính theo **số lệnh** nên hợp đúng hình dạng đó.
+
 > Gói free: **256 MB / 500.000 lệnh mỗi tháng**. Worker gọi mỗi 5 phút là ~8.600 lệnh/tháng
 > chỉ để hỏi việc — còn rất nhiều chỗ, nhưng đây là hạn mức **chạm trần đầu tiên** nếu có
 > traffic thật (xem [spec Phase 7](specs/phase7-deploy-gcp.md) §Bài toán #4).
@@ -488,6 +520,8 @@ psql "postgresql://flashcore:$DB_PASS@127.0.0.1:6543/flashcore"
    ```text
    postgresql://flashcore:<DB_PASS>@localhost/flashcore?host=/cloudsql/<SQL_INSTANCE>
    ```
+
+Vì sao không để secret thẳng trong biến môi trường của Cloud Run: biến môi trường hiện nguyên văn cho **bất kỳ ai xem được cấu hình service**, còn Secret Manager tách quyền đọc ra riêng và ghi lại ai đọc lúc nào.
 
 > **Kiểm không có dấu cách hay xuống dòng ở cuối** trước khi bấm Create. Secret lưu đúng từng
 > ký tự được dán vào, và một ký tự xuống dòng thừa ở cuối `DATABASE_URL` làm đường dẫn socket
@@ -981,6 +1015,8 @@ Làm **sau** lần deploy đầu (§9) — job `flash-core-worker` phải tồn 
    - *Service account* `scheduler-invoker` → **Create**
 3. Thử ngay: ☰ → **Cloud Scheduler** → tick `flash-core-worker-tick` → **Force run** → quay lại
    job `flash-core-worker`: phải có một lượt chạy mới, dấu xanh.
+
+Vì sao Scheduler phải có service account **riêng** chỉ mang `Cloud Run Invoker`: nó chỉ cần làm đúng một việc là gọi job, nên nếu lịch chạy bị ai đó sửa thì thứ tệ nhất xảy ra cũng chỉ là job chạy sai giờ.
 
 **Hoặc bằng lệnh:**
 

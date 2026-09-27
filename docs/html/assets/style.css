@@ -19,6 +19,9 @@
   --c3: #1e7a4f;  /* đưa lên chạy  */
   --c4: #b5761a;  /* kiểm & sự cố  */
   --c5: #8a2f6b;  /* lâu dài       */
+
+  --why: #1d6fa5;       /* câu giải thích "vì sao" */
+  --why-line: #a9cde4;
 }
 
 * { box-sizing: border-box; }
@@ -143,6 +146,21 @@ h3 { font-size: 1.15em; margin: 1.4em 0 0.5em; }
 }
 .muc blockquote.note { border-left-color: var(--c); }
 .muc table th { border-bottom-color: var(--c); }
+
+/* --- Câu "vì sao" ---------------------------------------------------------
+   Hướng dẫn nói LÀM GÌ; dòng xanh này nói VÌ SAO. Tách màu để đọc lướt vẫn
+   phân biệt được hai loại thông tin. */
+p.why {
+  color: var(--why);
+  font-size: 0.94em;
+  margin: 0.35em 0 1.1em;
+  padding-left: 12px;
+  border-left: 3px solid var(--why-line);
+}
+p.why strong { color: var(--why); }
+li + p.why, p.why + ol, p.why + ul { margin-top: 0.35em; }
+/* Trong ô ghi chú thì khung đã nói "đây là giải thích" rồi — thêm màu nữa là chói. */
+blockquote p.why { color: inherit; font-size: inherit; border-left: none; padding-left: 0; }
 
 /* --- Mục lục ------------------------------------------------------------- */
 .toc {
