@@ -576,6 +576,50 @@ credentials` dù `gcloud` vẫn chạy ngon lành.
 > Cloud data…"*) rồi mới Continue. Trình duyệt nhớ lần trước nên không hỏi lại thì thêm
 > `--force`; máy không mở được trình duyệt thì `--no-browser`.
 
+> ### Máy đang có sẵn project của công ty thì tách ra trước
+>
+> Đăng nhập xong hay gặp dòng này:
+>
+> ```text
+> WARNING: Cannot add the project "<project-công-ty>" to ADC as the quota project because the
+> account in ADC does not have the "serviceusage.services.use" permission on this project.
+> ```
+>
+> Không phải lỗi — dòng `Credentials saved to file` ở trên nó nghĩa là đã xong. gcloud chỉ đang
+> lấy **project đang active trong config** làm quota project, mà project đó là của công ty. Chỉ
+> nó về đúng chỗ:
+>
+> ```bash
+> gcloud auth application-default set-quota-project flash-core-prv
+> ```
+>
+> **Thứ đáng lo hơn nằm sau cảnh báo đó: ADC là MỘT file duy nhất cho cả máy**
+> (`~/.config/gcloud/application_default_credentials.json`). Lệnh `application-default login` vừa
+> **ghi đè** lên nội dung cũ, nên nếu có một `cloud-sql-proxy` khác trên máy đang chạy bằng ADC
+> thì từ giờ nó cầm nhầm danh tính. Không mất gì vĩnh viễn, nhưng hai bên sẽ đá nhau mỗi lần đổi
+> việc. Tách một lần:
+>
+> ```bash
+> # cất bản ADC vừa tạo ra file riêng của dự án này
+> cp ~/.config/gcloud/application_default_credentials.json ~/.config/gcloud/adc-flash-core.json
+>
+> # rồi luôn chạy proxy bằng đúng file đó, không đụng ADC chung
+> cloud-sql-proxy --credentials-file ~/.config/gcloud/adc-flash-core.json \
+>   --port 6543 "$SQL_INSTANCE"
+> ```
+>
+> Tách nốt phần `gcloud config` để không gõ nhầm project:
+>
+> ```bash
+> gcloud config configurations create flash-core   # cấu hình mới, không đụng cái đang có
+> gcloud config set account <email cá nhân>
+> gcloud config set project flash-core-prv
+> ```
+>
+> Đổi qua lại bằng `gcloud config configurations activate <tên>`, xem đang ở đâu bằng
+> `gcloud config list`. Cảnh báo trên chính là **dấu hiệu hai môi trường đang lẫn nhau** — tách
+> bây giờ rẻ hơn nhiều so với lúc lỡ gõ một lệnh `gcloud sql` vào project công ty.
+
 **Mỗi lần muốn nối** — mở proxy ở một cửa sổ terminal và **để nó chạy**:
 
 ```bash
@@ -1281,6 +1325,7 @@ cả hai hiện đang dùng **số đo local**, chưa phải số thật.
 | `/ready` trả `503` mãi | Cloud SQL đang tắt, hoặc Redis không nối được | `npm run gcp:status`; kiểm `REDIS_URL` có `rediss://` (hai chữ s) |
 | Đổi secret rồi mà app vẫn dùng giá trị cũ | **Secret Manager không tự áp dụng** | Phải **deploy lại** service |
 | Mọi người dùng bị `429` cùng lúc | `trust proxy` sai ⇒ mọi request trông như một IP | Đã đặt `trust proxy = 1` trong `main.ts`; thêm một lớp proxy nữa thì phải đổi thành 2 |
+| `Cannot add the project "…" to ADC as the quota project` | Project đang active trong `gcloud config` là của nơi khác | Không phải lỗi; chạy `gcloud auth application-default set-quota-project` rồi tách cấu hình (§4b) |
 | `cloud-platform scope is required but not consented` | Trang đồng ý của `application-default login` có checkbox, bấm Continue mà chưa tick | Chạy lại, tick **Select all** rồi Continue (§4b) |
 | Console chặn tạo khoá: *"Service account key creation is disabled"* | **Không phải lỗi** — Organization Policy chặn sẵn, và dự án vốn không cần khoá | Bỏ qua, đi tiếp §7.2 (WIF). **Đừng** nhờ admin tắt policy |
 | Lỡ tạo API key / OAuth client ở **Credentials** | Vào nhầm màn (xem §2b) — dự án không dùng cái nào | Xoá nó đi. Nếu đã tải file khoá JSON về máy thì **xoá cả file lẫn khoá trên Console** |
