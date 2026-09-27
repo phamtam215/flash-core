@@ -429,13 +429,25 @@ Vì sao giữ backup ngày nhưng bỏ PITR: bản sao lưu hằng ngày là m�
 
 Vì sao dừng lại đọc bảng giá trước khi bấm Create: đây là **lần cuối** còn sửa được miễn phí — đổi máy sau khi tạo thì phải khởi động lại instance.
 
-7. Khi instance có dấu xanh:
-   - Tab **Databases → Create database** → `flashcore`
-   - Tab **Users → Add user account** → *Built-in authentication*, username `flashcore`,
+7. Khi instance có dấu xanh — ba việc dưới đây nằm ở **menu trái bên trong instance**, không
+   phải tab ở trên cùng. Menu đó thường **thu gọn thành một cột dấu ⋮**: bấm biểu tượng mở rộng
+   panel ở góc trên bên trái (cạnh chữ *Overview*) thì mới thấy tên các mục.
+   - **Databases → Create database** → `flashcore`
+   - **Users → Add user account** → *Built-in authentication*, username `flashcore`,
      password sinh bằng `openssl rand -hex 24` trên máy (dạng hex để khỏi phải URL-encode). Cất
      lại — đây là **`DB_PASS`** dùng ở §6 và §8.
-   - Trang **Overview** → chép **Connection name** (dạng `project:us-central1:flash-core-db`) —
-     đây là **`SQL_INSTANCE`** dùng ở §6 và §8.
+   - **Overview** → thẻ *Connect to this instance* → chép **Connection name** (dạng
+     `project:us-central1:flash-core-db`) — đây là **`SQL_INSTANCE`** dùng ở §6 và §8. Nó KHÁC
+     Project ID, nên đừng chép nhầm cái trên thanh tiêu đề.
+
+Vì sao `Databases` và `Users` bị khoá lúc mới bấm Create: instance mất 5–10 phút để dựng xong, và
+chừng nào thanh dưới còn quay `Creating…` thì chưa có Postgres nào đang chạy để mà tạo database
+trong đó.
+
+> **Một khung sẽ hiện trên Overview: *Knowledge Catalog*.** Google **tự bật** tích hợp này và gửi
+> *metadata* của instance (tên bảng, tên cột — không phải dữ liệu) sang dịch vụ đó. Với dự án này
+> thì vô hại, nhưng nó là một dịch vụ được bật mà anh không chọn. Tắt sau khi instance tạo xong:
+> **Edit → Flags and parameters → bỏ tick *Enable Knowledge Catalog integration***.
 
 > **Vì sao phải sửa nhiều thế:** mọi mặc định của form đều nghiêng về production — preset
 > Production, nhiều vùng, PITR, giữ backup sau khi xoá. Bỏ sót *một* mục máy (bước 5) là hoá đơn
