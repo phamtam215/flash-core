@@ -366,7 +366,7 @@ biệt người *chọn có lý do* với người *chọn theo trend*.
 | **TypeScript** strict | Bắt lỗi ở compile-time, và code tự tài liệu hoá | — |
 | **Zod** (không class-validator) | Validate ở biên; **type suy ra TỪ schema** nên không bao giờ lệch | class-validator cần decorator + `class-transformer`, và type khai hai lần ⇒ lệch được. [ADR-002](adr/002-nen-mong-ky-thuat-phase-0.md) |
 | **PostgreSQL 16** | Nơi **duy nhất** biết sự thật về tồn kho. Ba cơ chế dùng thật: `UPDATE … WHERE`, `SELECT FOR UPDATE`, `FOR UPDATE SKIP LOCKED` | Đây là công cụ chống bán vượt. Không có nó thì bài toán trở thành distributed transaction — khó hơn nhiều và **không dạy được điều đang muốn học** |
-| **Prisma 7** + `@prisma/adapter-pg` | ORM, nhưng `pg.Pool` **do mình cấu hình** | Pool trở thành biến điều khiển được (`DATABASE_POOL_MAX`) — cần cho benchmark Phase 3, và cho Neon pooler ở Phase 7 |
+| **Prisma 7** + `@prisma/adapter-pg` | ORM, nhưng `pg.Pool` **do mình cấu hình** | Pool trở thành biến điều khiển được (`DATABASE_POOL_MAX`) — cần cho benchmark Phase 3, và cho trần connection trên serverless ở Phase 7 |
 | **`$queryRaw`** ở đúng 1 file | `SELECT FOR UPDATE` và `UPDATE … WHERE stock >= ?` | Prisma **không có API** cho `FOR UPDATE`. Đây là "chạm giới hạn của ORM" — chọn có ý thức, và giới hạn lại trong một file ([ADR-003](adr/003-so-huu-logic-tru-ton-kho.md)) |
 | **Redis** | Rate limit đăng nhập, và chiến lược chống bán vượt thứ ba (**Lua** kiểm-tra-và-trừ) | Phải là Lua: Redis chạy lệnh tuần tự một luồng nên script chạy trọn vẹn. `GET` rồi `DECRBY` từ Node chỉ **đổi chỗ** race condition |
 | **BullMQ** | Hàng đợi, delayed job (huỷ đơn 15 phút), DLQ | Trên Redis đã có sẵn. **Không cần Kafka** — xem mục dưới |

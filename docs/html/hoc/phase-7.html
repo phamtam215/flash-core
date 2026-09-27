@@ -46,6 +46,14 @@ một phase chưa bắt đầu — không có số đo, không có bug thật, k
 là <b>đặc tính của nền tảng</b>, không phải kết quả của dự án. Sẽ viết lại khi phase chạy xong.</p>
 </div>
 
+<div class="box trap">
+<div class="t">Đổi từ 2026-09-26: Postgres dùng Cloud SQL, không dùng Neon</div>
+<p>Trang này viết khi DB là Neon Free. Giờ là <b>Cloud SQL</b>, chạy liên tục trong giai đoạn credit
+(<a href="../../adr/016-cloud-sql-thay-neon.md">ADR-016</a>). Các ý về cold start của Cloud Run,
+trần connection (pool 5 × 2) và FinOps vẫn đúng. Các ý riêng về Neon (DB scale-to-zero, hard
+cutoff, pooler) thì không còn áp dụng — thay vào đó là ~$9/tháng credit, và bẫy lớn nhất là form tạo instance mặc định rất đắt.</p>
+</div>
+
 <div class="box key">
 <div class="t">Đoán thử trước khi đọc</div>
 <p>Flash sale mở đúng <b>20:00:00</b>. Hệ thống chạy trên Cloud Run với <code>min-instances = 0</code>

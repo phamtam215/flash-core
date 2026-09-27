@@ -1,4 +1,4 @@
-# Môi trường local cho Flash-Core. Phiên bản Postgres/Redis khớp production (Neon dùng
+# Môi trường local cho Flash-Core. Phiên bản Postgres/Redis khớp production (Cloud SQL
 # Postgres 16, Upstash tương thích Redis 7) — test trên phiên bản khác rồi deploy là để
 # dành lỗi cho môi trường thật.
 #

@@ -36,7 +36,10 @@
     "make-admin": "node -r ts-node/register prisma/seed/make-admin.ts",
     "test:int:local": "TEST_DATABASE_URL='postgresql://flashcore:flashcore@localhost:5433/flashcore_test' TEST_REDIS_URL='redis://localhost:6379/1' npm run test:int",
     "worker:once": "nest start --entryFile worker-once",
-    "worker:once:prod": "node dist/worker-once"
+    "worker:once:prod": "node dist/worker-once",
+    "gcp:on": "bash scripts/gcp-db.sh on",
+    "gcp:off": "bash scripts/gcp-db.sh off",
+    "gcp:status": "bash scripts/gcp-db.sh status"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.28",

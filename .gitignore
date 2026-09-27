@@ -146,3 +146,6 @@ src/generated/
 
 # Binary công cụ tải về (k6...) — không commit, tải lại khi cần
 .tools/
+
+# Snapshot/log của Playwright MCP khi Claude xem trình duyệt — không phải mã nguồn
+.playwright-mcp/

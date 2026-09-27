@@ -119,10 +119,10 @@
 
 | Tên | Vấn đề nó chỉ | Dấu hiệu gặp |
 |---|---|---|
-| **Cold start** | Container ngủ, request đầu phải chờ khởi động | Cloud Run + Neon scale-to-zero |
+| **Cold start** | Container ngủ, request đầu phải chờ khởi động | Cloud Run scale-to-zero |
 | **Autoscaling / min-instances / max-instances** | Số bản chạy tối thiểu và tối đa | Trade-off tiền vs độ trễ |
 | **Stateless service** | Không lưu state trong RAM của instance, vì instance bị tạo/hủy tùy ý | Vì sao session/cache phải ở Redis |
-| **Serverless connection pooling (PgBouncer)** | Nhiều instance × nhiều connection → vượt giới hạn DB | Neon pooler |
+| **Serverless connection pooling (PgBouncer)** | Nhiều instance × nhiều connection → vượt giới hạn DB | Pool 5 × 2 instance, ADR-013/016 |
 | **Blue-green / Rolling deploy** | Chiến lược deploy không downtime | Cloud Run revision |
 | **Secret management** | Secret không nằm trong code/repo | GCP Secret Manager |
 | **Budget alert / Quota** | Cảnh báo và giới hạn để không bị hóa đơn bất ngờ | Đặt $1 ngày đầu |
