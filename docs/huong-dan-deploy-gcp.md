@@ -495,6 +495,83 @@ printf '%s' "<chuỗi rediss:// của Upstash>" \
 
 ## 7. Service account + Workload Identity Federation
 
+### Service account là gì — và khác tài khoản của anh ở chỗ nào
+
+Google gọi cả hai là *"account"*, và đó là nguồn gốc của mọi nhầm lẫn. Chúng là **hai thứ
+khác hẳn nhau**:
+
+| | **Tài khoản người** (`ban@gmail.com`) | **Service account** (`github-deployer@...`) |
+|---|---|---|
+| Là gì | **Một con người** | **Một vai diễn mà code mặc vào** |
+| Đăng nhập Console | Có | **Không bao giờ** |
+| Mật khẩu, 2FA | Có | **Không có** |
+| Nhận email | Có | Không |
+| Ai dùng nó | Chính người đó | **Bất kỳ đoạn code nào được phép mượn** |
+| Nghỉ việc thì sao | Xoá tài khoản ⇒ mất hết quyền | Không liên quan — hệ thống vẫn chạy |
+
+Cách nhớ gọn nhất: **tài khoản người trả lời câu "ai đang ngồi trước màn hình", service
+account trả lời câu "đoạn code này đang chạy với tư cách gì".**
+
+### Thứ làm nó khó hiểu: service account vừa là danh tính, vừa là tài sản
+
+Đây là điểm không tài liệu nào nói thẳng, mà lại là điểm quan trọng nhất.
+
+- **Như một danh tính:** nó được cấp quyền, y hệt một người. `github-deployer` có
+  `run.admin` nghĩa là nó deploy được Cloud Run.
+- **Như một tài sản:** nó **thuộc về** project, và phải có ai đó *được phép mượn* nó. Quyền
+  mượn chính là `roles/iam.serviceAccountUser`.
+
+Nghĩa là có **hai lớp** phải đúng thì một việc mới chạy được:
+
+```text
+GitHub Actions  ──(1) được phép MƯỢN──►  github-deployer  ──(2) có QUYỀN──►  deploy Cloud Run
+                    (workloadIdentityUser)                    (run.admin)
+```
+
+Thiếu lớp (1) thì CI báo *"unable to get credentials"*; thiếu lớp (2) thì CI mượn được nhưng
+bị từ chối ở bước deploy. **Hai lỗi hoàn toàn khác nhau, và đọc thông báo là phân biệt được** —
+đó là lý do tách hai lớp chứ không gộp.
+
+### Ba service account của dự án, và vì sao không dùng chung một cái
+
+| Service account | Ai chạy với tư cách nó | Quyền |
+|---|---|---|
+| `github-deployer` | GitHub Actions (qua WIF) | `run.admin`, `artifactregistry.writer`, `cloudsql.client`, và `serviceAccountUser` **chỉ trên `flash-core-runtime`** |
+| `flash-core-runtime` | **Container Cloud Run** lúc đang chạy | `cloudsql.client`, và đọc secret **theo từng secret một** |
+| `scheduler-invoker` | Cloud Scheduler khi gọi worker job | `run.invoker` |
+
+Tách ba cái vì **mỗi cái chỉ chết một kiểu**: `github-deployer` bị lộ thì kẻ tấn công deploy
+được code lạ nhưng **không đọc được secret**; `flash-core-runtime` bị lộ thì đọc được secret
+nhưng **không deploy được gì**. Gộp thành một là một lỗ hổng mở toang cả hai cửa.
+
+### Vì sao không để code chạy bằng tài khoản của chính anh
+
+Anh là **Owner** của project — tức là làm được mọi thứ, gồm cả xoá project và đổi tài khoản
+thanh toán. Cho CI chạy bằng quyền đó thì:
+
+1. **Một dòng sai trong `deploy.yml` có thể xoá cả project.** Service account chỉ có 4 quyền
+   thì tệ nhất là hỏng phần deploy.
+2. **Anh nghỉ hoặc đổi tài khoản là mọi thứ chết.** Hệ thống không nên phụ thuộc vào một người
+   cụ thể còn ở lại hay không.
+3. **Log kiểm toán không phân biệt được** việc nào do anh bấm, việc nào do CI chạy — lúc có sự
+   cố thì đó đúng là câu cần trả lời đầu tiên.
+4. Chạy bằng tài khoản người nghĩa là **phải cất mật khẩu hoặc token của một con người ở đâu
+   đó** — thứ mà [ADR-014](adr/014-workload-identity-federation.md) dựng WIF để tránh.
+
+### Còn nhân viên của anh thì sao
+
+Nhân viên là **tài khoản người**, không phải service account. Họ được cấp quyền như anh, chỉ
+ít hơn — và nên cấp **qua Google Group** thay vì từng người một (bảng ở §18.2), để người vào
+người ra chỉ là thêm/bớt thành viên nhóm, không phải sửa IAM.
+
+Chỗ hai khái niệm gặp nhau: một nhân viên có thể được cấp quyền **mượn** một service account
+(`serviceAccountUser`) để chạy thử một việc dưới tư cách của nó. Lúc đó nhân viên vẫn là
+người, chỉ *tạm thời hành động dưới một vai diễn khác* — y hệt cách GitHub Actions làm.
+
+---
+
+
+
 Đây là bước rắc rối nhất. Làm **một lần**, và không bao giờ phải tạo file key JSON nào.
 
 **Bằng Console:**
