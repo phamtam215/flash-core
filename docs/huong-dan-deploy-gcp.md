@@ -512,6 +512,23 @@ khác hẳn nhau**:
 Cách nhớ gọn nhất: **tài khoản người trả lời câu "ai đang ngồi trước màn hình", service
 account trả lời câu "đoạn code này đang chạy với tư cách gì".**
 
+**Và service account KHÔNG phải là "quyền" — nó là *danh tính*.** Quyền là **role** gắn vào
+danh tính đó. Anh đã quen chuyện này ở SQL:
+
+```sql
+CREATE USER app_user;                -- danh tính  ← service account
+GRANT SELECT ON orders TO app_user;  -- quyền      ← role
+```
+
+`app_user` không *là* quyền `SELECT`; nó là cái tên mà quyền được gắn vào. `REVOKE` đi thì nó
+vẫn là `app_user`, chỉ không làm được gì nữa. Service account y hệt: **tạo ra thì nó không có
+quyền gì cả** — đó là lý do §7 tạo account ở một lệnh rồi gán role ở lệnh khác.
+
+Trong IAM, cả người lẫn service account đều gọi chung là **member** (principal), và IAM chỉ
+hỏi đúng một câu: *ai (member) — được làm gì (role) — ở đâu (resource)*. Ô "ai" nhận cả hai
+loại, nên **người mới vào dự án và service account là hai member khác nhau trong cùng một
+bảng**, không phải cái này chứa cái kia.
+
 ### Thứ làm nó khó hiểu: service account vừa là danh tính, vừa là tài sản
 
 Đây là điểm không tài liệu nào nói thẳng, mà lại là điểm quan trọng nhất.
@@ -557,6 +574,59 @@ thanh toán. Cho CI chạy bằng quyền đó thì:
    cố thì đó đúng là câu cần trả lời đầu tiên.
 4. Chạy bằng tài khoản người nghĩa là **phải cất mật khẩu hoặc token của một con người ở đâu
    đó** — thứ mà [ADR-014](adr/014-workload-identity-federation.md) dựng WIF để tránh.
+
+### Ví dụ cụ thể: cùng một lệnh `docker push`, hai danh tính khác nhau
+
+**Từ máy anh** — **không có service account nào tham gia**:
+
+```bash
+gcloud auth login          # danh tính: tam@gmail.com  ← TÀI KHOẢN NGƯỜI
+docker push us-central1-docker.pkg.dev/$PROJECT_ID/flash-core/api:test
+```
+
+Đẩy được là nhờ role của **chính anh** (`Owner` bao gồm `artifactregistry.writer`).
+
+Cách thấy rõ danh tính và quyền là hai thứ tách rời: bỏ role đi rồi thử lại —
+`gcloud auth login` vẫn **thành công** (anh vẫn là anh), nhưng `docker push` trả **403**.
+*Đăng nhập được ≠ làm được.*
+
+**Từ GitHub Actions** — cùng lệnh đó, nhưng không có ai để `gcloud auth login`:
+
+```text
+GitHub Actions ──WIF──► github-deployer@...  ──role──► artifactregistry.writer
+                        (danh tính của code)            (quyền đẩy ảnh)
+```
+
+**Hai đường này ĐỘC LẬP.** Tài khoản của anh **không** cần "gắn với" `github-deployer` —
+nó tồn tại *chỉ vì* CI không có người nào để đăng nhập. Như cái chìa khoá làm thêm cho con
+robot: anh không cần chìa đó, anh có chìa của mình rồi.
+
+Anh chỉ cần `serviceAccountUser` trên nó trong **đúng một** trường hợp: muốn *đóng giả* nó để
+kiểm xem nó có đẩy được thật không, mà không phải push thử qua CI —
+
+```bash
+gcloud auth print-access-token \
+  --impersonate-service-account=github-deployer@$PROJECT_ID.iam.gserviceaccount.com
+```
+
+Đây là việc **gỡ lỗi**, không phải việc hằng ngày.
+
+> **Đừng cấu hình Docker ở local chạy bằng `github-deployer`.** Làm vậy thì mọi lần anh push
+> đều ghi log là CI push — mất đúng thứ mà việc tách danh tính dựng ra để có.
+
+### Cách tự kiểm: log ghi ai làm việc gì
+
+GCP không "đoán" ai đang chạy — nó **ghi lại**. ☰ → **Logging → Logs Explorer**, tìm sự kiện
+`docker.uploadArtifact`:
+
+| Ai đẩy | Dòng trong log |
+|---|---|
+| Anh, từ máy mình | `principalEmail: "tam@gmail.com"` |
+| GitHub Actions | `principalEmail: "github-deployer@<project>.iam.gserviceaccount.com"` |
+
+Đây chính là lý do thứ ba ở phần trên về việc không cho CI chạy bằng tài khoản Owner: **dùng
+chung một danh tính thì hai dòng log này giống hệt nhau**, và lúc có sự cố thì không trả lời
+được câu đầu tiên — *ai vừa đẩy cái ảnh này lên?*
 
 ### Còn nhân viên của anh thì sao
 

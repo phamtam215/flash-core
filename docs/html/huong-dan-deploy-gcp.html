@@ -219,6 +219,11 @@ printf '%s' "&lt;chuỗi rediss:// của Upstash&gt;" \
 <p>Google gọi cả hai là <em>"account"</em>, và đó là nguồn gốc của mọi nhầm lẫn. Chúng là <strong>hai thứ khác hẳn nhau</strong>:</p>
 <div class="table-wrap"><table><thead><tr><th></th><th><strong>Tài khoản người</strong> (<code>ban@gmail.com</code>)</th><th><strong>Service account</strong> (<code>github-deployer@...</code>)</th></tr></thead><tbody><tr><td>Là gì</td><td><strong>Một con người</strong></td><td><strong>Một vai diễn mà code mặc vào</strong></td></tr><tr><td>Đăng nhập Console</td><td>Có</td><td><strong>Không bao giờ</strong></td></tr><tr><td>Mật khẩu, 2FA</td><td>Có</td><td><strong>Không có</strong></td></tr><tr><td>Nhận email</td><td>Có</td><td>Không</td></tr><tr><td>Ai dùng nó</td><td>Chính người đó</td><td><strong>Bất kỳ đoạn code nào được phép mượn</strong></td></tr><tr><td>Nghỉ việc thì sao</td><td>Xoá tài khoản ⇒ mất hết quyền</td><td>Không liên quan — hệ thống vẫn chạy</td></tr></tbody></table></div>
 <p>Cách nhớ gọn nhất: <strong>tài khoản người trả lời câu "ai đang ngồi trước màn hình", service account trả lời câu "đoạn code này đang chạy với tư cách gì".</strong></p>
+<p><strong>Và service account KHÔNG phải là "quyền" — nó là <em>danh tính</em>.</strong> Quyền là <strong>role</strong> gắn vào danh tính đó. Anh đã quen chuyện này ở SQL:</p>
+<pre><code class="language-sql">CREATE USER app_user;                -- danh tính  ← service account
+GRANT SELECT ON orders TO app_user;  -- quyền      ← role</code></pre>
+<p><code>app_user</code> không <em>là</em> quyền <code>SELECT</code>; nó là cái tên mà quyền được gắn vào. <code>REVOKE</code> đi thì nó vẫn là <code>app_user</code>, chỉ không làm được gì nữa. Service account y hệt: <strong>tạo ra thì nó không có quyền gì cả</strong> — đó là lý do §7 tạo account ở một lệnh rồi gán role ở lệnh khác.</p>
+<p>Trong IAM, cả người lẫn service account đều gọi chung là <strong>member</strong> (principal), và IAM chỉ hỏi đúng một câu: <em>ai (member) — được làm gì (role) — ở đâu (resource)</em>. Ô "ai" nhận cả hai loại, nên <strong>người mới vào dự án và service account là hai member khác nhau trong cùng một bảng</strong>, không phải cái này chứa cái kia.</p>
 <h3 id="thứ-làm-nó-khó-hiểu-service-account-vừa-là-danh-tính-vừa-là-tài-sản">Thứ làm nó khó hiểu: service account vừa là danh tính, vừa là tài sản</h3>
 <p>Đây là điểm không tài liệu nào nói thẳng, mà lại là điểm quan trọng nhất.</p>
 <ul><li><strong>Như một danh tính:</strong> nó được cấp quyền, y hệt một người. <code>github-deployer</code> có <code>run.admin</code> nghĩa là nó deploy được Cloud Run.</li><li><strong>Như một tài sản:</strong> nó <strong>thuộc về</strong> project, và phải có ai đó <em>được phép mượn</em> nó. Quyền mượn chính là <code>roles/iam.serviceAccountUser</code>.</li></ul>
@@ -232,6 +237,25 @@ printf '%s' "&lt;chuỗi rediss:// của Upstash&gt;" \
 <h3 id="vì-sao-không-để-code-chạy-bằng-tài-khoản-của-chính-anh">Vì sao không để code chạy bằng tài khoản của chính anh</h3>
 <p>Anh là <strong>Owner</strong> của project — tức là làm được mọi thứ, gồm cả xoá project và đổi tài khoản thanh toán. Cho CI chạy bằng quyền đó thì:</p>
 <ol><li><strong>Một dòng sai trong <code>deploy.yml</code> có thể xoá cả project.</strong> Service account chỉ có 4 quyền thì tệ nhất là hỏng phần deploy.</li><li><strong>Anh nghỉ hoặc đổi tài khoản là mọi thứ chết.</strong> Hệ thống không nên phụ thuộc vào một người cụ thể còn ở lại hay không.</li><li><strong>Log kiểm toán không phân biệt được</strong> việc nào do anh bấm, việc nào do CI chạy — lúc có sự cố thì đó đúng là câu cần trả lời đầu tiên.</li><li>Chạy bằng tài khoản người nghĩa là <strong>phải cất mật khẩu hoặc token của một con người ở đâu đó</strong> — thứ mà <a href="adr-014-workload-identity-federation.html">ADR-014</a> dựng WIF để tránh.</li></ol>
+<h3 id="ví-dụ-cụ-thể-cùng-một-lệnh-docker-push-hai-danh-tính-khác-nhau">Ví dụ cụ thể: cùng một lệnh <code>docker push</code>, hai danh tính khác nhau</h3>
+<p><strong>Từ máy anh</strong> — <strong>không có service account nào tham gia</strong>:</p>
+<pre><code class="language-bash">gcloud auth login          # danh tính: tam@gmail.com  ← TÀI KHOẢN NGƯỜI
+docker push us-central1-docker.pkg.dev/$PROJECT_ID/flash-core/api:test</code></pre>
+<p>Đẩy được là nhờ role của <strong>chính anh</strong> (<code>Owner</code> bao gồm <code>artifactregistry.writer</code>).</p>
+<p>Cách thấy rõ danh tính và quyền là hai thứ tách rời: bỏ role đi rồi thử lại — <code>gcloud auth login</code> vẫn <strong>thành công</strong> (anh vẫn là anh), nhưng <code>docker push</code> trả <strong>403</strong>. <em>Đăng nhập được ≠ làm được.</em></p>
+<p><strong>Từ GitHub Actions</strong> — cùng lệnh đó, nhưng không có ai để <code>gcloud auth login</code>:</p>
+<pre><code class="language-text">GitHub Actions ──WIF──► github-deployer@...  ──role──► artifactregistry.writer
+                        (danh tính của code)            (quyền đẩy ảnh)</code></pre>
+<p><strong>Hai đường này ĐỘC LẬP.</strong> Tài khoản của anh <strong>không</strong> cần "gắn với" <code>github-deployer</code> — nó tồn tại <em>chỉ vì</em> CI không có người nào để đăng nhập. Như cái chìa khoá làm thêm cho con robot: anh không cần chìa đó, anh có chìa của mình rồi.</p>
+<p>Anh chỉ cần <code>serviceAccountUser</code> trên nó trong <strong>đúng một</strong> trường hợp: muốn <em>đóng giả</em> nó để kiểm xem nó có đẩy được thật không, mà không phải push thử qua CI —</p>
+<pre><code class="language-bash">gcloud auth print-access-token \
+  --impersonate-service-account=github-deployer@$PROJECT_ID.iam.gserviceaccount.com</code></pre>
+<p>Đây là việc <strong>gỡ lỗi</strong>, không phải việc hằng ngày.</p>
+<blockquote class="note"><p><strong>Đừng cấu hình Docker ở local chạy bằng <code>github-deployer</code>.</strong> Làm vậy thì mọi lần anh push đều ghi log là CI push — mất đúng thứ mà việc tách danh tính dựng ra để có.</p></blockquote>
+<h3 id="cách-tự-kiểm-log-ghi-ai-làm-việc-gì">Cách tự kiểm: log ghi ai làm việc gì</h3>
+<p>GCP không "đoán" ai đang chạy — nó <strong>ghi lại</strong>. ☰ → <strong>Logging → Logs Explorer</strong>, tìm sự kiện <code>docker.uploadArtifact</code>:</p>
+<div class="table-wrap"><table><thead><tr><th>Ai đẩy</th><th>Dòng trong log</th></tr></thead><tbody><tr><td>Anh, từ máy mình</td><td><code>principalEmail: "tam@gmail.com"</code></td></tr><tr><td>GitHub Actions</td><td><code>principalEmail: "github-deployer@&lt;project&gt;.iam.gserviceaccount.com"</code></td></tr></tbody></table></div>
+<p>Đây chính là lý do thứ ba ở phần trên về việc không cho CI chạy bằng tài khoản Owner: <strong>dùng chung một danh tính thì hai dòng log này giống hệt nhau</strong>, và lúc có sự cố thì không trả lời được câu đầu tiên — <em>ai vừa đẩy cái ảnh này lên?</em></p>
 <h3 id="còn-nhân-viên-của-anh-thì-sao">Còn nhân viên của anh thì sao</h3>
 <p>Nhân viên là <strong>tài khoản người</strong>, không phải service account. Họ được cấp quyền như anh, chỉ ít hơn — và nên cấp <strong>qua Google Group</strong> thay vì từng người một (bảng ở §18.2), để người vào người ra chỉ là thêm/bớt thành viên nhóm, không phải sửa IAM.</p>
 <p>Chỗ hai khái niệm gặp nhau: một nhân viên có thể được cấp quyền <strong>mượn</strong> một service account (<code>serviceAccountUser</code>) để chạy thử một việc dưới tư cách của nó. Lúc đó nhân viên vẫn là người, chỉ <em>tạm thời hành động dưới một vai diễn khác</em> — y hệt cách GitHub Actions làm.</p>
