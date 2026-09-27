@@ -191,6 +191,34 @@ gcloud services enable \
 
 ---
 
+### Mỗi API đảm nhiệm gì — trong đúng dự án này
+
+Bật cho đủ thì dễ, nhưng biết cái nào đỡ việc gì thì lúc hỏng mới đoán được chỗ. Xếp theo
+**thứ tự chúng được gọi** trong một lần deploy:
+
+| # | API | Ai gọi nó, lúc nào | Tắt thì hỏng ở đâu |
+|---|---|---|---|
+| 1 | **Security Token Service** (`sts`) | GitHub Actions, ngay đầu workflow: đưa token OIDC của chính nó, STS kiểm issuer + điều kiện `repository=='phamtam215/flash-core'` (§7.2) rồi đổi lấy **token liên kết** | CI đỏ ở step `auth` |
+| 2 | **IAM Service Account Credentials** | Ngay sau đó: đổi token liên kết lấy **access token ngắn hạn của `github-deployer`** (`generateAccessToken`) | CI đỏ ở step `auth`, báo mơ hồ kiểu *unable to acquire impersonated credentials* |
+| 3 | **Artifact Registry** | Runner `docker push` ảnh lên `us-central1-docker.pkg.dev/…`; sau đó Cloud Run **kéo ảnh về** để chạy. Cũng là nơi chính sách dọn ảnh (§3) sống | Push đỏ; hoặc deploy xong container không khởi động được vì không kéo nổi ảnh |
+| 4 | **Cloud SQL Admin** | **Cloud SQL Auth Proxy** hỏi nó thông tin kết nối + chứng chỉ — proxy chạy **hai chỗ**: trên runner lúc `migrate deploy`, và trong Cloud Run qua `--set-cloudsql-instances` ([ADR-016](adr/016-cloud-sql-thay-neon.md)) | Bước migrate treo rồi timeout; app chạy nhưng không nối được DB |
+| 5 | **Cloud Run Admin** | `gcloud run deploy` tạo/cập nhật service `flash-core-api` + hai Cloud Run Job (migrate, worker); và `update-traffic` lúc **rollback** khi `/ready` không xanh | Toàn bộ bước deploy đỏ |
+| 6 | **Secret Manager** | **Không phải CI** — mà `flash-core-runtime` lúc container khởi động, đọc 6 secret rồi bơm thành biến môi trường. CI chỉ *khai báo* "service này dùng secret X" | Container khởi động rồi **chết ngay**: config validate bằng Zod thấy thiếu biến là thoát |
+| 7 | **Cloud Scheduler** | Sau khi deploy xong, **mỗi 5 phút** gọi Cloud Run Job `worker` chạy một lượt rồi thoát ([ADR-012](adr/012-worker-tren-cloud-run.md)) | Xem ô cảnh báo dưới |
+
+> **Chỉ mình Cloud Scheduler hỏng theo kiểu IM LẶNG.** Sáu API kia tắt là có cái gì đó đỏ ngay
+> trước mắt. Thiếu Scheduler thì deploy vẫn xanh, trang web vẫn mở, đặt hàng vẫn được — nhưng
+> **không job nền nào chạy**: outbox không ai đẩy (email không gửi), sweeper không ai gọi (đơn
+> quá hạn nằm `PENDING` mãi, giữ kho không trả), đợt sale hết giờ không ai đóng (hàng tồn kẹt
+> lại). Đúng kiểu lỗi mà [§Vòng đời dữ liệu](tech-playbook.md) đã gặp một lần rồi.
+>
+> **Hai cái tên dễ hiểu nhầm.** *Cloud SQL **Admin*** nghe như chỉ để quản trị instance, nhưng
+> kết nối thường ngày cũng cần — vì mọi đường đều đi qua proxy. Và *IAM Service Account
+> **Credentials*** chính là thứ **thay cho file khoá JSON**: nó phát token sống một tiếng thay
+> vì một file sống mãi.
+
+---
+
 ### 2b. Màn "Create credentials" — vào nhầm thì ĐỪNG tạo gì
 
 Ở **APIs & Services** có mục **Credentials** nằm ngay cạnh **Library**. Bật API xong rất dễ
