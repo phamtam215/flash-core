@@ -1039,6 +1039,22 @@ deploy, và lúc đó thông báo lỗi không chỉ về đây.
 cũng đang sai một chỗ: `flash-core-artifact-deployer` là service account tạo thừa, không nằm trong
 kế hoạch — xoá đi. `…-compute@developer` thì của Google, để nguyên.*
 
+> **`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com` là gì, có xoá không.** Google tự tạo
+> nó khi bật Compute Engine API. Nó là danh tính mặc định của VM Compute Engine, và là danh tính
+> **dự phòng** mà Cloud Run dùng nếu deploy mà không chỉ định `--service-account`.
+>
+> **Đừng xoá.** Vài dịch vụ âm thầm rơi về nó, và lúc đó lỗi báo ra là "service account không tồn
+> tại" ở một chỗ chẳng liên quan gì. `deploy.yml` của dự án luôn ghi rõ
+> `--service-account flash-core-runtime@…`, nên đường dự phòng đó không bao giờ được đi.
+>
+> **Thứ phải canh không phải sự tồn tại của nó, mà là role của nó.** Trước đây Google tự cấp cho
+> nó `Editor` ở mức project — khi đó bất kỳ ai deploy được cũng khoác được nó để làm mọi thứ trong
+> project (§7.5.4). Tổ chức bật *Secure by Default* thì Google không cấp nữa, và dấu hiệu đúng là
+> **nó KHÔNG xuất hiện trên trang IAM**. Thấy nó ở đó kèm `Editor` hay `Owner` thì gỡ role, đừng gỡ
+> account.
+>
+> Muốn chắc hơn nữa: dấu ⋮ → **Disable service account**. Tắt thì bật lại được, xoá thì không.
+
 ![Provider github-provider: mapping và attribute condition](html/assets/img/deploy/wif-4-kiem-lai-provider.png)
 *Dòng 8 nhìn ở đây, một trang có đủ ba thứ: ① *Enabled provider* đang bật · ② hai cặp mapping
 (`google.subject` ← `assertion.sub`, `attribute.repository` ← `assertion.repository`) · ③ **Condition
