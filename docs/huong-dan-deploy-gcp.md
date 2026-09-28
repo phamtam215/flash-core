@@ -811,6 +811,25 @@ là các bước; §7.5 giải thích service account là gì và vì sao chia q
 
 ### 7.1 Tạo hai service account
 
+Cả dự án cần **ba** service account. Hai cái đầu tạo ở mục này, cái thứ ba tạo ở §10 (lúc đã có
+worker job để hẹn lịch). Quyền của từng cái ở [§7.5.3](#753-ba-service-account-và-vì-sao-không-dùng-chung-một-cái-71).
+
+| *Service account name* | Ai chạy với tư cách nó | Tạo ở | *Description* nên gõ |
+|---|---|---|---|
+| `flash-core-runtime` | Container Cloud Run (API + worker job) lúc đang chạy | §7.1.1 | `Runtime identity for Cloud Run service and worker job. Reads its own 6 secrets, connects to Cloud SQL.` |
+| `github-deployer` | GitHub Actions, qua Workload Identity Federation | §7.1.2 | `CI identity for GitHub Actions (repo phamtam215/flash-core) via WIF. Pushes images, deploys Cloud Run, runs migrations. No key files.` |
+| `scheduler-invoker` | Cloud Scheduler, mỗi 5 phút gọi worker job | §10 | `Cloud Scheduler identity. Only invokes the flash-core-worker job every 5 minutes.` |
+
+Vì sao nên gõ *Description* dù Console cho bỏ trống: sáu tháng sau mở trang **Service Accounts**,
+anh chỉ thấy ba dòng email giống nhau. Description là **chỗ duy nhất** trả lời "cái này của việc
+gì, xoá được không" — và câu đó quyết định lúc dọn dẹp. Viết bằng tiếng Anh vì đó là thứ người
+khác (hoặc công cụ quét IAM) đọc, không phải tài liệu riêng của anh.
+
+Vì sao mô tả nên nói **giới hạn** chứ không chỉ công dụng ("Only invokes…", "No key files"): nó
+biến description thành một lời hứa kiểm được — thấy `scheduler-invoker` có thêm role lạ là biết
+ngay có gì sai, không phải đi tra lại lịch sử.
+
+
 #### 7.1.1 `flash-core-runtime` — danh tính mà container chạy dưới
 
 1. ☰ → **IAM & Admin → Service Accounts → Create service account**
