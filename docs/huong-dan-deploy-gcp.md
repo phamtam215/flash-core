@@ -1442,6 +1442,29 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
   **nối được DB và Redis** chưa. `/ready` kiểm đúng điều đó; không xanh thì traffic quay về revision
   trước, người dùng không bao giờ thấy bản hỏng.
 
+> ### Vì sao Cloud Build trống — và đừng bấm Enable
+>
+> Deploy xong, vào **Cloud Build** sẽ thấy trang mời *Enable API* chứ không thấy bản build nào. Đó
+> là đúng: **dự án này không dùng Cloud Build** ([ADR-017](adr/017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md)
+> xếp nó vào danh sách cố ý không bê về).
+>
+> Build **đã xảy ra rồi**, chỉ là không trên Google — nó chạy ngay trên máy ảo GitHub Actions:
+> `docker build` → `docker push` → Artifact Registry. Google chỉ **nhận** image đã đóng gói xong.
+>
+> | Muốn xem | Ở đâu |
+> |---|---|
+> | Log build, từng lệnh Docker | GitHub → run của tag → job *Build · Migrate · Deploy* → step **Build và đẩy image** |
+> | Kết quả build | Artifact Registry → repo `flash-core` → image `api` |
+>
+> **Vì sao đa số hướng dẫn GCP trên mạng lại có Cloud Build:** chúng dùng `gcloud run deploy
+> --source .`, lệnh đó **tải source code lên Google** rồi nhờ Cloud Build đóng gói hộ. Tiện, nhưng
+> đổi lại: tính tiền theo phút build, thêm một service account phải phân quyền, thêm một bucket
+> staging trên GCS, và log build tách rời khỏi log test. Build ở runner thì miễn phí trong hạn mức
+> GitHub Actions, và **log build nằm ngay cạnh log test** — hỏng ở đâu cũng chỉ mở một trang.
+>
+> Bấm Enable cũng không hỏng gì, chỉ là một API bật lên mà không ai gọi. Nhưng mỗi dịch vụ bật thêm
+> là một thứ nữa phải nhớ lúc soát chi phí (§15).
+
 ---
 
 ## 10. Cloud Scheduler gọi worker
