@@ -741,6 +741,18 @@ refresh token trở thành access token hợp lệ — vòng xoay token của Ph
 Vì sao dài **≥32 ký tự**: `validateEnv` (Zod) chặn ngay lúc khởi động nếu ngắn hơn, nên khoá yếu
 làm app **chết lúc boot** chứ không âm thầm chạy. `openssl rand -hex 32` cho 64 ký tự — dư.
 
+> ### ⚠ `DATABASE_URL_MIGRATE` KHÔNG thuộc mục này
+>
+> Nó trông y hệt `DATABASE_URL` nên rất dễ tạo nhầm vào Secret Manager. Nhưng **Cloud Run không
+> bao giờ đọc nó** — `deploy.yml` lấy nó từ `secrets.DATABASE_URL_MIGRATE` của **GitHub
+> Environment** (§8 bước 3), lúc bước migrate chạy trên runner.
+>
+> Tạo nhầm vào đây thì không có lỗi nào báo: nó nằm im, không ai đọc, và **chiếm một trong 6 slot
+> miễn phí** của Secret Manager. Lỡ tạo rồi thì mở nó → **Delete secret**.
+>
+> Cách nhớ: Secret Manager chứa thứ **ứng dụng đang chạy** cần. `DATABASE_URL_MIGRATE` là thứ
+> **CI** cần, mà CI không chạy trên GCP.
+
 Các biến của **GitHub** (`GCP_PROJECT_ID`, `GCP_WIF_PROVIDER`, `GCP_SERVICE_ACCOUNT`,
 `GCP_SQL_INSTANCE`, `GCP_REGION`) và secret `DATABASE_URL_MIGRATE` **không nạp ở đây** — chúng
 khai bên GitHub, xem [§8](#8-khai-báo-bên-github).
@@ -876,7 +888,17 @@ ngay có gì sai, không phải đi tra lại lịch sử.
 
 1. ☰ → **IAM & Admin → Service Accounts → Create service account**
 2. *Service account name* `flash-core-runtime` → **Create and continue**
-3. Role **Cloud SQL Client** → **Continue** → **Done**
+3. Bước **Grant this service account access to project**: role **Cloud SQL Client** →
+   **Continue** → **Done**
+
+> ⚠ **Bước 3 là bước hay bị bấm qua nhất cả §7.** Nhãn của nó ghi *(optional)*, và bỏ trống thì
+> service account vẫn tạo ra bình thường, danh sách vẫn thấy đủ hai cái — **không có dấu hiệu nào
+> sai**. Nó chỉ lộ ra lúc deploy xong, container báo không nối được database, và thông báo đó
+> không nhắc một chữ nào tới IAM.
+>
+> **Kiểm ngay:** ☰ → **IAM & Admin → IAM**, tìm dòng `flash-core-runtime@…` — phải thấy nó với
+> role *Cloud SQL Client*. **Không thấy dòng nào** nghĩa là bước 3 đã bị bỏ qua. Vá bằng
+> **Grant access** → *New principals* `flash-core-runtime@…` · role **Cloud SQL Client** → Save.
 
 #### 7.1.2 `github-deployer` — danh tính của CI
 
@@ -975,6 +997,34 @@ GCP_SERVICE_ACCOUNT = github-deployer@<PROJECT_ID>.iam.gserviceaccount.com
 ```
 
 Làm bằng lệnh: [§7 bản lệnh](huong-dan-deploy-gcp-lenh.md#7-service-account-workload-identity-federation).
+
+### 7.6 Tự kiểm — 8 dòng, làm trước khi sang §8
+
+**Để làm gì:** bắt các lỗi của §7 **ngay bây giờ**, vì gần hết chúng không báo gì cho tới lúc
+deploy, và lúc đó thông báo lỗi không chỉ về đây.
+
+| # | Mở ở đâu | Phải thấy |
+|---|---|---|
+| 1 | **IAM & Admin → Service Accounts** | Đúng **2** dòng của dự án: `flash-core-runtime`, `github-deployer` (cộng `…-compute@developer` của Google). Dòng lạ nào khác là tạo thừa — xoá |
+| 2 | Cùng trang, cột **Key ID** | **No keys** ở mọi dòng. Có khoá là đi ngược [ADR-014](adr/014-workload-identity-federation.md) |
+| 3 | **IAM & Admin → IAM**, dòng `github-deployer` | Đúng **3** role: *Artifact Registry Writer*, *Cloud Run Admin*, *Cloud SQL Client* |
+| 4 | Cùng trang, dòng `flash-core-runtime` | Có dòng này, role *Cloud SQL Client*. **Không thấy dòng nào** = bỏ sót §7.1.1 bước 3 |
+| 5 | Cùng trang, dòng `github-deployer` | **KHÔNG** có *Secret Manager Secret Accessor*, *Owner*, *Editor*, *Service Account User* |
+| 6 | SA `flash-core-runtime` → tab **Principals with access** | `github-deployer@…` với role *Service Account User* |
+| 7 | SA `github-deployer` → tab **Principals with access** | Một dòng *Workload Identity User*, principal chứa `…/github/…flash-core` |
+| 8 | **Workload Identity Federation** → pool `github` → provider `github-provider` | *Issuer* `https://token.actions.githubusercontent.com`; mapping có `attribute.repository=assertion.repository`; **Attribute condition** `assertion.repository=='<user>/<repo>'` |
+
+Vì sao dòng 5 kiểm **ngược** (thứ KHÔNG được có) chứ không chỉ kiểm thứ phải có: thiếu quyền thì
+CI đỏ, tự lộ ra ngay lần deploy đầu. **Thừa** quyền thì mọi thứ vẫn xanh — không ai biết cho tới
+lúc có sự cố. `Service Account User` ở **mức project** là ví dụ rõ nhất: CI vẫn deploy ngon, nhưng
+nó khoác được **mọi** service account trong project, kể cả cái mặc định của Compute thường mang
+quyền `Editor` (§7.5.4).
+
+Vì sao dòng 8 quan trọng hơn cả bảy dòng kia cộng lại: thiếu *Attribute condition* thì **bất kỳ
+repo GitHub nào trên đời** cũng đổi token của họ lấy quyền vào project này — và không có triệu
+chứng nào cả, deploy của anh vẫn chạy đúng.
+
+Muốn kiểm bằng lệnh thay vì bấm 8 chỗ: xem [bản lệnh §7](huong-dan-deploy-gcp-lenh.md).
 
 ### 7.5 Vì sao cấu hình như vậy
 

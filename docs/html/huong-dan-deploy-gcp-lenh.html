@@ -133,7 +133,28 @@ gcloud iam workload-identity-pools providers create-oidc github-provider \
   --attribute-condition="assertion.repository=='$REPO'"</code></pre></li><li><strong>§7.3 — cho đúng repo này mượn <code>github-deployer</code>:</strong><pre><code class="language-bash">gcloud iam service-accounts add-iam-policy-binding "$SA" \
   --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/$REPO"</code></pre></li><li><strong>§7.4 — in ra hai giá trị dán vào GitHub</strong> (§8 bản Console):<pre><code class="language-bash">echo "GCP_WIF_PROVIDER = projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github-provider"
-echo "GCP_SERVICE_ACCOUNT = $SA"</code></pre></li><li><strong>Gỡ lỗi (không phải việc hằng ngày):</strong> đóng giả <code>github-deployer</code> để kiểm nó có quyền thật không, mà không phải push thử qua CI. Cần anh có <code>serviceAccountUser</code> trên nó:<pre><code class="language-bash">gcloud auth print-access-token \
+echo "GCP_SERVICE_ACCOUNT = $SA"</code></pre></li><li><strong>§7.6 — tự kiểm một lượt.</strong> In ra đúng những gì bảng 8 dòng của bản Console yêu cầu:<pre><code class="language-bash">echo "— service account (phải có 2, cột KEY_ID trống):"
+gcloud iam service-accounts list --project "$PROJECT_ID"
+for E in "$RUNTIME_SA" "$SA"; do
+  echo "  khoá của $E:"; gcloud iam service-accounts keys list --iam-account "$E" --managed-by user
+done
+
+echo "— role mức project của hai SA (deployer phải đúng 3, runtime phải có cloudsql.client):"
+gcloud projects get-iam-policy "$PROJECT_ID" --flatten='bindings[].members' \
+  --filter='bindings.members:(github-deployer OR flash-core-runtime)' \
+  --format='table(bindings.members, bindings.role)'
+
+echo "— ai được khoác runtime (phải thấy github-deployer / serviceAccountUser):"
+gcloud iam service-accounts get-iam-policy "$RUNTIME_SA" --format='table(bindings.role, bindings.members)'
+
+echo "— ai được mượn deployer (phải thấy principalSet của đúng repo):"
+gcloud iam service-accounts get-iam-policy "$SA" --format='table(bindings.role, bindings.members)'
+
+echo "— provider: issuer, mapping, và ĐIỀU KIỆN khoá repo:"
+gcloud iam workload-identity-pools providers describe github-provider \
+  --location=global --workload-identity-pool=github \
+  --format='yaml(oidc.issuerUri, attributeMapping, attributeCondition, state)'</code></pre>
+<p>Dòng cuối là dòng đáng đọc kỹ nhất: <code>attributeCondition</code> <strong>trống</strong> nghĩa là bất kỳ repo GitHub nào cũng mượn được service account này, mà deploy của anh vẫn chạy đúng nên không có triệu chứng nào báo.</p></li><li><strong>Gỡ lỗi (không phải việc hằng ngày):</strong> đóng giả <code>github-deployer</code> để kiểm nó có quyền thật không, mà không phải push thử qua CI. Cần anh có <code>serviceAccountUser</code> trên nó:<pre><code class="language-bash">gcloud auth print-access-token \
   --impersonate-service-account="$SA"</code></pre></li></ol>
 <hr>
 </section>
