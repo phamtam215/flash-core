@@ -406,8 +406,10 @@ Deploy vẫn khởi động, chỉ dừng vì hạ tầng GCP chưa có. Đây c
 
 1. **Budget alert $1** trên billing account — làm trước mọi thứ khác.
 2. `--max-instances=2` trên service; `--max-retries=1` + `--task-timeout=120s` trên job.
-3. **Cleanup policy Artifact Registry**: giữ 3 tag mới nhất, xoá untagged > 7 ngày
-   (free 0,5 GB — vài image Node là chạm, ⚠ kiểm lại hạn mức).
+3. **Cleanup policy Artifact Registry**: giữ 3 bản mới nhất, xoá bản **mọi trạng thái tag** > 7 ngày
+   (free 0,5 GB — vài image Node là chạm, ⚠ kiểm lại hạn mức). *Sửa 2026-09-28:* bản đầu ghi
+   "xoá untagged" — nhưng `deploy.yml` tag image bằng SHA nên không image nào thành untagged, chính
+   sách đó không bao giờ xoá gì.
 4. Neon: bật autosuspend 5 phút (mặc định) và **đừng để thứ gì poll nó**.
 5. Cloud Logging **exclusion filter** cho log `debug` trên production; `LOG_LEVEL=info`.
 6. Hook `guard_cloud_cost.py` đã chặn k6/seed khi biến kết nối trỏ ra cloud — giữ nguyên.

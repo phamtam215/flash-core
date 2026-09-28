@@ -13,7 +13,7 @@
 > **Luật giữ cho nó không trôi lệch:** xong một việc thì **xoá dòng đó trong chính commit làm
 > việc đó**. Không để dành "dọn sau" — một hàng đợi cũ là một hàng đợi không ai tin.
 >
-> Cập nhật lần cuối: **2026-09-26** — vừa xong Phase 9 khối 1–3, Phase 8, và vòng đời dữ liệu.
+> Cập nhật lần cuối: **2026-09-28** — thêm lộ trình nâng cấp mạng (chưa xếp hàng).
 
 ---
 
@@ -32,6 +32,7 @@
 |---|---|---|---|
 | 3 | Duyệt [spec Phase 8](specs/phase8-sale-event.md) — 3 câu hỏi mở | Tâm | Nặng nhất: tồn kho đợt **cắt ra** từ SKU hay **dùng chung**. Quyết định này đổi hình dạng schema |
 | 4 | Duyệt [spec Phase 9](specs/phase9-web-hoan-thien.md) — 3 câu hỏi mở | Tâm | Nặng nhất: làm khối security (1 ngày) trước hay làm web (4 ngày) trước |
+| 4b | Upstash gói Free chỉ cho **1 database** — dev và prod xử lý thế nào | Tâm | Ba cách ở [hướng dẫn deploy §5.1](huong-dan-deploy-gcp.md): một môi trường · database thứ hai Pay as You Go · dùng chung + tách tiền tố (phải sửa `deploy.yml` và code). **Chặn §18** |
 
 ---
 
@@ -81,6 +82,7 @@ Nợ đã ghi chép, có chủ ý hoãn. **Danh sách đầy đủ kèm lý do �
 - Gộp `UPDATE` + `isSkuOnSale` của optimistic — đổi hành vi nên phải benchmark lại
 - Xác thực email + quên mật khẩu — cần SMTP thật
 - Captcha — **điều kiện kích hoạt:** thấy `429` của `register` tăng đều trong metric
+- **Lộ trình nâng cấp mạng 6 chặng** (VPC → NAT → Cloud Run vào VPC → Cloud SQL Private IP → bastion + migrate trong VPC → Memorystore tuỳ chọn) — thứ tự và lý do ở [hướng dẫn deploy §19](huong-dan-deploy-gcp.md). **Điều kiện kích hoạt:** §1–§18 đã chạy ổn trên dev. Chặng 4–5 nên xong trước khi hết credit (2026-12-26)
 
 Còn lại từ Phase 8: **k6 chạy trên đợt sale** (hiện `seed-target.js` vẫn dựng SKU thường) và
 **màn đếm ngược tới giờ mở** (thuộc Phase 9 khối 4).

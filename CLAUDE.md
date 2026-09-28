@@ -31,7 +31,8 @@ Vì vậy: **viết kiến thức mới thì viết vào `tech-playbook.md`**, k
   không trôi lệch: xong một việc thì xoá dòng đó trong CHÍNH commit làm việc đó.** Khi Tâm hỏi
   "giờ cần làm gì", mở file này.
 - `docs/huong-dan-deploy-gcp.md` — **hướng dẫn deploy lên GCP từ con số không**, cho người lần
-  đầu deploy: 18 bước (§18 là hai môi trường + phân quyền), mỗi bước có cách bấm trên Console (UI) lẫn lệnh copy-dán, bảng liệt kê **mọi bên thứ ba** (và cái nào $300
+  đầu deploy: 19 mục (§18 là hai môi trường + phân quyền, §19 là lộ trình nâng cấp mạng làm sau), làm bằng Console (UI); **lệnh `gcloud`
+  tương đương tách sang `docs/huong-dan-deploy-gcp-lenh.md`, cùng số mục**. Có bảng liệt kê **mọi bên thứ ba** (và cái nào $300
   credit KHÔNG áp được), bảng tra theo triệu chứng khi hỏng, và mục "khi credit hết thì đổi
   gì". Nó KHÔNG giữ quyết định — mọi "vì sao" trỏ về `adr/` và `specs/phase7-deploy-gcp.md`.
 - `docs/onboarding.md` — **lộ trình cho người mới** (6 buổi, có bài thực hành phá code rồi

@@ -23,6 +23,7 @@ const OUT_DIR = `${ROOT}docs/html/`;
 const PAGES = [
   { src: 'docs/viec-tiep-theo.md', out: 'viec-tiep-theo.html', title: 'Việc tiếp theo' },
   { src: 'docs/huong-dan-deploy-gcp.md', out: 'huong-dan-deploy-gcp.html', title: 'Hướng dẫn deploy lên GCP' },
+  { src: 'docs/huong-dan-deploy-gcp-lenh.md', out: 'huong-dan-deploy-gcp-lenh.html', title: 'Deploy lên GCP bằng lệnh' },
   { src: 'docs/onboarding.md', out: 'onboarding.html', title: 'Lộ trình cho người mới — 6 buổi có thực hành' },
   { src: 'docs/demo-phong-van.md', out: 'demo-phong-van.html', title: 'Demo & thuyết trình khi phỏng vấn' },
   { src: 'docs/README.md', out: 'docs-map.html', title: 'Bản đồ tài liệu — thông tin nào ở file nào' },
@@ -119,6 +120,7 @@ const NAV = [
   ['Tham khảo', [
     ['viec-tiep-theo.html', '★ Việc tiếp theo (viec-tiep-theo.md)'],
     ['huong-dan-deploy-gcp.html', '★ Hướng dẫn deploy GCP (huong-dan-deploy-gcp.md)'],
+    ['huong-dan-deploy-gcp-lenh.html', '↳ Deploy bằng lệnh (huong-dan-deploy-gcp-lenh.md)'],
     ['onboarding.html', '★ Lộ trình người mới (onboarding.md)'],
     ['demo-phong-van.html', '★ Demo &amp; phỏng vấn (demo-phong-van.md)'],
     ['docs-map.html', 'Bản đồ tài liệu (docs/README.md)'],
@@ -143,6 +145,7 @@ const NAV = [
 const LINK_MAP = new Map([
   ['viec-tiep-theo.md', 'viec-tiep-theo.html'],
   ['huong-dan-deploy-gcp.md', 'huong-dan-deploy-gcp.html'],
+  ['huong-dan-deploy-gcp-lenh.md', 'huong-dan-deploy-gcp-lenh.html'],
   ['onboarding.md', 'onboarding.html'],
   ['demo-phong-van.md', 'demo-phong-van.html'],
   ['readme.md', 'docs-map.html'],
@@ -260,6 +263,79 @@ function inline(text) {
 
 const stripTask = (text) => text.replace(/^\[ \]\s+/, '☐ ').replace(/^\[[xX]\]\s+/, '☑ ');
 
+const LIST_ITEM = /^(\s*)([-*]|\d+\.)\s+(.*)$/;
+const indentOf = (line) => /^\s*/.exec(line)[0].length;
+
+/**
+ * Gom một khối danh sách bắt đầu ở dòng `start`. Dòng trống KHÔNG kết thúc danh sách nếu dòng
+ * có chữ kế tiếp (a) thụt lề — tức là phần thân của item trước — hoặc (b) là item cùng loại ở
+ * cùng mức thụt lề. Nhờ (b), các bước cách nhau một dòng trống vẫn là MỘT danh sách.
+ */
+function collectList(lines, start) {
+  const base = indentOf(lines[start]);
+  const ordered = /^\s*\d+\./.test(lines[start]);
+  const sameKind = (line) => {
+    const m = LIST_ITEM.exec(line);
+    return m && m[1].length === base && /\d/.test(m[2]) === ordered;
+  };
+  const block = [];
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*$/.test(line)) {
+      let j = i + 1;
+      while (j < lines.length && /^\s*$/.test(lines[j])) j++;
+      if (j < lines.length && (indentOf(lines[j]) > base || sameKind(lines[j]))) {
+        block.push(...lines.slice(i, j));
+        i = j;
+        continue;
+      }
+      break;
+    }
+    if (indentOf(line) > base || sameKind(line)) {
+      block.push(line);
+      i++;
+      continue;
+    }
+    break;
+  }
+  return { lines: block, next: i };
+}
+
+/** Một khối danh sách → `<ol>`/`<ul>`; phần thân thụt lề của từng item convert đệ quy. */
+function renderList(block) {
+  const base = indentOf(block[0]);
+  const ordered = /^\s*\d+\./.test(block[0]);
+  const items = [];
+  for (const line of block) {
+    const m = LIST_ITEM.exec(line);
+    if (m && m[1].length === base) items.push({ head: [m[3]], body: [], inHead: true });
+    else if (items.length > 0) {
+      const item = items[items.length - 1];
+      // Dòng nối ngay sau dòng đầu (chưa gặp dòng trống, không phải item con, không phải
+      // code fence) là phần tiếp của CÂU đầu — ghép vào cùng dòng như trước.
+      if (item.inHead && /\S/.test(line) && !LIST_ITEM.test(line) && !/^\s*(```|>|!\[|\|)/.test(line)) {
+        item.head.push(line.trim());
+      } else {
+        item.inHead = false;
+        item.body.push(line);
+      }
+    }
+  }
+  const html = items.map(({ head, body }) => {
+    const nonBlank = body.filter((l) => /\S/.test(l));
+    const cut = nonBlank.length ? Math.min(...nonBlank.map(indentOf)) : 0;
+    const inner = nonBlank.length ? toHtml(body.map((l) => l.slice(cut)).join('\n')) : '';
+    return `<li>${inline(stripTask(head.join(' ')))}${inner}</li>`;
+  });
+  const tag = ordered ? 'ol' : 'ul';
+  // Danh sách số bị ảnh chụp màn hình chen giữa thì phần sau phải đếm TIẾP (4, 5…) chứ
+  // không quay về 1 — lấy số của item đầu làm `start`.
+  const first = /^\s*(\d+)\./.exec(block[0]);
+  const startAttr = ordered && first && first[1] !== '1' ? ` start="${first[1]}"` : '';
+  return `<${tag}${startAttr}>${html.join('')}</${tag}>`;
+}
+
 /** Markdown → HTML, xử lý theo BLOCK. */
 function toHtml(markdown) {
   const lines = markdown.split('\n');
@@ -364,7 +440,10 @@ function toHtml(markdown) {
         out.push(`<section class="muc" style="--c: var(--c${chapterIndex % 6})">`);
         openSection = true;
       }
-      out.push(`<h${level} id="${slugify(text)}">${inline(text)}</h${level}>`);
+      // Mục con "N.x Vì sao …" ở cuối mỗi mục của hướng dẫn deploy: tô cùng màu với câu "vì sao"
+      // để nhìn lướt là tách được phần LÀM (phía trên) với phần GIẢI THÍCH (từ đây trở xuống).
+      const why = level >= 3 && /^[\d.]+\s+Vì sao\b/.test(text) ? ' class="why-heading"' : '';
+      out.push(`<h${level} id="${slugify(text)}"${why}>${inline(text)}</h${level}>`);
       i++;
       continue;
     }
@@ -398,30 +477,14 @@ function toHtml(markdown) {
       continue;
     }
 
-    // List: dòng tiếp theo thụt lề mà không phải item mới là phần NỐI của item trước.
+    // List — hỗ trợ LỒNG NHAU. Bản cũ gom mọi dòng `- `/`1. ` thụt lề vào CÙNG một danh sách
+    // phẳng, nên bước con `   - Name …` dưới bước 3 bị đánh thành số 4, 5 rồi đụng số thật
+    // của bước 4 ngay sau — trang hiện "3, 4, 5, 4, 5". Giờ mỗi item giữ phần thân thụt lề của
+    // nó (bước con, ảnh, khối code, ô ghi chú) và convert đệ quy phần thân đó.
     if (/^\s*([-*]|\d+\.)\s/.test(line)) {
-      const ordered = /^\s*\d+\./.test(line);
-      const items = [];
-      while (i < lines.length) {
-        const item = /^\s*([-*]|\d+\.)\s+(.*)$/.exec(lines[i]);
-        if (item) {
-          items.push(item[2]);
-          i++;
-          continue;
-        }
-        if (items.length > 0 && /^\s+\S/.test(lines[i])) {
-          items[items.length - 1] += ` ${lines[i].trim()}`;
-          i++;
-          continue;
-        }
-        break;
-      }
-      const tag = ordered ? 'ol' : 'ul';
-      // Danh sách số bị ảnh chụp màn hình chen giữa thì phần sau phải đếm TIẾP (4, 5…) chứ
-      // không quay về 1 — lấy số của item đầu làm `start`.
-      const first = /^\s*(\d+)\./.exec(line);
-      const start = ordered && first && first[1] !== '1' ? ` start="${first[1]}"` : '';
-      out.push(`<${tag}${start}>${items.map((text) => `<li>${inline(stripTask(text))}</li>`).join('')}</${tag}>`);
+      const block = collectList(lines, i);
+      i = block.next;
+      out.push(renderList(block.lines));
       continue;
     }
 
@@ -459,7 +522,14 @@ function tableOfContents(chapters) {
 }
 
 function sidebar(current) {
-  const parts = ['<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a>'];
+  // Nút ☰ chỉ hiện trên màn hẹp: bấm để mở/đóng danh sách trang. Dùng checkbox + <label>
+  // thay vì JS — trang mở thẳng từ ổ đĩa, không có build step, và CSP của dự án cấm script inline.
+  const parts = [
+    '<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a>',
+    '<input type="checkbox" id="nav-toggle" class="nav-toggle">',
+    '<label for="nav-toggle" class="nav-toggle-label">☰ Danh sách trang</label>',
+    '<div class="nav-groups">',
+  ];
   for (const [group, links] of NAV) {
     parts.push(`<div class="nav-group"><h3>${group}</h3>`);
     for (const [href, label] of links) {
@@ -467,6 +537,7 @@ function sidebar(current) {
     }
     parts.push('</div>');
   }
+  parts.push('</div>');
   return parts.join('');
 }
 

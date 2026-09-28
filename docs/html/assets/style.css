@@ -308,18 +308,6 @@ del { color: var(--text-muted); }
   font-weight: 600;
 }
 
-@media (max-width: 780px) {
-  .layout { flex-direction: column; }
-  .sidebar {
-    width: auto;
-    position: static;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .content { padding: 28px 18px 60px; }
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════════
    Căn giữa cột đọc — PHẢI đặt ở CUỐI FILE
    ═══════════════════════════════════════════════════════════════════════════════
@@ -332,15 +320,25 @@ del { color: var(--text-muted); }
    Đặt lại ở cuối file là cách sửa rẻ nhất mà không phải bọc thêm một thẻ div vào HTML
    (`index.html` viết tay cũng dùng chung `.content` này, bọc thêm thẻ là phải sửa cả hai). */
 
-.content > * {
+.layout .content > *,
+.layout .content > .muc > * {
   margin-left: auto;
   margin-right: auto;
 }
+/* Hai selector trên có độ đặc hiệu (0,2,0), CAO HƠN `blockquote.note` / `p.why` (0,1,1).
+   Bản cũ chỉ có `.content > *` (0,1,0) nên thua hai rule đó: ô ghi chú "Dành cho người lần
+   đầu deploy…" ở đầu trang và mọi dòng "Vì sao" bị kéo về `margin: … 0` và dính lề trái.
+   Dòng thứ hai lo cho nội dung bên trong <section class="muc"> — mọi thứ sau mục lục của
+   hướng dẫn deploy đều nằm trong section, không phải con trực tiếp của .content. */
+.content > .muc { max-width: none; }
+.content > .muc > * { max-width: 780px; }
 
 /* Chữ giữ ~780px cho dễ đọc (dòng quá dài thì mắt khó bắt đầu dòng tiếp theo), nhưng
    BẢNG và KHỐI CODE thì càng rộng càng dễ đọc — cho chúng dùng thêm chỗ khi màn hình rộng. */
 .content > .table-wrap,
-.content > pre {
+.content > pre,
+.content > .muc > .table-wrap,
+.content > .muc > pre {
   max-width: min(1140px, 100%);
 }
 
@@ -357,13 +355,13 @@ del { color: var(--text-muted); }
 
 /* Ảnh giao diện là ảnh chụp màn hình TỐI, đặt trên nền sáng của trang tài liệu — bọc một
    khung tối quanh nó để mắt không bị chói ở rìa, và để chú thích dính liền với ảnh. */
-.content > p:has(> img) {
+.content p:has(> img) {
   max-width: min(1140px, 100%);
   background: #14161b;
   border-radius: 10px;
   padding: 14px 14px 10px;
 }
-.content > p:has(> img) em {
+.content p:has(> img) em {
   display: block;
   color: #9aa3b2;
   font-size: 0.88em;
@@ -377,7 +375,7 @@ del { color: var(--text-muted); }
    tối + thanh tiêu đề để mắt nhận ra ngay "đây là thứ chạy trong terminal", ngang với ảnh chụp
    giao diện ở trên. Vẫn là CHỮ nên copy dán được — hơn hẳn ảnh chụp terminal. */
 
-.content > .term {
+.content .term {
   max-width: min(1140px, 100%);
   margin: 1.2em auto;
   background: #14161b;
@@ -386,7 +384,7 @@ del { color: var(--text-muted); }
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
 }
-.content > .term::before {
+.content .term::before {
   content: '● ● ●   ' attr(data-title);
   display: block;
   padding: 8px 14px;
@@ -396,7 +394,7 @@ del { color: var(--text-muted); }
   font: 500 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.06em;
 }
-.content > .term pre {
+.content .term pre {
   margin: 0;
   max-width: none;
   background: transparent;
@@ -408,4 +406,75 @@ del { color: var(--text-muted); }
   line-height: 1.55;
   overflow-x: auto;
 }
-.content > .term code { background: transparent; color: inherit; padding: 0; }
+.content .term code { background: transparent; color: inherit; padding: 0; }
+
+
+/* ── Số thứ tự con: bước 5 có bước con 5.1, 5.2… ──────────────────────────────────────────
+   `list-item` là bộ đếm có sẵn của trình duyệt cho <ol>, và nó LỒNG theo cấp — `counters()`
+   nối số của mọi cấp bằng dấu chấm. Thuộc tính `start` của danh sách cha vẫn được tôn trọng,
+   nên bước con của một danh sách bắt đầu từ 4 sẽ là 4.1 chứ không phải 1.1. */
+ol ol > li::marker { content: counters(list-item, ".") ". "; font-weight: 600; }
+li > p:first-child { margin-top: 0.35em; }
+li > ol, li > ul { margin: 0.4em 0 0.6em; }
+li > pre, li > .table-wrap, li > blockquote.note { margin: 0.6em 0; }
+.muc > h4 { color: var(--c); font-size: 1.02em; margin: 1.2em 0 0.4em; }
+
+/* Mã inline dài (tên service account, chuỗi kết nối) không có chỗ ngắt tự nhiên — cho phép
+   ngắt giữa chừng, nếu không một dòng code là đủ làm cả trang cuộn ngang trên điện thoại. */
+p code, li code, td code, blockquote code { overflow-wrap: anywhere; }
+
+/* Mục con "Vì sao cấu hình như vậy" — cùng màu xanh với câu "vì sao", kèm vạch ngăn phía trên để
+   thấy rõ chỗ phần LÀM kết thúc. */
+.muc > h3.why-heading {
+  color: var(--why);
+  border-top: 1px dashed var(--why-line);
+  padding-top: 0.9em;
+  margin-top: 1.8em;
+}
+.muc > h3.why-heading::before { background: var(--why); }
+
+/* ── Nút ☰ của sidebar — chỉ hiện trên màn hẹp ─────────────────────────────────────────── */
+.nav-toggle, .nav-toggle-label { display: none; }
+
+/* ── Màn hẹp (điện thoại, tablet dọc) ─────────────────────────────────────────────────────
+   Đặt ở CUỐI FILE để thắng mọi rule phía trên cùng độ đặc hiệu. */
+@media (max-width: 860px) {
+  /* `align-items: flex-start` của bản desktop làm <main> co theo độ rộng NỘI DUNG khi xếp
+     dọc — nội dung rộng 780px thì <main> cũng 816px và cả trang cuộn ngang. `stretch` ép nó
+     về đúng bề ngang màn hình. */
+  .layout { flex-direction: column; align-items: stretch; }
+  .sidebar {
+    width: auto;
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { margin-bottom: 8px; padding-bottom: 8px; }
+  /* Sidebar có ~50 link — xếp hết lên đầu trang là phải cuộn 1.800px mới tới bài. Thu lại
+     sau nút ☰; checkbox ẩn giữ trạng thái mở/đóng, không cần JS. */
+  .nav-toggle-label {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .nav-groups { display: none; margin-top: 12px; }
+  .nav-toggle:checked ~ .nav-groups { display: block; }
+
+  .content { width: 100%; padding: 24px 16px 60px; }
+  h1 { font-size: 1.5em; }
+  h2 { font-size: 1.25em; }
+  html, body { font-size: 15.5px; }
+  blockquote.note { padding: 2px 14px; }
+  .toc { padding: 14px 14px 16px; grid-template-columns: 1fr; }
+  pre { padding: 12px; }
+  pre.diagram { font-size: 10.5px; }
+  th, td { padding: 6px 8px; }
+  .content p:has(> img) { padding: 8px 8px 6px; }
+  ol, ul { padding-left: 1.5em; }
+}

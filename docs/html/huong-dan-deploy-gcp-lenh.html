@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploy lên GCP bằng lệnh</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+<a class="brand" href="index.html">Flash-Core<span>Tài liệu dự án</span></a><input type="checkbox" id="nav-toggle" class="nav-toggle"><label for="nav-toggle" class="nav-toggle-label">☰ Danh sách trang</label><div class="nav-groups"><div class="nav-group"><h3>Học theo phase</h3><a href="hoc/index.html">★ Giáo trình 8 phase</a><a href="hoc/phase-3.html">Phase 3 — Concurrency ⭐</a><a href="hoc/phase-4.html">Phase 4 — Async ⭐</a></div><div class="nav-group"><h3>ADR</h3><a href="adr-001-modular-monolith.html">ADR-001: Modular Monolith</a><a href="adr-002-nen-mong-ky-thuat-phase-0.html">ADR-002: Nền móng kỹ thuật</a><a href="adr-003-so-huu-logic-tru-ton-kho.html">ADR-003: Ai sở hữu tồn kho</a><a href="adr-004-ghi-dau-truoc-khi-gui-mail.html">ADR-004: Ghi dấu trước khi gửi mail</a><a href="adr-005-worker-chay-process-rieng.html">ADR-005: Worker process riêng</a><a href="adr-006-relay-giu-transaction-khi-day-queue.html">ADR-006: Relay giữ transaction</a><a href="adr-007-ui-la-trang-tinh-mot-file.html">ADR-007: UI là trang tĩnh</a><a href="adr-008-correlationid-dung-asynclocalstorage.html">ADR-008: correlationId &amp; ALS</a><a href="adr-009-csrf-double-submit-co-ky.html">ADR-009: CSRF double-submit</a><a href="adr-010-keyset-pagination-thay-offset.html">ADR-010: Keyset pagination</a><a href="adr-011-idempotency-key-lay-db-lam-trong-tai.html">ADR-011: Idempotency-Key</a><a href="adr-012-worker-tren-cloud-run.html">ADR-012: Worker trên Cloud Run</a><a href="adr-013-pool-nho-tren-serverless.html">ADR-013: Pool trên serverless</a><a href="adr-014-workload-identity-federation.html">ADR-014: Workload Identity</a><a href="adr-015-ton-kho-dot-cat-ra-tu-sku.html">ADR-015: Tồn kho đợt</a><a href="adr-016-cloud-sql-thay-neon.html">ADR-016: Cloud SQL thay Neon</a><a href="adr-017-moi-truong-va-phan-quyen.html">ADR-017: Môi trường & phân quyền</a></div><div class="nav-group"><h3>Spec — hợp đồng từng phase</h3><a href="spec-phase-0.html">Phase 0 — Nền móng</a><a href="spec-phase-1.html">Phase 1 — Auth</a><a href="spec-phase-2.html">Phase 2 — Product</a><a href="spec-phase-3.html">Phase 3 — Order ⭐</a><a href="spec-phase-4.html">Phase 4 — Async ⭐</a><a href="spec-phase-5.html">Phase 5 — UI demo</a><a href="spec-phase-6.html">Phase 6 — Observability</a><a href="spec-huy-don-chu-dong.html">Huỷ đơn chủ động</a><a href="spec-csrf-token.html">CSRF token</a><a href="spec-rbac.html">RBAC</a><a href="spec-phase-7.html">Phase 7 — Deploy &amp; FinOps</a><a href="spec-phase-8.html">Phase 8 — Đợt sale (draft)</a><a href="spec-phase-9.html">Phase 9 — Web hoàn thiện (draft)</a></div><div class="nav-group"><h3>Tham khảo</h3><a href="viec-tiep-theo.html">★ Việc tiếp theo (viec-tiep-theo.md)</a><a href="huong-dan-deploy-gcp.html">★ Hướng dẫn deploy GCP (huong-dan-deploy-gcp.md)</a><a href="huong-dan-deploy-gcp-lenh.html" class="active">↳ Deploy bằng lệnh (huong-dan-deploy-gcp-lenh.md)</a><a href="onboarding.html">★ Lộ trình người mới (onboarding.md)</a><a href="demo-phong-van.html">★ Demo &amp; phỏng vấn (demo-phong-van.md)</a><a href="docs-map.html">Bản đồ tài liệu (docs/README.md)</a><a href="spec.html">Spec gốc — 8 phase (SPEC.md)</a><a href="architecture.html">Bản đồ code (architecture.md)</a><a href="tech-playbook.html">Sổ tay kỹ thuật (tech-playbook.md)</a><a href="glossary.html">Từ điển (glossary.md)</a><a href="project-context.html">Bối cảnh &amp; quyết định (project-context.md)</a><a href="claude-md.html">Hướng dẫn AI (CLAUDE.md)</a><a href="readme-goc.html">README gốc (README.md)</a></div><div class="nav-group"><h3>Quy trình</h3><a href="git-workflow.html">Commit &amp; đóng phase</a><a href="review-checklist.html">Checklist review code</a><a href="phase-0-checklist.html">Hồ sơ Phase 0 (đã đóng)</a><a href="template-spec.html">Khuôn spec tính năng</a><a href="template-adr.html">Khuôn ADR</a></div></div>
+</nav>
+<main class="content">
+<h1 id="deploy-lên-gcp-bằng-lệnh-bản-copy-dán">Deploy lên GCP bằng lệnh — bản copy-dán</h1>
+<blockquote class="note"><p><strong>Đây là nửa "lệnh" của <a href="huong-dan-deploy-gcp.html">hướng dẫn deploy</a>.</strong> Bản kia làm mọi thứ bằng Console (UI) và giải thích <em>vì sao</em>; file này chỉ giữ <strong>lệnh <code>gcloud</code> / terminal</strong> tương đương, để dựng lại nhanh hoặc khi quen tay rồi. Chọn một trong hai cho mỗi bước, <strong>đừng làm cả hai</strong> — tạo hai lần thì lần sau báo "already exists".</p>
+<p><strong>Số mục trùng với bản Console:</strong> §3 ở đây là lệnh cho §3 bên kia. Mục chỉ làm được trên web (§1 budget, §5 Upstash, §8 GitHub, §13 đo, §16 hết credit, §17 email) thì không có ở đây.</p>
+<p class="why">Vì sao cấu hình như vậy thì đọc mục con cuối <em>Vì sao cấu hình như vậy</em> của từng mục bên bản Console — file này cố ý không chép lại lý do.</p></blockquote>
+<hr>
+<nav class="toc"><p class="toc-title">Mục lục</p><div class="toc-group" style="--c: var(--c0)"><h3>Chuẩn bị máy</h3><a href="#0-cài-công-cụ-và-đặt-biến-dùng-chung">0. Cài công cụ và đặt biến dùng chung</a></div><div class="toc-group" style="--c: var(--c1)"><h3>Dựng hạ tầng</h3><a href="#2-tạo-project-và-bật-api">2. Tạo project và bật API</a><a href="#3-artifact-registry-chính-sách-dọn-image">3. Artifact Registry + chính sách dọn image</a><a href="#4-cloud-sql-postgresql">4. Cloud SQL (PostgreSQL)</a><a href="#6-nạp-6-bí-mật-vào-secret-manager">6. Nạp 6 bí mật vào Secret Manager</a></div><div class="toc-group" style="--c: var(--c2)"><h3>Danh tính và quyền</h3><a href="#7-service-account-workload-identity-federation">7. Service account + Workload Identity Federation</a></div><div class="toc-group" style="--c: var(--c3)"><h3>Đưa lên chạy</h3><a href="#9-deploy-lần-đầu">9. Deploy lần đầu</a><a href="#10-cloud-scheduler-gọi-worker">10. Cloud Scheduler gọi worker</a></div><div class="toc-group" style="--c: var(--c4)"><h3>Kiểm và xử lý sự cố</h3><a href="#11-kiểm-tra">11. Kiểm tra</a><a href="#12-rollback">12. Rollback</a><a href="#14-lệnh-chữa-cho-bảng-triệu-chứng">14. Lệnh chữa cho bảng triệu chứng</a></div><div class="toc-group" style="--c: var(--c5)"><h3>Lâu dài</h3><a href="#15-chốt-chặn-chi-phí">15. Chốt chặn chi phí</a><a href="#18-một-vòng-phát-hành-hoàn-chỉnh-185">18. Một vòng phát hành hoàn chỉnh (§18.5)</a></div></nav>
+<hr>
+<section class="muc" style="--c: var(--c0)">
+<h2 id="0-cài-công-cụ-và-đặt-biến-dùng-chung">0. Cài công cụ và đặt biến dùng chung</h2>
+<ol><li>Cài <code>gcloud</code>: &lt;https://cloud.google.com/sdk/docs/install&gt;</li><li>Cài Cloud SQL Auth Proxy (§4.2 dùng): <code>brew install cloud-sql-proxy</code>, hoặc tải ở <a href="https://cloud.google.com/sql/docs/postgres/sql-proxy#install">trang cài đặt</a> rồi <code>chmod +x</code>.</li><li>Đăng nhập cho <strong>lệnh <code>gcloud</code></strong>:<pre><code class="language-bash">gcloud auth login</code></pre></li><li>Đặt biến dùng chung. <strong>Mọi lệnh bên dưới đọc các biến này</strong> — mở terminal mới là phải <code>export</code> lại.<pre><code class="language-bash">export PROJECT_ID=&lt;Project ID&gt;            # đã tạo bằng Console thì chép từ Console
+export REGION=us-central1
+export REPO=phamtam215/flash-core          # &lt;github-user&gt;/&lt;ten-repo&gt;</code></pre>
+<p>Hai biến sinh ra ở §4 (<code>DB_PASS</code>, <code>SQL_INSTANCE</code>) cũng phải <code>export</code> lại nếu mở terminal mới — <code>SQL_INSTANCE</code> lấy lại được bằng lệnh ở §4.1 bước 4, <code>DB_PASS</code> thì lấy từ trình quản lý mật khẩu.</p></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c1)">
+<h2 id="2-tạo-project-và-bật-api">2. Tạo project và bật API</h2>
+<ol><li>Tạo project (tên phải <strong>duy nhất toàn cầu</strong> — thêm hậu tố nếu bị trùng) và chọn nó làm mặc định:<pre><code class="language-bash">export PROJECT_ID=flash-core-demo-$(date +%s | tail -c 5)
+gcloud projects create "$PROJECT_ID"
+gcloud config set project "$PROJECT_ID"</code></pre></li><li>Gắn tài khoản thanh toán (lấy ID bằng <code>gcloud billing accounts list</code>):<pre><code class="language-bash">gcloud billing projects link "$PROJECT_ID" --billing-account=&lt;BILLING_ACCOUNT_ID&gt;</code></pre></li><li>Bật 7 API:<pre><code class="language-bash">gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  cloudscheduler.googleapis.com \
+  sqladmin.googleapis.com \
+  iamcredentials.googleapis.com \
+  sts.googleapis.com</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c1)">
+<h2 id="3-artifact-registry-chính-sách-dọn-image">3. Artifact Registry + chính sách dọn image</h2>
+<ol><li>Tạo repository:<pre><code class="language-bash">gcloud artifacts repositories create flash-core \
+  --repository-format=docker --location="$REGION" \
+  --description="Docker image của Flash-Core"</code></pre></li><li>Bật chính sách dọn <strong>ngay bây giờ</strong>, đừng để sau:<pre><code class="language-bash">cat &gt; /tmp/cleanup.json &lt;&lt;'JSON'
+[
+  {
+    "name": "giu-3-tag-moi-nhat",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {"keepCount": 3}
+  },
+  {
+    "name": "xoa-image-cu-qua-7-ngay",
+    "action": {"type": "Delete"},
+    "condition": {"tagState": "any", "olderThan": "7d"}
+  }
+]
+JSON
+
+gcloud artifacts repositories set-cleanup-policies flash-core \
+  --location="$REGION" --policy=/tmp/cleanup.json</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c1)">
+<h2 id="4-cloud-sql-postgresql">4. Cloud SQL (PostgreSQL)</h2>
+<h3 id="41-tạo-instance-database-user">4.1 Tạo instance, database, user</h3>
+<ol><li>Tạo instance (mất 5–10 phút):<pre><code class="language-bash">gcloud sql instances create flash-core-db \
+  --database-version=POSTGRES_16 \
+  --edition=ENTERPRISE \
+  --tier=db-f1-micro \
+  --region="$REGION" \
+  --availability-type=zonal \
+  --storage-type=SSD --storage-size=10 --no-storage-auto-increase \
+  --backup-start-time=12:00</code></pre></li><li>Tạo database <code>flashcore</code>:<pre><code class="language-bash">gcloud sql databases create flashcore --instance=flash-core-db</code></pre></li><li>Tạo user <code>flashcore</code> — mật khẩu dạng hex để khỏi phải URL-encode khi ghép vào chuỗi kết nối. <strong>Cất <code>DB_PASS</code> vào trình quản lý mật khẩu</strong> ngay:<pre><code class="language-bash">export DB_PASS=$(openssl rand -hex 24)
+gcloud sql users create flashcore --instance=flash-core-db --password="$DB_PASS"</code></pre></li><li>Lấy tên kết nối (dạng <code>project:region:instance</code>) — dùng ở §6, §8 bản Console và mọi lệnh proxy:<pre><code class="language-bash">export SQL_INSTANCE=$(gcloud sql instances describe flash-core-db --format='value(connectionName)')
+echo "$SQL_INSTANCE"</code></pre></li></ol>
+<p>Mỗi cờ ứng với một lựa chọn trên form Console (§4.1 bản Console, lý do ở §4.4). Hai cờ riêng của đường lệnh:</p>
+<div class="table-wrap"><table><thead><tr><th>Cờ</th><th>Vì sao phải ghi</th></tr></thead><tbody><tr><td><code>--edition=ENTERPRISE</code></td><td><strong>Bắt buộc ghi rõ.</strong> Postgres 16 mặc định là <em>Enterprise Plus</em>, mà bản đó <strong>không có</strong> máy dùng chung CPU — quên cờ này là lỗi đắt nhất cả hướng dẫn (⚠ kiểm lại mặc định hiện tại)</td></tr><tr><td><code>--backup-start-time=12:00</code></td><td>Giờ <strong>UTC</strong>: 12:00 UTC = 19:00 giờ VN. Console thì hiển thị theo giờ máy, còn cờ này thì không</td></tr></tbody></table></div>
+<h3 id="42-nối-từ-máy-dev-qua-cloud-sql-auth-proxy">4.2 Nối từ máy dev qua Cloud SQL Auth Proxy</h3>
+<p>Cơ chế và sơ đồ: <a href="huong-dan-deploy-gcp.html#43-nối-từ-máy-local-psql-dbeaver-script-của-repo">§4.3 bản Console</a>, lý do ở §4.4.4.</p>
+<ol><li><strong>Một lần:</strong> đăng nhập cho <em>chương trình</em> (proxy), khác với <code>gcloud auth login</code> ở §0:<pre><code class="language-bash">gcloud auth application-default login</code></pre>
+<p>Trang đồng ý có checkbox <strong>không tick sẵn</strong> — tick <strong>Select all</strong> rồi mới Continue. Bỏ qua là gặp lỗi <code>cloud-platform scope is required but not consented</code>; chạy lại với <code>--force</code>.</p></li><li><strong>Một lần, nếu máy có sẵn project của công ty:</strong> chỉ quota project về đúng chỗ, cất ADC ra file riêng, và tạo cấu hình <code>gcloud</code> riêng:<pre><code class="language-bash">gcloud auth application-default set-quota-project "$PROJECT_ID"
+
+# ADC là MỘT file cho cả máy — cất bản của dự án này ra file riêng
+cp ~/.config/gcloud/application_default_credentials.json ~/.config/gcloud/adc-flash-core.json
+
+# cấu hình gcloud riêng, không đụng cái đang có
+gcloud config configurations create flash-core
+gcloud config set account &lt;email cá nhân&gt;
+gcloud config set project "$PROJECT_ID"</code></pre>
+<p>Đổi qua lại: <code>gcloud config configurations activate &lt;tên&gt;</code>. Xem đang ở đâu: <code>gcloud config list</code>.</p></li><li><strong>Mỗi lần muốn nối</strong> — mở proxy ở một cửa sổ và <strong>để nó chạy</strong> (in <code>Ready for new connections</code> rồi đứng yên; <code>Ctrl+C</code> là mất đường nối):<pre><code class="language-bash">cloud-sql-proxy --port 6543 "$SQL_INSTANCE"
+# máy có project công ty (bước 2) thì dùng đúng file ADC riêng:
+cloud-sql-proxy --credentials-file ~/.config/gcloud/adc-flash-core.json --port 6543 "$SQL_INSTANCE"</code></pre></li><li>Cửa sổ khác, nối như một Postgres bình thường — <strong>cổng 6543</strong>, không phải 5432 (máy đã có Postgres ở 5432 và Docker Compose ở 5433):<pre><code class="language-bash">psql "postgresql://flashcore:$DB_PASS@127.0.0.1:6543/flashcore"</code></pre>
+<p>Công cụ có giao diện (TablePlus, DBeaver…): Host <code>127.0.0.1</code> · Port <code>6543</code> · User <code>flashcore</code> · Database <code>flashcore</code> · <strong>SSL off</strong> (proxy đã mã hoá).</p></li><li>Chạy script của repo lên DB cloud — ví dụ nâng quyền admin (ảnh runtime không chạy được vì <code>ts-node</code> đã bị prune):<pre><code class="language-bash">DATABASE_URL="postgresql://flashcore:$DB_PASS@127.0.0.1:6543/flashcore" \
+  npm run make-admin -- &lt;email&gt;</code></pre></li></ol>
+<blockquote class="note"><p><strong>⚠ Đang nối vào cloud thì ba lệnh này là cấm:</strong> <code>npm run seed</code>, <code>k6 run</code>, <code>prisma migrate reset</code>. Hook <code>guard_cloud_cost.py</code> chặn sẵn — nó chặn thì đừng lách.</p></blockquote>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c1)">
+<h2 id="6-nạp-6-bí-mật-vào-secret-manager">6. Nạp 6 bí mật vào Secret Manager</h2>
+<ol><li>Sinh và nạp 4 khoá ngẫu nhiên:<pre><code class="language-bash">for NAME in JWT_ACCESS_SECRET JWT_REFRESH_SECRET PAYMENT_WEBHOOK_SECRET CSRF_SECRET; do
+  openssl rand -hex 32 | gcloud secrets create "$NAME" --data-file=- --replication-policy=automatic
+done</code></pre></li><li>Nạp hai chuỗi kết nối. <code>printf '%s'</code> chứ không <code>echo</code> — <code>echo</code> thêm ký tự xuống dòng vào cuối, và <code>DATABASE_URL</code> có ký tự thừa là đường dẫn socket sai:<pre><code class="language-bash">printf '%s' "postgresql://flashcore:$DB_PASS@localhost/flashcore?host=/cloudsql/$SQL_INSTANCE" \
+  | gcloud secrets create DATABASE_URL --data-file=- --replication-policy=automatic
+printf '%s' "&lt;chuỗi rediss:// của Upstash&gt;" \
+  | gcloud secrets create REDIS_URL --data-file=- --replication-policy=automatic</code></pre></li><li><strong>Khi xoay khoá về sau:</strong> huỷ version cũ, nếu không version thứ 7 bắt đầu tính tiền:<pre><code class="language-bash">gcloud secrets versions destroy &lt;SỐ_VERSION&gt; --secret=CSRF_SECRET</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c2)">
+<h2 id="7-service-account-workload-identity-federation">7. Service account + Workload Identity Federation</h2>
+<p>Số bước con khớp §7.1–§7.4 bản Console.</p>
+<ol><li><strong>Lấy project number</strong> (§7.3, §7.4 cần):<pre><code class="language-bash">export PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')</code></pre></li><li><strong>§7.1.1 — <code>flash-core-runtime</code></strong>, danh tính của container: chỉ nối Cloud SQL.<pre><code class="language-bash">gcloud iam service-accounts create flash-core-runtime --display-name="Flash-Core runtime"
+export RUNTIME_SA="flash-core-runtime@$PROJECT_ID.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$RUNTIME_SA" --role=roles/cloudsql.client</code></pre></li><li><strong>§7.1.2 — <code>github-deployer</code></strong>, danh tính của CI: 3 role mức project, <strong>không</strong> có quyền đọc secret, và chỉ được "khoác" đúng một SA là runtime:<pre><code class="language-bash">gcloud iam service-accounts create github-deployer --display-name="GitHub Actions deployer"
+export SA="github-deployer@$PROJECT_ID.iam.gserviceaccount.com"
+for ROLE in roles/run.admin roles/artifactregistry.writer roles/cloudsql.client; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SA" --role="$ROLE"
+done
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+  --member="serviceAccount:$SA" --role=roles/iam.serviceAccountUser</code></pre></li><li><strong>§7.1.3 — runtime đọc đúng 6 secret của nó</strong> (chạy sau §6):<pre><code class="language-bash">for NAME in DATABASE_URL REDIS_URL JWT_ACCESS_SECRET JWT_REFRESH_SECRET PAYMENT_WEBHOOK_SECRET CSRF_SECRET; do
+  gcloud secrets add-iam-policy-binding "$NAME" \
+    --member="serviceAccount:$RUNTIME_SA" --role=roles/secretmanager.secretAccessor
+done</code></pre></li><li><strong>§7.2 — pool và provider</strong> cho GitHub OIDC. <code>--attribute-condition</code> là dòng quan trọng nhất: thiếu nó thì <em>mọi</em> repo GitHub đều đổi được token lấy quyền vào project.<pre><code class="language-bash">gcloud iam workload-identity-pools create github --location=global --display-name="GitHub"
+
+gcloud iam workload-identity-pools providers create-oidc github-provider \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='$REPO'"</code></pre></li><li><strong>§7.3 — cho đúng repo này mượn <code>github-deployer</code>:</strong><pre><code class="language-bash">gcloud iam service-accounts add-iam-policy-binding "$SA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/$REPO"</code></pre></li><li><strong>§7.4 — in ra hai giá trị dán vào GitHub</strong> (§8 bản Console):<pre><code class="language-bash">echo "GCP_WIF_PROVIDER = projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github-provider"
+echo "GCP_SERVICE_ACCOUNT = $SA"</code></pre></li><li><strong>Gỡ lỗi (không phải việc hằng ngày):</strong> đóng giả <code>github-deployer</code> để kiểm nó có quyền thật không, mà không phải push thử qua CI. Cần anh có <code>serviceAccountUser</code> trên nó:<pre><code class="language-bash">gcloud auth print-access-token \
+  --impersonate-service-account="$SA"</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c3)">
+<h2 id="9-deploy-lần-đầu">9. Deploy lần đầu</h2>
+<ol><li>Gắn tag lên commit <strong>đã nằm trên <code>main</code></strong> — tag quyết định môi trường:<pre><code class="language-bash">git checkout main &amp;&amp; git pull
+git tag v0.1.0-dev   &amp;&amp; git push origin v0.1.0-dev    # → project dev</code></pre></li><li>Thử trên dev xong, <strong>cùng commit đó</strong> lên prod (dừng ở <em>Waiting for review</em> chờ duyệt):<pre><code class="language-bash">git tag v0.1.0-prod  &amp;&amp; git push origin v0.1.0-prod   # → project prod</code></pre></li><li>Lấy URL của app sau khi workflow xanh:<pre><code class="language-bash">gcloud run services describe flash-core-api --region "$REGION" --format='value(status.url)'</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c3)">
+<h2 id="10-cloud-scheduler-gọi-worker">10. Cloud Scheduler gọi worker</h2>
+<p>Làm <strong>sau</strong> §9 — job <code>flash-core-worker</code> phải tồn tại thì mới hẹn lịch được.</p>
+<ol><li>Service account riêng cho Scheduler, chỉ đúng một quyền:<pre><code class="language-bash">gcloud iam service-accounts create scheduler-invoker --display-name="Cloud Scheduler invoker"
+export INVOKER="scheduler-invoker@$PROJECT_ID.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$INVOKER" --role=roles/run.invoker</code></pre></li><li>Hẹn lịch <strong>5 phút</strong> một lần. Tên phải đúng <code>flash-core-worker-tick</code> — <code>npm run gcp:off</code> tìm job theo tên này:<pre><code class="language-bash">gcloud scheduler jobs create http flash-core-worker-tick \
+  --location="$REGION" \
+  --schedule="*/5 * * * *" \
+  --uri="https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/flash-core-worker:run" \
+  --http-method=POST \
+  --oauth-service-account-email="$INVOKER"</code></pre></li><li>Chạy thử ngay một lượt:<pre><code class="language-bash">gcloud scheduler jobs run flash-core-worker-tick --location="$REGION"</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c4)">
+<h2 id="11-kiểm-tra">11. Kiểm tra</h2>
+<ol><li>Lấy URL:<pre><code class="language-bash">export URL=$(gcloud run services describe flash-core-api --region "$REGION" --format='value(status.url)')</code></pre></li><li>Sống chưa (lần đầu chậm vì cold start — bình thường):<pre><code class="language-bash">curl -s "$URL/health"</code></pre></li><li>Sẵn sàng chưa (kiểm cả Postgres lẫn Redis) — phải ra <code>200</code>:<pre><code class="language-bash">curl -i -s "$URL/ready" | head -1</code></pre></li><li>Header bảo vệ — phải có đủ 5, gồm cả HSTS vì đây là HTTPS thật:<pre><code class="language-bash">curl -sI "$URL/" | grep -iE 'content-security-policy|strict-transport|x-content-type|referrer|permissions'</code></pre></li><li>Mở trang demo: <code>open "$URL"</code></li><li>Nâng tài khoản vừa đăng ký lên admin: §4.2 bước 5 (proxy cổng 6543 đang mở). Xong thì đăng xuất rồi đăng nhập lại.</li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c4)">
+<h2 id="12-rollback">12. Rollback</h2>
+<ol><li>Xem các revision:<pre><code class="language-bash">gcloud run revisions list --service flash-core-api --region "$REGION"</code></pre></li><li>Lùi 100% traffic về revision trước:<pre><code class="language-bash">gcloud run services update-traffic flash-core-api --region "$REGION" \
+  --to-revisions=&lt;TEN_REVISION_CU&gt;=100</code></pre></li><li>Trước một migration có <code>DROP</code> hoặc đổi kiểu — tự tay sao lưu:<pre><code class="language-bash">gcloud sql backups create --instance=flash-core-db</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c4)">
+<h2 id="14-lệnh-chữa-cho-bảng-triệu-chứng">14. Lệnh chữa cho bảng triệu chứng</h2>
+<p>Bảng triệu chứng ở <a href="huong-dan-deploy-gcp.html#14-khi-hỏng-tra-theo-triệu-chứng">§14 bản Console</a>; đây là các lệnh nó nhắc tới.</p>
+<ol><li>Xoá tag gắn sai (không khớp <code>v*-dev</code> / <code>v*-prod</code>), rồi gắn lại đúng mẫu:<pre><code class="language-bash">git push --delete origin &lt;tag&gt; &amp;&amp; git tag -d &lt;tag&gt;</code></pre></li><li>Đặt lại mật khẩu user <code>flashcore</code> — xong phải sửa <strong>cả</strong> secret <code>DATABASE_URL</code> (§6) lẫn GitHub secret <code>DATABASE_URL_MIGRATE</code>:<pre><code class="language-bash">gcloud sql users set-password flashcore --instance=flash-core-db --password=&lt;mật khẩu mới&gt;</code></pre></li><li>Xem Cloud SQL đang bật hay tắt, và bật lại:<pre><code class="language-bash">npm run gcp:status
+npm run gcp:on</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c5)">
+<h2 id="15-chốt-chặn-chi-phí">15. Chốt chặn chi phí</h2>
+<ol><li>Kiểm edition, máy, số vùng của Cloud SQL — phải ra <code>db-f1-micro  ENTERPRISE  ZONAL</code>:<pre><code class="language-bash">gcloud sql instances describe flash-core-db \
+  --format='value(settings.tier,settings.edition,settings.availabilityType)'</code></pre></li><li>Nghỉ dài thì xoá instance (cách duy nhất về 0đ) — phải tắt <em>Prevent instance deletion</em> trước (bằng Console, xem §15.2 bản Console). Quay lại thì làm lại §4.1:<pre><code class="language-bash">gcloud sql instances delete flash-core-db</code></pre></li></ol>
+<hr>
+</section>
+<section class="muc" style="--c: var(--c5)">
+<h2 id="18-một-vòng-phát-hành-hoàn-chỉnh-185">18. Một vòng phát hành hoàn chỉnh (§18.5)</h2>
+<ol><li>Merge vào <code>main</code> qua PR (CI xanh).</li><li>Lên dev:<pre><code class="language-bash">git checkout main &amp;&amp; git pull
+git tag v0.2.0-dev &amp;&amp; git push origin v0.2.0-dev</code></pre></li><li>Kiểm trên URL của dev (§11). Ổn thì <strong>cùng commit đó</strong> lên prod:<pre><code class="language-bash">git tag v0.2.0-prod &amp;&amp; git push origin v0.2.0-prod</code></pre></li><li>Tab <strong>Actions → Review deployments → Approve and deploy</strong> (trên GitHub).</li><li>Phiên bản nào đang ở prod:<pre><code class="language-bash">git tag --list 'v*-prod' --sort=-creatordate | head -3</code></pre></li></ol>
+</section>
+</main>
+</div>
+</body>
+</html>
