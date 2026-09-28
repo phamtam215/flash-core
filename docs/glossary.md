@@ -142,7 +142,8 @@
 
 | Tên | Vấn đề nó chỉ | Dấu hiệu gặp |
 |---|---|---|
-| **CI vs CD** | CI = tự chứng minh code còn đúng mỗi lần push. CD = tự deploy. Repo này mới có CI | Mỗi lần push lên main |
+| **CI** (Continuous Integration) | Máy tự chạy lint + test **mỗi lần** có code mới, thay vì đợi tới lúc release. Ở repo này là GitHub Actions, file `ci.yml` | Mỗi lần push hoặc mở PR |
+| **CD** (Continuous Delivery) | Máy tự đưa code đã xanh lên môi trường chạy thật. Ở repo này là `deploy.yml`, kích hoạt bằng tag `v*-dev` / `v*-prod` | Tài liệu hay gọi gộp cả hai là "CI" |
 | **Workflow / Job / Step / Runner** | Bốn tầng của GitHub Actions. Job = máy riêng, step = cùng máy | Khi đọc `.github/workflows/ci.yml` |
 | **"Máy sạch"** | Runner mới tinh mỗi lần → thứ gì không nằm trong git thì CI phải sinh lại | Vì sao CI phải chạy `db:generate` |
 | **CI đỏ / local xanh** | Có state chỉ tồn tại ở máy local (file gitignore, cache, bản generate cũ) | Đã gặp thật ở Phase 0 |
