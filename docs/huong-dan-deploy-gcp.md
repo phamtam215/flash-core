@@ -687,24 +687,16 @@ thấy đúng chữ thì tìm chữ gần nghĩa.)*
 
 ## 6. Nạp 6 bí mật vào Secret Manager
 
-### Bảng tra nhanh — 12 giá trị phải tạo, và mỗi cái đi đâu
+### Bảng tra nhanh — 6 bí mật, mỗi cái lấy giá trị từ đâu
 
-Bảng này là **mục lục**, chi tiết từng cái vẫn ở §6 (Secret Manager) và §8 (GitHub).
-
-| # | Tên | Tạo bằng cách nào | Nằm ở đâu | Ai đọc |
-|---|---|---|---|---|
-| 1 | `JWT_ACCESS_SECRET` | `openssl rand -hex 32` | Secret Manager | App, lúc khởi động |
-| 2 | `JWT_REFRESH_SECRET` | `openssl rand -hex 32` — **chạy lần mới** | Secret Manager | App |
-| 3 | `PAYMENT_WEBHOOK_SECRET` | `openssl rand -hex 32` — **chạy lần mới** | Secret Manager | App |
-| 4 | `CSRF_SECRET` | `openssl rand -hex 32` — **chạy lần mới** | Secret Manager | App |
-| 5 | `REDIS_URL` | Chép ở Upstash (§5), chuỗi `rediss://…` | Secret Manager | App |
-| 6 | `DATABASE_URL` | Ghép tay: `postgresql://flashcore:<DB_PASS>@localhost/flashcore?host=/cloudsql/<SQL_INSTANCE>` | Secret Manager | App |
-| 7 | `DATABASE_URL_MIGRATE` | Ghép tay: `postgresql://flashcore:<DB_PASS>@127.0.0.1:5432/flashcore` | **GitHub** → Environment **secret** | `deploy.yml`, bước migrate |
-| 8 | `GCP_PROJECT_ID` | Chép ở §2 | GitHub → Environment **variable** | `deploy.yml` |
-| 9 | `GCP_WIF_PROVIDER` | Dựng ở §7.4 từ **Project number** | GitHub → Environment variable | `deploy.yml`, bước `auth` |
-| 10 | `GCP_SERVICE_ACCOUNT` | `github-deployer@<PROJECT_ID>.iam.gserviceaccount.com` | GitHub → Environment variable | `deploy.yml`, bước `auth` |
-| 11 | `GCP_SQL_INSTANCE` | Chép ở §4.1 bước 7 (*Connection name*) | GitHub → Environment variable | `deploy.yml` |
-| 12 | `GCP_REGION` | Gõ `us-central1` | GitHub → **repository** variable (dùng chung cả hai môi trường) | `deploy.yml` |
+| # | Tên | Giá trị lấy từ đâu |
+|---|---|---|
+| 1 | `JWT_ACCESS_SECRET` | `openssl rand -hex 32` |
+| 2 | `JWT_REFRESH_SECRET` | `openssl rand -hex 32` — **chạy lần mới** |
+| 3 | `PAYMENT_WEBHOOK_SECRET` | `openssl rand -hex 32` — **chạy lần mới** |
+| 4 | `CSRF_SECRET` | `openssl rand -hex 32` — **chạy lần mới** |
+| 5 | `REDIS_URL` | Chuỗi `rediss://…` chép ở §5 |
+| 6 | `DATABASE_URL` | Ghép tay: `postgresql://flashcore:<DB_PASS>@localhost/flashcore?host=/cloudsql/<SQL_INSTANCE>` |
 
 Vì sao 4 khoá đầu **mỗi cái chạy `openssl` một lần riêng**, không dùng chung một chuỗi: mỗi khoá
 canh một cánh cửa khác nhau. Dùng chung `JWT_ACCESS_SECRET` với `JWT_REFRESH_SECRET` thì một
@@ -713,16 +705,9 @@ refresh token trở thành access token hợp lệ — vòng xoay token của Ph
 Vì sao dài **≥32 ký tự**: `validateEnv` (Zod) chặn ngay lúc khởi động nếu ngắn hơn, nên khoá yếu
 làm app **chết lúc boot** chứ không âm thầm chạy. `openssl rand -hex 32` cho 64 ký tự — dư.
 
-Vì sao có **hai** chuỗi kết nối DB (#6 và #7): app chạy trong Cloud Run nên đi qua **Unix socket**
-`/cloudsql/…`; bước migrate chạy trên **runner GitHub** nên đi qua **TCP** tới proxy runner tự mở.
-Cùng một database, hai đường vào — dán nhầm là lỗi khó đoán nhất ở §9.
-
-Vì sao #8–#12 là **variable** chứ không phải secret: chúng không bí mật (Project ID, tên service
-account, tên region đều hiện trong log). Để làm secret thì GitHub che chúng trong log, và lúc
-deploy hỏng anh nhìn log thấy toàn `***` — mất đúng thứ cần để gỡ.
-
-
-*(Đối chiếu trên Console thật, 2026-09-28.)* Làm 6 lần cùng một form, mỗi lần một secret.
+Các biến của **GitHub** (`GCP_PROJECT_ID`, `GCP_WIF_PROVIDER`, `GCP_SERVICE_ACCOUNT`,
+`GCP_SQL_INSTANCE`, `GCP_REGION`) và secret `DATABASE_URL_MIGRATE` **không nạp ở đây** — chúng
+khai bên GitHub, xem [§8](#8-khai-báo-bên-github).
 
 1. ☰ → **Security → Secret Manager** → tab **Secrets** (không phải *Regional secrets*) → **Create secret**
 2. Sinh giá trị cho 4 khoá ngẫu nhiên: mở terminal (hoặc **Cloud Shell** — nút `>_` trên thanh trên
