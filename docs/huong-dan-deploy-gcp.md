@@ -900,6 +900,11 @@ ngay có gì sai, không phải đi tra lại lịch sử.
 > role *Cloud SQL Client*. **Không thấy dòng nào** nghĩa là bước 3 đã bị bỏ qua. Vá bằng
 > **Grant access** → *New principals* `flash-core-runtime@…` · role **Cloud SQL Client** → Save.
 
+![Trang IAM thiếu dòng flash-core-runtime](html/assets/img/deploy/sa-4-iam-role.png)
+*Ảnh chụp một project **đang sai**: `github-deployer` có đủ 3 role ①, nhưng **không có dòng nào
+cho `flash-core-runtime`** — bước 3 đã bị bỏ qua. Dòng `flash-core-artifact-deployer` ② là service
+account tạo thừa, `github-deployer` đã có sẵn *Artifact Registry Writer* rồi.*
+
 #### 7.1.2 `github-deployer` — danh tính của CI
 
 1. ☰ → **IAM & Admin → Service Accounts → Create service account**
@@ -920,6 +925,11 @@ ngay có gì sai, không phải đi tra lại lịch sử.
    2. **Grant access** → *New principals* `github-deployer@…` · role **Service Account User**
    3. **Save**
 
+   ![github-deployer nằm trong Principals with access của flash-core-runtime](html/assets/img/deploy/sa-5-principals-runtime.png)
+   *Làm đúng thì trang của **`flash-core-runtime`** hiện dòng `github-deployer@…` với role *Service
+   Account User*. Dòng `Owner` phía trên là của chính anh, thừa hưởng từ project — không phải thứ
+   vừa thêm.*
+
 #### 7.1.3 Cho `flash-core-runtime` đọc đúng 6 secret của nó
 
 Làm sau §6 (lúc secret đã tồn tại):
@@ -927,6 +937,11 @@ Làm sau §6 (lúc secret đã tồn tại):
 1. **Secret Manager** → tick cả 6 secret → nút **Show info panel** (hoặc **Permissions**)
 2. **Add principal** → `flash-core-runtime@…` · role **Secret Manager Secret Accessor**
 3. **Save** (⚠ vị trí nút theo tài liệu)
+
+![Quyền Secret Manager Secret Accessor của runtime trên một secret](html/assets/img/deploy/secret-4-quyen-runtime.png)
+*Mở **một** secret bất kỳ → tab *Permissions* để kiểm: phải thấy `flash-core-runtime@…` với role
+*Secret Manager Secret Accessor*. Quyền gắn **trên từng secret**, nên phải có đủ ở cả 6 — thiếu
+một cái thì app chết lúc khởi động vì đúng biến đó rỗng.*
 
 ### 7.2 Pool và provider
 
@@ -982,6 +997,11 @@ and pool*, 3 bước, **chỉ lưu khi bấm Save ở cuối**):
 
 4. Hiện hộp *Configure your application* thì bấm **Dismiss**
 
+![Hộp Grant access của pool](html/assets/img/deploy/wif-5-grant-access.png)
+*① Ô trên mang chữ *(Recommended)* nhưng **không chọn** — nó bắt tải file ADC về. ② Chọn *service
+account impersonation*. ③ `github-deployer`, không phải runtime. ④ ⑤ Lọc `repository` =
+`<user>/<repo>` — bỏ trống ô này là mọi danh tính trong pool đều mượn được.*
+
 *(Đối chiếu với [tài liệu WIF cho deployment pipeline](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).)*
 
 ### 7.4 Giá trị dán vào GitHub
@@ -1013,6 +1033,16 @@ deploy, và lúc đó thông báo lỗi không chỉ về đây.
 | 6 | SA `flash-core-runtime` → tab **Principals with access** | `github-deployer@…` với role *Service Account User* |
 | 7 | SA `github-deployer` → tab **Principals with access** | Một dòng *Workload Identity User*, principal chứa `…/github/…flash-core` |
 | 8 | **Workload Identity Federation** → pool `github` → provider `github-provider` | *Issuer* `https://token.actions.githubusercontent.com`; mapping có `attribute.repository=assertion.repository`; **Attribute condition** `assertion.repository=='<user>/<repo>'` |
+
+![Danh sách service account, cột Key ID](html/assets/img/deploy/sa-3-danh-sach.png)
+*Dòng 1 và 2 của bảng trên nhìn ở đây. Cột **Key ID** phải ghi **No keys** ở mọi dòng. Ảnh này
+cũng đang sai một chỗ: `flash-core-artifact-deployer` là service account tạo thừa, không nằm trong
+kế hoạch — xoá đi. `…-compute@developer` thì của Google, để nguyên.*
+
+![Provider github-provider: mapping và attribute condition](html/assets/img/deploy/wif-4-kiem-lai-provider.png)
+*Dòng 8 nhìn ở đây, một trang có đủ ba thứ: ① *Enabled provider* đang bật · ② hai cặp mapping
+(`google.subject` ← `assertion.sub`, `attribute.repository` ← `assertion.repository`) · ③ **Condition
+CEL** — dòng quyết định. Mở trang này để **xem**, đừng bấm Save.*
 
 Vì sao dòng 5 kiểm **ngược** (thứ KHÔNG được có) chứ không chỉ kiểm thứ phải có: thiếu quyền thì
 CI đỏ, tự lộ ra ngay lần deploy đầu. **Thừa** quyền thì mọi thứ vẫn xanh — không ai biết cho tới
