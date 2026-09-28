@@ -947,10 +947,17 @@ and pool*, 3 bước, **chỉ lưu khi bấm Save ở cuối**):
 
 **Để làm gì:** khoá lớp thứ hai — chỉ repo này mới khoác được `github-deployer`.
 
-1. Trên trang pool `github` → **Grant access** → **Grant access using Service Account impersonation**
-2. *Service accounts*: chọn `github-deployer`
-3. Chọn **Only identities matching the filter** → *Attribute name* `repository`, *Attribute value*
+1. Trên trang pool `github` → **Grant access** → chọn **Grant access using service account
+   impersonation** — **không** chọn ô đầu *Grant access using federated identities*, dù Google gắn
+   chữ *(Recommended)* cho nó (vì sao: §7.5.7)
+2. *Select service account* → `github-deployer`
+3. *Select principals*: dropdown *Attribute name* chọn **`repository`** · ô *Attribute value* gõ
    `phamtam215/flash-core` → **Save**
+
+   > ⚠ Một số bản Console hỏi trước bằng hai lựa chọn *All identities in the pool* / **Only
+   > identities matching the filter** — chọn cái thứ hai rồi mới hiện hai ô trên. Bản mới đưa
+   > thẳng dropdown, bỏ qua bước hỏi. Kết quả giống nhau.
+
 4. Hiện hộp *Configure your application* thì bấm **Dismiss**
 
 *(Đối chiếu với [tài liệu WIF cho deployment pipeline](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).)*
@@ -1193,6 +1200,13 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
   kiện thì token của repo khác bị từ chối ngay ở cổng.
 
 #### 7.5.7 Cấp quyền mượn và giá trị dán vào GitHub (§7.3, §7.4)
+
+- **§7.3 bước 1 — vì sao KHÔNG chọn *Grant access using federated identities*, dù nó mang chữ
+  *(Recommended)*.** Cách đó bắt **tải một file ADC về rồi nhét vào workload** — đúng mô hình
+  file-cấu-hình-nằm-trong-repo mà [ADR-014](adr/014-workload-identity-federation.md) tránh. Chữ
+  *Recommended* nói về trường hợp chung của Google (workload chạy ở nơi không có sẵn tích hợp), còn
+  GitHub Actions có `google-github-actions/auth` tự dựng cấu hình từ hai biến ở §7.4 — không cần
+  file nào.
 
 - **§7.3 — *Only identities matching the filter*.** Lớp lọc thứ hai, đặt ở phía service account:
   chỉ danh tính mang `repository = phamtam215/flash-core` mới được mượn `github-deployer`. Chọn *All
