@@ -39,6 +39,8 @@
 <!--@@chuong Chuẩn bị — hiểu bức tranh, chặn tiền trước-->
 ## 0. Bức tranh toàn cảnh — cái gì chạy ở đâu
 
+**Để làm gì:** nhìn một lượt xem dự án gồm những mảnh nào và mảnh nào nằm ở đâu, trước khi bấm bất cứ nút nào.
+
 ```diagram
         GitHub                          Google Cloud Platform
    ┌──────────────┐              ┌───────────────────────────────────┐
@@ -87,6 +89,8 @@ là không có mail nào tới hộp thư. Muốn mail thật thì xem §17.
 ---
 
 ## 1. Việc ĐẦU TIÊN: đặt cảnh báo ngân sách
+
+**Để làm gì:** dựng cái phanh trước khi lái — có người báo cho anh biết khi tiền bắt đầu chạy, thay vì tự nhớ mở bảng chi phí.
 
 Làm trước cả khi tạo project. *(Đối chiếu trên Console thật, 2026-09-26.)*
 
@@ -181,6 +185,8 @@ Làm trước cả khi tạo project. *(Đối chiếu trên Console thật, 202
 
 ## 2. Tạo project và bật API
 
+**Để làm gì:** dựng cái hộp chứa mọi thứ (project) và bật đúng 7 dịch vụ mà các bước sau sẽ gọi tới.
+
 1. Trên thanh trên cùng, bấm vào tên project → **New project** → đặt tên `flash-core-demo` →
    **Create**. Ghi lại hai giá trị (§7 cần cả hai):
    - **Project ID** — Console tự thêm hậu tố nếu tên bị trùng
@@ -273,6 +279,8 @@ bất cứ đâu. [ADR-014](adr/014-workload-identity-federation.md) chọn Work
 <!--@@chuong Dựng hạ tầng trên GCP-->
 ## 3. Artifact Registry + chính sách dọn image
 
+**Để làm gì:** dựng kho chứa Docker image, và đặt luôn chính sách tự dọn để kho không âm thầm đầy lên rồi phát sinh tiền.
+
 1. ☰ → **Artifact Registry → Repositories → Create repository**
 2. Điền phần đầu form:
    - *Name* `flash-core`
@@ -340,6 +348,8 @@ Làm bằng lệnh: [§3 bản lệnh](huong-dan-deploy-gcp-lenh.md#3-artifact-r
 ---
 
 ## 4. Cloud SQL (PostgreSQL)
+
+**Để làm gì:** dựng database thật trên cloud — nơi đơn hàng và tồn kho sẽ nằm — và mở được một đường vào nó từ máy anh.
 
 ### 4.1 Tạo instance
 
@@ -581,6 +591,8 @@ Vì thế mục này dài: mỗi ô sửa ở §4.1 đều có lý do.
 
 ## 5. Upstash (Redis)
 
+**Để làm gì:** dựng Redis trên cloud, thứ giữ hàng đợi việc và bộ đếm rate limit của ứng dụng.
+
 *(Đối chiếu trên console.upstash.com, 2026-09-28. Upstash đổi giao diện khá thường xuyên — không
 thấy đúng chữ thì tìm chữ gần nghĩa.)*
 
@@ -686,6 +698,8 @@ thấy đúng chữ thì tìm chữ gần nghĩa.)*
 ---
 
 ## 6. Nạp 6 bí mật vào Secret Manager
+
+**Để làm gì:** cất 6 chuỗi bí mật vào một chỗ có kiểm soát, để chúng không bao giờ phải nằm trong code hay trong repo.
 
 ### Bảng tra nhanh — 6 bí mật, mỗi cái lấy giá trị từ đâu
 
@@ -804,6 +818,8 @@ Làm bằng lệnh: [§6 bản lệnh](huong-dan-deploy-gcp-lenh.md#6-nạp-6-b�
 
 <!--@@chuong Danh tính và quyền-->
 ## 7. Service account + Workload Identity Federation
+
+**Để làm gì:** tạo danh tính cho **máy** — một cái để container chạy dưới nó, một cái để GitHub Actions deploy — và cho GitHub mượn được danh tính đó mà không cần file khoá nào.
 
 Đây là mục rắc rối nhất. Làm **một lần**, và không bao giờ phải tạo file khoá JSON nào. §7.1–§7.4
 là các bước; §7.5 giải thích service account là gì và vì sao chia quyền như vậy — **lần đầu làm thì
@@ -1183,6 +1199,8 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
 
 ## 8. Khai báo bên GitHub
 
+**Để làm gì:** nói cho GitHub biết nó đang deploy vào project nào và mượn danh tính nào — đây là đầu dây bên kia của §7.
+
 1. **Settings → Environments → New environment** → tên **`dev`** (cho project dev) hoặc
    **`production`** (cho project prod)
 2. Trong trang environment vừa tạo, mục **Environment variables → Add environment variable**, thêm
@@ -1234,6 +1252,8 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
 <!--@@chuong Đưa lên chạy-->
 ## 9. Deploy lần đầu
 
+**Để làm gì:** đẩy code lên chạy thật lần đầu, bằng cách gắn một git tag.
+
 1. Kiểm commit muốn deploy **đã nằm trên `main`**
 2. Gắn tag `v0.1.0-dev` rồi đẩy lên → workflow deploy vào project **dev**. Gắn tag là việc trên
    terminal: [§9 bản lệnh](huong-dan-deploy-gcp-lenh.md#9-deploy-lần-đầu)
@@ -1278,6 +1298,8 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
 
 ## 10. Cloud Scheduler gọi worker
 
+**Để làm gì:** hẹn giờ gọi worker, vì Cloud Run tắt hẳn container lúc rảnh nên không có tiến trình nền nào tự chạy được.
+
 Làm **sau** lần deploy đầu (§9) — job `flash-core-worker` phải tồn tại thì mới hẹn lịch được.
 
 1. Tạo service account riêng cho Scheduler: ☰ → **IAM & Admin → Service Accounts → Create service
@@ -1319,6 +1341,8 @@ Làm bằng lệnh: [§10 bản lệnh](huong-dan-deploy-gcp-lenh.md#10-cloud-sc
 
 <!--@@chuong Kiểm, và khi hỏng thì tra ở đâu-->
 ## 11. Kiểm tra — 7 việc, làm đủ
+
+**Để làm gì:** chứng minh hệ thống thật sự chạy đúng, chứ không chỉ deploy xong không báo lỗi.
 
 URL của app nằm ở **Cloud Run → flash-core-api**, dòng trên cùng — gọi nó là `<URL>`. Kiểm bằng curl
 thì xem [§11 bản lệnh](huong-dan-deploy-gcp-lenh.md#11-kiểm-tra).
@@ -1377,6 +1401,8 @@ thì xem [§11 bản lệnh](huong-dan-deploy-gcp-lenh.md#11-kiểm-tra).
 
 ## 12. Diễn tập rollback — làm một lần lúc rảnh, không phải lúc sự cố
 
+**Để làm gì:** tập trước thao tác quay về bản cũ, để lúc hỏng thật anh làm theo trí nhớ chứ không vừa hoảng vừa tra tài liệu.
+
 1. ☰ → **Cloud Run → flash-core-api → tab Revisions → Manage traffic**
 2. Đặt revision cũ **100%** → **Save**
 3. Mở `<URL>/ready` kiểm lại
@@ -1404,6 +1430,8 @@ Làm bằng lệnh: [§12 bản lệnh](huong-dan-deploy-gcp-lenh.md#12-rollback
 
 ## 13. Sau 48 giờ: đo thật
 
+**Để làm gì:** sau hai ngày chạy thật thì mở hoá đơn và số liệu ra đọc, xem dự đoán lúc thiết kế có đúng không.
+
 | Đo gì | Ở đâu | Đối chiếu với |
 |---|---|---|
 | **Tổng vCPU-giây** | Cloud Run → Metrics | Trần free 180.000/tháng |
@@ -1420,6 +1448,8 @@ hai hiện đang dùng **số đo local**, chưa phải số thật.
 ---
 
 ## 14. Khi hỏng — tra theo triệu chứng
+
+**Để làm gì:** tra ngược từ triệu chứng nhìn thấy ra nguyên nhân, thay vì đoán mò từng bước.
 
 | Triệu chứng | Nguyên nhân thường gặp nhất | Cách chữa |
 |---|---|---|
@@ -1451,6 +1481,8 @@ hai hiện đang dùng **số đo local**, chưa phải số thật.
 
 <!--@@chuong Sống lâu dài với nó-->
 ## 15. Chốt chặn chi phí
+
+**Để làm gì:** dựng các chốt chặn để hoá đơn không bao giờ vượt khỏi tầm kiểm soát, kể cả khi anh quên.
 
 ### 15.1 Kiểm lại sau khi deploy
 
@@ -1510,6 +1542,8 @@ hai hiện đang dùng **số đo local**, chưa phải số thật.
 
 ## 16. Khi $300 credit hết — đổi những gì
 
+**Để làm gì:** biết trước phải đổi những gì khi $300 credit hết hạn, để không bị bất ngờ vào ngày thứ 91.
+
 Có **đúng một thứ** bắt đầu ra hoá đơn thật: **Cloud SQL**. Upstash vốn dùng gói free (credit không
 áp cho nó), cấu hình Cloud Run vốn đã được đặt cho mục tiêu 0đ.
 
@@ -1538,6 +1572,8 @@ Nếu trong 90 ngày anh có nới cấu hình cho thoải mái, thì đây là 
 
 ## 17. Tuỳ chọn: gửi email thật
 
+**Để làm gì:** thay cổng email giả lập bằng dịch vụ gửi thật, nếu muốn demo có email tới hộp thư thật.
+
 Hiện `MAIL_SENDER` là bản ghi-ra-log — luồng outbox vẫn chứng minh được "không mất, không trùng",
 chỉ là không có mail nào tới hộp thư. Muốn mail thật:
 
@@ -1553,6 +1589,8 @@ thực email và quên mật khẩu.
 ---
 
 ## 18. Làm việc nhiều người: hai môi trường và phân quyền
+
+**Để làm gì:** tách môi trường thử khỏi môi trường thật và phân quyền cho nhiều người, theo đúng cách một công ty làm.
 
 Cấu trúc học theo hệ thống đang chạy ở công ty (OfficeCube), vá thêm ba chỗ hở của nó. So sánh từng
 mục ở §18.6; lý do đầy đủ ở [ADR-017](adr/017-moi-truong-va-phan-quyen-theo-mo-hinh-cong-ty.md).
@@ -1674,6 +1712,8 @@ Bước 2, 3, 6 là lệnh `git tag`: [§18 bản lệnh](huong-dan-deploy-gcp-l
 
 <!--@@chuong Nâng cấp sau này-->
 ## 19. Lộ trình nâng cấp mạng — làm sau, từ dễ đến khó
+
+**Để làm gì:** biết đường nâng cấp phần mạng về sau — không làm bây giờ, chỉ để khỏi phải nghĩ lại từ đầu lúc cần.
 
 §1–§18 dựng bản **đơn giản nhất chạy được**: Cloud SQL dùng Public IP + Auth Proxy, Redis ở
 Upstash, không có VPC nào. Mục này là kế hoạch học **VPC, subnet, Private IP, Cloud Run nối vào

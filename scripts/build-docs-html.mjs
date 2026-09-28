@@ -495,7 +495,10 @@ function toHtml(markdown) {
       // Một đoạn mở đầu bằng `Vì sao` là câu GIẢI THÍCH cho bước ngay trên nó — CSS tô xanh
       // để phân biệt với phần hướng dẫn thao tác. Không thêm cú pháp mới: mở file .md trên
       // GitHub vẫn đọc được bình thường.
-      out.push(`<p${/^Vì sao\b/.test(text) ? ' class="why"' : ''}>${inline(text)}</p>`);
+      // `Vì sao…` = câu giải thích (xanh). `Để làm gì:` = một câu tóm mục đích của cả mục,
+      // đặt ngay dưới heading; CSS cho nó màu của chương để đọc lướt mục lục xong là nắm được.
+      const cls = /^Vì sao\b/.test(text) ? ' class="why"' : /^(\*\*)?Để làm gì/.test(text) ? ' class="goal"' : '';
+      out.push(`<p${cls}>${inline(text)}</p>`);
     }
   }
 

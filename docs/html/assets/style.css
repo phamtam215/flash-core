@@ -147,6 +147,19 @@ h3 { font-size: 1.15em; margin: 1.4em 0 0.5em; }
 .muc blockquote.note { border-left-color: var(--c); }
 .muc table th { border-bottom-color: var(--c); }
 
+/* --- Câu "để làm gì" ------------------------------------------------------
+   Một câu ngay dưới heading, trả lời "mục này để làm gì". Mang màu của chương
+   (biến --c) nên nhìn lướt là biết nó thuộc giai đoạn nào của quy trình. */
+p.goal {
+  margin: 0.2em 0 1.1em;
+  padding: 10px 14px;
+  border-left: 4px solid var(--c, var(--accent));
+  background: color-mix(in srgb, var(--c, var(--accent)) 7%, transparent);
+  border-radius: 0 6px 6px 0;
+  font-size: 1.02em;
+}
+p.goal strong { color: var(--c, var(--accent)); }
+
 /* --- Câu "vì sao" ---------------------------------------------------------
    Hướng dẫn nói LÀM GÌ; dòng xanh này nói VÌ SAO. Tách màu để đọc lướt vẫn
    phân biệt được hai loại thông tin. */
