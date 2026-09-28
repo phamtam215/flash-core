@@ -851,7 +851,7 @@ ngay có gì sai, không phải đi tra lại lịch sử.
    - Cloud SQL Client
 4. **Continue** → bỏ qua bước *Principals with access* → **Done** (⚠ nhãn hai nút này theo tài liệu).
    Chép email của nó (`github-deployer@<PROJECT_ID>.iam.gserviceaccount.com`).
-5. Cho `github-deployer` được "khoác" `flash-core-runtime`:
+5. Cho `github-deployer` được "khoác" `flash-core-runtime` (vì sao cần bước này: §7.5.4):
    1. **Service Accounts** → bấm `flash-core-runtime` → tab **Principals with access**
    2. **Grant access** → *New principals* `github-deployer@…` · role **Service Account User**
    3. **Save**
@@ -923,7 +923,7 @@ Làm bằng lệnh: [§7 bản lệnh](huong-dan-deploy-gcp-lenh.md#7-service-ac
 
 ### 7.5 Vì sao cấu hình như vậy
 
-#### 7.5.1 Service account là gì — và khác tài khoản của anh ở chỗ nào
+#### 7.5.1 Service account là gì — và khác tài khoản của anh ở chỗ nào (nền cho cả §7)
 
 Google gọi cả hai là *"account"*, và đó là nguồn gốc của mọi nhầm lẫn. Chúng là **hai thứ khác hẳn
 nhau**:
@@ -957,7 +957,7 @@ Trong IAM, cả người lẫn service account đều gọi chung là **member**
 **người mới vào dự án và service account là hai member khác nhau trong cùng một bảng**, không phải
 cái này chứa cái kia.
 
-#### 7.5.2 Thứ làm nó khó hiểu: service account vừa là danh tính, vừa là tài sản
+#### 7.5.2 Service account vừa là danh tính, vừa là tài sản (nền cho §7.1.2 bước 5 và §7.3)
 
 - **Như một danh tính:** nó được cấp quyền, y hệt một người. `github-deployer` có `run.admin` nghĩa
   là nó deploy được Cloud Run.
@@ -1033,7 +1033,45 @@ Các lựa chọn khác trong §7.1:
   **mọi** SA trong project, kể cả SA có quyền rộng hơn nó — một đường leo thang quyền. Thiếu bước này
   thì deploy đỏ với *Permission … iam.serviceaccounts.actAs* (§14).
 
-#### 7.5.4 Vì sao không để code chạy bằng tài khoản của chính anh
+#### 7.5.4 Vì sao CI phải xin phép để "khoác" runtime (§7.1.2 bước 5)
+
+Bước đó trông thừa — `github-deployer` đã có `run.admin` rồi, sao còn phải xin thêm? Vì nó là **hai
+việc khác nhau**.
+
+Trong `deploy.yml` có dòng:
+
+```text
+gcloud run deploy flash-core-api ... --service-account flash-core-runtime@<PROJECT_ID>...
+```
+
+Dòng đó nghĩa là: *"dựng service này, và cho container chạy dưới danh tính `flash-core-runtime`"*.
+Google coi việc **trao một danh tính cho một workload** là một hành động riêng, phải được cho phép
+riêng — đó chính là `roles/iam.serviceAccountUser`.
+
+**Vì sao Google bắt chặt chỗ này.** Không có lớp kiểm đó thì bất kỳ ai deploy được cũng chọn được
+service account **mạnh nhất** trong project (mặc định của Compute thường có quyền `Editor`) rồi
+deploy một container chạy dưới danh tính ấy — tức là từ "được deploy" biến thành "làm được mọi thứ
+trong project", chỉ bằng một cờ dòng lệnh. `serviceAccountUser` là chốt chặn đúng ngay chỗ đó.
+
+**Chiều cấp quyền dễ làm ngược.** Quyền này đặt trên **cái được mượn**, không phải trên người mượn:
+vào trang của `flash-core-runtime` → tab *Principals with access* → thêm `github-deployer`. Làm
+ngược lại (vào `github-deployer` rồi thêm `flash-core-runtime`) không báo lỗi gì, chỉ là không có
+tác dụng.
+
+**Cấp trên đúng MỘT service account, không cấp ở mức project.** Cấp `serviceAccountUser` ở mức
+project là cho CI khoác **mọi** service account trong đó — kể cả cái mặc định quyền `Editor`. Lúc ấy
+việc tách ba danh tính ở §7.5.3 trở thành trang trí.
+
+**Điều này KHÔNG cho CI đọc được secret.** `serviceAccountUser` chỉ cho phép *gắn* service account
+vào một tài nguyên. Muốn tự lấy token để hành động **ngay dưới** danh tính đó thì cần một quyền
+khác — `serviceAccountTokenCreator` — và `github-deployer` cố tình không có. Nên CI dựng được
+service chạy bằng `flash-core-runtime`, nhưng chính nó vẫn không đọc nổi 6 bí mật.
+
+**Thiếu bước này thì hỏng thế nào:** `gcloud run deploy` đỏ với `PERMISSION_DENIED` kèm chữ
+`iam.serviceaccounts.actAs`. Thấy `actAs` là biết ngay thiếu đúng lớp này, không phải thiếu
+`run.admin`.
+
+#### 7.5.5 Vì sao không để code chạy bằng tài khoản của chính anh (nền cho cả §7)
 
 Anh là **Owner** của project — làm được mọi thứ, gồm cả xoá project và đổi tài khoản thanh toán. Cho
 CI chạy bằng quyền đó thì:
@@ -1076,7 +1114,7 @@ Group** (§18.2) để người vào người ra chỉ là thêm/bớt thành vi
 quyền **mượn** một service account để chạy thử một việc dưới tư cách của nó — lúc đó họ vẫn là người,
 chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actions.
 
-#### 7.5.5 Pool, provider và điều kiện (§7.2)
+#### 7.5.6 Pool, provider và điều kiện (§7.2)
 
 - **Workload Identity Federation thay cho file khoá JSON.** Khoá JSON là bí mật **dài hạn**: **không
   hết hạn** · **không biết đã rò** · **dùng được từ bất cứ đâu**. WIF đổi cả ba: GitHub đưa token
@@ -1104,7 +1142,7 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
   một danh tính trong pool của anh; §7.3 còn một lớp lọc nữa, nhưng một lớp hỏng là mở cửa. Có điều
   kiện thì token của repo khác bị từ chối ngay ở cổng.
 
-#### 7.5.6 Cấp quyền mượn và giá trị dán vào GitHub (§7.3, §7.4)
+#### 7.5.7 Cấp quyền mượn và giá trị dán vào GitHub (§7.3, §7.4)
 
 - **§7.3 — *Only identities matching the filter*.** Lớp lọc thứ hai, đặt ở phía service account:
   chỉ danh tính mang `repository = phamtam215/flash-core` mới được mượn `github-deployer`. Chọn *All
@@ -1122,7 +1160,7 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
 - **Luật đi kèm:** ai sửa được `deploy.yml` thì điều khiển được `github-deployer`. Coi quyền merge vào
   `main` ngang với quyền sửa IAM (§18.4 khoá nhánh vì lý do này).
 
-#### 7.5.7 Nếu có ai (hoặc AI) bảo "tạo file khoá JSON mới deploy được"
+#### 7.5.8 Nếu có ai (hoặc AI) bảo "tạo file khoá JSON mới deploy được" (§7.1)
 
 Đó là cách cũ, và Google giờ **chặn nó ngay từ mặc định**:
 
@@ -1402,7 +1440,7 @@ hai hiện đang dùng **số đo local**, chưa phải số thật.
 | `Cannot add the project "…" to ADC as the quota project` | Project đang active trong `gcloud config` là của nơi khác | Không phải lỗi; tách cấu hình theo [§4.2 bước 2 bản lệnh](huong-dan-deploy-gcp-lenh.md#42-nối-từ-máy-dev-qua-cloud-sql-auth-proxy) (lý do ở §4.4.4) |
 | `FATAL: password authentication failed for user "…"` khi nối qua proxy | Sai mật khẩu — **hoặc user không tồn tại**; Postgres cố tình trả cùng một câu cho cả hai để người ngoài không dò được tên user | Mở **Users** đối chiếu **từng ký tự** tên user (`flashcore` chứ không phải `flash-core`) trước khi nghi mật khẩu |
 | `cloud-platform scope is required but not consented` | Trang đồng ý của `application-default login` có checkbox, bấm Continue mà chưa tick | Chạy lại, tick **Select all** rồi Continue ([§4.2 bước 1 bản lệnh](huong-dan-deploy-gcp-lenh.md#42-nối-từ-máy-dev-qua-cloud-sql-auth-proxy)) |
-| Console chặn tạo khoá: *"Service account key creation is disabled"* | **Không phải lỗi** — Organization Policy chặn sẵn, và dự án vốn không cần khoá | Bỏ qua, đi tiếp §7.2 (WIF). **Đừng** nhờ admin tắt policy (§7.5.7) |
+| Console chặn tạo khoá: *"Service account key creation is disabled"* | **Không phải lỗi** — Organization Policy chặn sẵn, và dự án vốn không cần khoá | Bỏ qua, đi tiếp §7.2 (WIF). **Đừng** nhờ admin tắt policy (§7.5.8) |
 | Lỡ tạo API key / OAuth client ở **Credentials** | Vào nhầm màn (§2.1) — dự án không dùng cái nào | Xoá nó đi. Nếu đã tải file khoá JSON về máy thì **xoá cả file lẫn khoá trên Console** |
 | Upstash báo *"You can create 1 database in free tier"* | Gói Free chỉ cho một database | Không tạo thêm được ở gói Free — xem các cách ở §5.1 |
 | `/ready` 503, log Redis báo `WRONGPASS` hoặc không kết nối được | Dán nhầm chuỗi tab **REST** (`https://…`) hoặc chuỗi `redis-cli` (`redis://`) vào `REDIS_URL` | Chép lại từ tab **TCP** (§5 bước 7), phải bắt đầu bằng `rediss://` |
@@ -1624,7 +1662,7 @@ Bước 2, 3, 6 là lệnh `git tag`: [§18 bản lệnh](huong-dan-deploy-gcp-l
 - **§18.4 bước 1 — khoá tag prod.** Chỉ admin gắn được tag prod, và không ai sửa/xoá được tag prod đã
   có — lịch sử "phiên bản nào đã lên prod" không bị viết lại.
 - **§18.4 bước 2 — khoá nhánh `main`.** Ai sửa được `deploy.yml` là điều khiển được `github-deployer`
-  (§7.5.6). Bắt CI xanh và chặn force push là cách để mọi thay đổi lên `main` đều đi qua kiểm tra.
+  (§7.5.7). Bắt CI xanh và chặn force push là cách để mọi thay đổi lên `main` đều đi qua kiểm tra.
 - **§18.4 bước 3 — CODEOWNERS chỉ bật khi có người thứ hai.**
   [`.github/CODEOWNERS`](../.github/CODEOWNERS) chỉ định người phải duyệt khi PR đụng vào `deploy.yml`,
   migration và `src/infra/`. Nhưng GitHub không cho tự duyệt PR của mình — làm một mình mà bật là tự
