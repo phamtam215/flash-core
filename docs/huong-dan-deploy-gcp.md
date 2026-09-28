@@ -66,6 +66,8 @@
 
 ### 0.1 Bên thứ ba — liệt kê đầy đủ
 
+**Để làm gì:** biết trước phải đăng ký tài khoản ở đâu ngoài Google, và cái nào $300 credit **không** trả hộ.
+
 | Dịch vụ | Dùng làm gì | Có tính vào $300 credit không | Gói dùng |
 |---|---|---|---|
 | **GCP Cloud Run** | Chạy API và worker | ✅ Có | Free tier + credit |
@@ -136,6 +138,8 @@ Làm trước cả khi tạo project. *(Đối chiếu trên Console thật, 202
 
 ### 1.1 Vì sao cấu hình như vậy
 
+**Để làm gì:** hiểu vì sao từng ô trong form budget đặt như vậy — nhất là hai ô *Savings* quyết định cảnh báo có bao giờ kêu hay không.
+
 - **Làm budget TRƯỚC cả project.** Mọi thứ từ §2 trở đi đều có thể phát sinh tiền, và cách duy
   nhất biết mình đang tiêu là **được báo** — bảng chi phí thì phải tự nhớ mà mở, và thứ phải nhớ
   thì sẽ quên đúng vào tháng có chuyện. Tạo budget sau khi đã dựng hạ tầng thì khoảng giữa hai
@@ -205,6 +209,8 @@ Làm bằng lệnh: [§2 bản lệnh](huong-dan-deploy-gcp-lenh.md#2-tạo-proj
 
 ### 2.1 Lỡ vào màn "Create credentials" thì bấm Cancel
 
+**Để làm gì:** thoát khỏi màn dễ bấm nhầm đó mà không tạo ra thứ gì thừa.
+
 Ở **APIs & Services** có mục **Credentials** nằm ngay cạnh **Library**. Bật API xong rất dễ
 bấm nhầm sang đó và gặp màn này:
 
@@ -213,6 +219,8 @@ bấm nhầm sang đó và gặp màn này:
 **Với Flash-Core: bấm Cancel, không tạo gì.** Lý do ở §2.2.
 
 ### 2.2 Vì sao cấu hình như vậy
+
+**Để làm gì:** hiểu mỗi API vừa bật đảm nhiệm việc gì, và tắt cái nào thì hỏng ở đâu.
 
 - **Bước 1 — ghi lại cả Project ID lẫn Project number.** Hai thứ khác nhau và mỗi chỗ dùng một
   cái: Project ID (chữ, do mình đặt) dùng trong hầu hết đường dẫn và lệnh; Project number (dãy số,
@@ -310,6 +318,8 @@ Làm bằng lệnh: [§3 bản lệnh](huong-dan-deploy-gcp-lenh.md#3-artifact-r
 
 ### 3.1 Vì sao cấu hình như vậy
 
+**Để làm gì:** hiểu vì sao chính sách dọn image phải đặt ngay lúc tạo kho chứ không để sau.
+
 - **Bước 2 — *Name* `flash-core`.** Tên này nằm trong đường dẫn image
   (`us-central1-docker.pkg.dev/<PROJECT_ID>/flash-core/api`) mà `deploy.yml` đã viết sẵn. Đặt tên
   khác thì bước push đỏ với lỗi *repository not found*. Tên repository **không đổi được** sau khi tạo.
@@ -352,6 +362,8 @@ Làm bằng lệnh: [§3 bản lệnh](huong-dan-deploy-gcp-lenh.md#3-artifact-r
 **Để làm gì:** dựng database thật trên cloud — nơi đơn hàng và tồn kho sẽ nằm — và mở được một đường vào nó từ máy anh.
 
 ### 4.1 Tạo instance
+
+**Để làm gì:** dựng máy Postgres trên cloud với cấu hình rẻ nhất mà vẫn chạy được.
 
 1. ☰ → **SQL → Create instance → Choose PostgreSQL** (trang *Create a PostgreSQL instance*)
 2. **Choose a Cloud SQL edition**:
@@ -424,6 +436,8 @@ Làm bằng lệnh: [§4.1 bản lệnh](huong-dan-deploy-gcp-lenh.md#41-tạo-i
 
 ### 4.2 Xem và sửa dữ liệu trên trình duyệt — Cloud SQL Studio
 
+**Để làm gì:** xem và sửa dữ liệu ngay trên trình duyệt, không phải cài gì.
+
 1. Vào instance → **Cloud SQL Studio** ở menu trái
 2. Đăng nhập user `flashcore`, database `flashcore`
 3. Gõ SQL thẳng trên trình duyệt — không cần cài gì
@@ -431,6 +445,8 @@ Làm bằng lệnh: [§4.1 bản lệnh](huong-dan-deploy-gcp-lenh.md#41-tạo-i
 Đủ để xem bảng và sửa vài dòng; không chạy được script của repo. §11 bước 5 dùng cách này.
 
 ### 4.3 Nối từ máy local (psql, DBeaver, script của repo)
+
+**Để làm gì:** mở đường từ máy anh vào database cloud, để dùng DBeaver/psql và chạy script của repo.
 
 ```diagram
    máy anh                                               Google Cloud
@@ -454,6 +470,8 @@ Làm bằng lệnh: [§4.1 bản lệnh](huong-dan-deploy-gcp-lenh.md#41-tạo-i
    - **SSL** *off*
 
 ### 4.4 Vì sao cấu hình như vậy
+
+**Để làm gì:** hiểu vì sao gần như mọi mặc định của form Cloud SQL đều phải sửa, và vì sao không mở IP cho ai.
 
 **Mọi mặc định của form tạo instance đều nghiêng về production** — preset Production, nhiều vùng,
 PITR, giữ backup sau khi xoá. Bỏ sót *một* mục máy là hoá đơn nhảy từ vài đô lên cỡ trăm đô/tháng.
@@ -642,6 +660,8 @@ thấy đúng chữ thì tìm chữ gần nghĩa.)*
 
 ### 5.1 Vì sao cấu hình như vậy
 
+**Để làm gì:** hiểu vì sao chọn Upstash thay Redis của GCP, và hạn mức nào sẽ chạm trần trước nhất.
+
 - **Upstash, không phải Memorystore (Redis của GCP).** Memorystore tính tiền **theo giờ máy bật**,
   kể cả lúc không ai dùng — không có gói free, máy nhỏ nhất ~$35/tháng (⚠ ước lượng), và **chỉ có IP
   nội bộ trong VPC** nên Cloud Run phải dựng thêm đường vào VPC mới gọi được (§19). Dự án cần Redis
@@ -702,6 +722,8 @@ thấy đúng chữ thì tìm chữ gần nghĩa.)*
 **Để làm gì:** cất 6 chuỗi bí mật vào một chỗ có kiểm soát, để chúng không bao giờ phải nằm trong code hay trong repo.
 
 ### Bảng tra nhanh — 6 bí mật, mỗi cái lấy giá trị từ đâu
+
+**Để làm gì:** nhìn một lượt 6 bí mật phải tạo và giá trị mỗi cái lấy từ đâu, trước khi làm 6 lần cùng một form.
 
 | # | Tên | Giá trị lấy từ đâu |
 |---|---|---|
@@ -765,6 +787,8 @@ Làm bằng lệnh: [§6 bản lệnh](huong-dan-deploy-gcp-lenh.md#6-nạp-6-b�
 
 ### 6.1 Vì sao cấu hình như vậy
 
+**Để làm gì:** hiểu vì sao bí mật phải nằm ở Secret Manager chứ không ở biến môi trường, và xoay khoá thì ảnh hưởng ai.
+
 - **Secret Manager, không phải biến môi trường thường của Cloud Run.** Biến môi trường hiện
   **nguyên văn** cho bất kỳ ai xem được cấu hình service (kể cả người chỉ có quyền Viewer ở §18.2).
   Secret Manager tách quyền **đọc** ra riêng (§7.1.3 cấp cho đúng một danh tính), có version để xoay
@@ -827,6 +851,8 @@ là các bước; §7.5 giải thích service account là gì và vì sao chia q
 
 ### 7.1 Tạo hai service account
 
+**Để làm gì:** tạo hai danh tính máy, và cho CI được mượn danh tính runtime.
+
 Cả dự án cần **ba** service account. Hai cái đầu tạo ở mục này, cái thứ ba tạo ở §10 (lúc đã có
 worker job để hẹn lịch). Quyền của từng cái ở [§7.5.3](#753-ba-service-account-và-vì-sao-không-dùng-chung-một-cái-71).
 
@@ -882,6 +908,8 @@ Làm sau §6 (lúc secret đã tồn tại):
 
 ### 7.2 Pool và provider
 
+**Để làm gì:** dạy GCP cách nhận ra token do GitHub Actions phát, và chỉ chấp nhận token của đúng repo này.
+
 ☰ → **IAM & Admin → Workload Identity Federation** → **Get started** (trang *New workload provider
 and pool*, 3 bước, **chỉ lưu khi bấm Save ở cuối**):
 
@@ -917,6 +945,8 @@ and pool*, 3 bước, **chỉ lưu khi bấm Save ở cuối**):
 
 ### 7.3 Cho đúng repo này mượn service account
 
+**Để làm gì:** khoá lớp thứ hai — chỉ repo này mới khoác được `github-deployer`.
+
 1. Trên trang pool `github` → **Grant access** → **Grant access using Service Account impersonation**
 2. *Service accounts*: chọn `github-deployer`
 3. Chọn **Only identities matching the filter** → *Attribute name* `repository`, *Attribute value*
@@ -926,6 +956,8 @@ and pool*, 3 bước, **chỉ lưu khi bấm Save ở cuối**):
 *(Đối chiếu với [tài liệu WIF cho deployment pipeline](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).)*
 
 ### 7.4 Giá trị dán vào GitHub
+
+**Để làm gì:** lấy ra hai chuỗi mà §8 sẽ dán sang GitHub.
 
 Dùng ở §8. Lấy dòng đã chép ở §7.2 bước 2, **bỏ phần `https://iam.googleapis.com/` ở đầu** và thay
 `<providerId>` bằng `github-provider`. Kết quả phải có dạng:
@@ -938,6 +970,8 @@ GCP_SERVICE_ACCOUNT = github-deployer@<PROJECT_ID>.iam.gserviceaccount.com
 Làm bằng lệnh: [§7 bản lệnh](huong-dan-deploy-gcp-lenh.md#7-service-account-workload-identity-federation).
 
 ### 7.5 Vì sao cấu hình như vậy
+
+**Để làm gì:** hiểu service account là gì và vì sao quyền phải chia thành nhiều lớp như vậy.
 
 #### 7.5.1 Service account là gì — và khác tài khoản của anh ở chỗ nào (nền cho cả §7)
 
@@ -1225,6 +1259,8 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
 
 ### 8.1 Vì sao cấu hình như vậy
 
+**Để làm gì:** hiểu vì sao biến nằm ở Environment chứ không ở mức repo, và cái nào phải là secret.
+
 - **Biến nằm ở *Environment*, không ở mức repo.** Mỗi môi trường là một project GCP riêng, có WIF và
   service account riêng. Để biến ở Environment thì **cùng một `deploy.yml`** deploy được cả hai nơi —
   workflow chọn Environment theo tag, rồi mọi biến tự đổi theo. Và secret của Environment chỉ lộ cho
@@ -1277,6 +1313,8 @@ chỉ *tạm hành động dưới một vai diễn khác*, y hệt GitHub Actio
 
 ### 9.1 Vì sao cấu hình như vậy
 
+**Để làm gì:** hiểu vì sao deploy bằng git tag, và workflow dừng ở đâu khi một bước hỏng.
+
 - **Deploy bằng git tag, không phải mỗi lần push `main`.** Push lên `main` là việc hằng ngày; lên
   môi trường là một **quyết định**. Tag tách hai việc đó ra, và để lại dấu vết: nhìn danh sách tag là
   biết phiên bản nào đã lên đâu, lúc nào. Cùng cách với hệ thống công ty.
@@ -1317,6 +1355,8 @@ Làm **sau** lần deploy đầu (§9) — job `flash-core-worker` phải tồn 
 Làm bằng lệnh: [§10 bản lệnh](huong-dan-deploy-gcp-lenh.md#10-cloud-scheduler-gọi-worker).
 
 ### 10.1 Vì sao cấu hình như vậy
+
+**Để làm gì:** hiểu vì sao 5 phút chứ không 1 phút, và cái giá phải trả cho lựa chọn đó.
 
 - **Worker là Cloud Run *Job* chạy một lượt rồi thoát, không phải tiến trình chạy liên tục.** Cloud
   Run scale về 0 và **cắt CPU ngoài lúc xử lý request** (`--cpu-throttling`), nên một vòng lặp nền
@@ -1371,6 +1411,8 @@ thì xem [§11 bản lệnh](huong-dan-deploy-gcp-lenh.md#11-kiểm-tra).
 
 ### 11.1 Vì sao kiểm như vậy
 
+**Để làm gì:** hiểu mỗi phép kiểm ở trên chứng minh được điều gì.
+
 - **Bước 1 và 2 là hai câu hỏi khác nhau.** `/health` chỉ hỏi "process còn sống không" — xanh ngay
   cả khi DB chết. `/ready` hỏi "có phục vụ được không" — kiểm cả Postgres lẫn Redis, và chính là thứ
   `deploy.yml` dùng để quyết định rollback. Lần gọi đầu chậm vài giây là **cold start** (Cloud Run
@@ -1412,6 +1454,8 @@ thì xem [§11 bản lệnh](huong-dan-deploy-gcp-lenh.md#11-kiểm-tra).
 Làm bằng lệnh: [§12 bản lệnh](huong-dan-deploy-gcp-lenh.md#12-rollback).
 
 ### 12.1 Vì sao làm như vậy
+
+**Để làm gì:** hiểu vì sao phải tập rollback lúc rảnh chứ không đợi lúc sự cố.
 
 - **Diễn tập lúc rảnh.** Lúc sự cố là lúc tay run và không có thời gian đọc hướng dẫn. Làm một lần
   khi bình tĩnh thì lúc cần chỉ là lặp lại thứ đã quen.
@@ -1486,6 +1530,8 @@ hai hiện đang dùng **số đo local**, chưa phải số thật.
 
 ### 15.1 Kiểm lại sau khi deploy
 
+**Để làm gì:** soát lại các chốt chi phí bằng số thật, sau khi mọi thứ đã chạy.
+
 - [ ] Budget **≈ $12 (300.000₫ nếu tài khoản tính bằng VND)**, **hai ô Savings đã bỏ tick** (§1)
 - [ ] Cloud SQL là edition **Enterprise**, máy **db-f1-micro**, **Single zone** — trang Overview của
       instance
@@ -1499,12 +1545,16 @@ hai hiện đang dùng **số đo local**, chưa phải số thật.
 
 ### 15.2 Nghỉ dài (vài tuần trở lên): xoá instance
 
+**Để làm gì:** biết làm gì khi nghỉ vài tuần, để không trả tiền cho thứ không ai dùng.
+
 1. Instance → **Edit** → *Data protection* → bỏ tick **Prevent instance deletion** → **Save**
 2. Quay lại **Overview** → **Delete**
 3. Khi quay lại: làm lại §4.1 (đặt tên khác nếu tên cũ còn bị giữ — xem §15.3), rồi sửa biến
    `GCP_SQL_INSTANCE` + secret `DATABASE_URL`
 
 ### 15.3 Vì sao cấu hình như vậy
+
+**Để làm gì:** hiểu vì sao tắt instance lại **không** rẻ hơn để nó chạy.
 
 - **Trong 90 ngày credit, để Cloud SQL chạy liên tục — KHÔNG tắt lúc nghỉ.** Nghe ngược với trực giác
   "không dùng thì tắt", nhưng tắt không rẻ hơn: instance đã tắt **vẫn bị tính tiền ổ đĩa và IP công
@@ -1597,12 +1647,16 @@ mục ở §18.6; lý do đầy đủ ở [ADR-017](adr/017-moi-truong-va-phan-q
 
 ### 18.1 Dựng hai project
 
+**Để làm gì:** dựng môi trường thứ hai — lặp lại §1–§17 cho project còn lại.
+
 1. Làm §2 → §11 với project `flash-core-dev`
 2. Làm lại §2 → §11 với project `flash-core-prod`
 3. Sửa budget ở §1 lên **≈ $24 (600.000₫)**, scope vẫn *All projects*
 4. Mở **Overview** của hai Cloud SQL và hai Cloud Run service đặt cạnh nhau, đối chiếu từng dòng
 
 ### 18.2 Nhóm người và quyền
+
+**Để làm gì:** cấp quyền cho người theo **nhóm**, để thêm/bớt người không phải đi sửa IAM từng chỗ.
 
 1. Tạo hai group ở **groups.google.com → Create group** (tài khoản Gmail thường tạo được; địa chỉ có
    dạng `…@googlegroups.com`):
@@ -1617,6 +1671,8 @@ mục ở §18.6; lý do đầy đủ ở [ADR-017](adr/017-moi-truong-va-phan-q
 
 ### 18.3 Bảo vệ environment `production` trên GitHub
 
+**Để làm gì:** bắt buộc có người duyệt trước khi bất cứ thứ gì lên môi trường thật.
+
 **Settings → Environments → `production`**:
 
 1. Mục **Deployment protection rules** → tick **Required reviewers** → thêm tài khoản được quyền
@@ -1627,6 +1683,8 @@ mục ở §18.6; lý do đầy đủ ở [ADR-017](adr/017-moi-truong-va-phan-q
 4. Làm tương tự cho environment `dev` nhưng chỉ bước 3, với mẫu `v*-dev`
 
 ### 18.4 Khoá tag và nhánh
+
+**Để làm gì:** chặn đường đi tắt — không ai đẩy thẳng lên `main` hay tự tạo tag prod.
 
 **Settings → Rules → Rulesets**:
 
@@ -1645,6 +1703,8 @@ mục ở §18.6; lý do đầy đủ ở [ADR-017](adr/017-moi-truong-va-phan-q
 
 ### 18.5 Một vòng phát hành hoàn chỉnh
 
+**Để làm gì:** xem cả quy trình chạy một lượt, từ commit tới prod.
+
 1. Merge vào `main` qua PR (CI xanh)
 2. Gắn tag `v0.2.0-dev` → workflow lên dev
 3. Kiểm trên URL của dev (§11). Ổn thì gắn tag `v0.2.0-prod` lên **cùng commit đó**
@@ -1656,6 +1716,8 @@ mục ở §18.6; lý do đầy đủ ở [ADR-017](adr/017-moi-truong-va-phan-q
 Bước 2, 3, 6 là lệnh `git tag`: [§18 bản lệnh](huong-dan-deploy-gcp-lenh.md#18-một-vòng-phát-hành-hoàn-chỉnh-185).
 
 ### 18.6 Vì sao cấu hình như vậy
+
+**Để làm gì:** hiểu vì sao bê mô hình của công ty về nhưng vá ba lỗ của nó.
 
 **So với hệ thống công ty** — bê nguyên phần tốt, vá ba chỗ hở:
 
@@ -1734,6 +1796,8 @@ mới đến từ vấn đề tự gặp, không phải từ tài liệu.
 
 ### 19.1 Chặng 1 — VPC + máy ảo không IP công khai
 
+**Để làm gì:** dựng mạng riêng và một máy ảo không phơi ra internet.
+
 1. Trên project **dev**: tạo VPC mới ở chế độ *custom* (không dùng VPC `default`), một subnet ở
    `us-central1`
 2. Tạo máy ảo **e2-micro** trong subnet đó, **không gắn IP công khai**
@@ -1742,11 +1806,15 @@ mới đến từ vấn đề tự gặp, không phải từ tài liệu.
 
 ### 19.2 Chặng 2 — Cloud NAT
 
+**Để làm gì:** cho máy trong mạng riêng ra được internet, mà ngoài vẫn không vào được.
+
 1. Tạo Cloud Router + Cloud NAT cho subnet ở chặng 1
 2. **Test:** `apt update` chạy được; `curl ifconfig.me` trong máy ra đúng IP của NAT
 3. **Dọn:** học xong thì xoá NAT (và IP tĩnh nếu có) — để nguyên là tính tiền theo giờ
 
 ### 19.3 Chặng 3 — Cloud Run nối vào VPC
+
+**Để làm gì:** đưa container Cloud Run vào bên trong mạng riêng.
 
 1. Bật **Direct VPC egress** cho service ở dev, trỏ vào subnet chặng 1, chọn *chỉ dải IP nội bộ
    đi qua VPC*
@@ -1755,12 +1823,16 @@ mới đến từ vấn đề tự gặp, không phải từ tài liệu.
 
 ### 19.4 Chặng 4 — Cloud SQL Private IP (đổi kiến trúc: cần spec + ADR trước)
 
+**Để làm gì:** bỏ hẳn IP công khai của database.
+
 1. Bật Private Services Access cho VPC, thêm **Private IP** cho Cloud SQL — **giữ** Public IP
 2. Cho Cloud Run nối DB qua Private IP, test §11 xanh
 3. **Gỡ Public IP** → chạy lại một lần deploy và thử nối từ máy dev
 4. **Quan sát:** bước migrate đỏ, proxy trên máy dev không nối được. Đó là vấn đề của chặng 5.
 
 ### 19.5 Chặng 5 — đường vào cho migrate và máy dev
+
+**Để làm gì:** giữ lại đường vào hợp lệ cho migrate và máy dev sau khi đã đóng IP công khai.
 
 1. Migrate: chạy bằng một **Cloud Run Job nằm trong VPC**, với một image riêng có `prisma`
    (image runtime đã bỏ nó)
@@ -1770,10 +1842,14 @@ mới đến từ vấn đề tự gặp, không phải từ tài liệu.
 
 ### 19.6 Chặng 6 (tuỳ chọn) — Memorystore
 
+**Để làm gì:** thay Upstash bằng Redis nằm trong chính mạng riêng đó.
+
 1. Một buổi: tạo Memorystore Basic 1 GB trong VPC, đổi `REDIS_URL` của dev sang IP nội bộ, chạy §11
 2. **Trong cùng buổi:** xoá Memorystore, trả `REDIS_URL` về Upstash
 
 ### 19.7 Vì sao lộ trình như vậy
+
+**Để làm gì:** hiểu vì sao thứ tự sáu chặng là như vậy, và chặng nào cần spec + ADR trước.
 
 - **Làm sau §1–§18, không làm cùng lúc.** Dựng Public IP trước thì có một bản **chạy được** để so
   sánh: chặng nào hỏng là biết ngay do chặng đó, không phải do cả chồng thay đổi.

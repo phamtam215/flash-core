@@ -159,6 +159,8 @@ p.goal {
   font-size: 1.02em;
 }
 p.goal strong { color: var(--c, var(--accent)); }
+/* Dưới mục con thì nhẹ hơn: giữ vạch màu, bỏ nền — không thì cả trang toàn khung. */
+h3 + p.goal { background: none; border-left-width: 3px; padding: 1px 0 1px 12px; font-size: 0.96em; }
 
 /* --- Câu "vì sao" ---------------------------------------------------------
    Hướng dẫn nói LÀM GÌ; dòng xanh này nói VÌ SAO. Tách màu để đọc lướt vẫn
